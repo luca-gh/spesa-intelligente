@@ -88,11 +88,19 @@ La CI GitHub esegue lint, typecheck, test, build e browser test. [TEST_REPORT.md
 
 ## Deploy statico con HTTPS
 
-Il deploy non è stato eseguito: manca la configurazione del backend e il relativo collaudo. Opzione documentata: **Cloudflare Pages**, verificando il piano gratuito e i termini al momento dell'attivazione; non è necessario acquistare un dominio. Collegare il repository pubblico dell'account `luca-gh`, impostare build `npm ci && npm run build`, cartella `dist`, Node 22 e le due variabili pubbliche. Il file `public/_redirects` supporta il router client-side. `public/_headers` imposta CSP e permessi camera: se usi un dominio Supabase personalizzato, aggiorna connect-src con gli endpoint HTTPS/WSS esplicitamente consentiti. Altra opzione: hosting statico Netlify con fallback equivalente, dopo verifica del piano corrente.
+L'app è pubblicata su **[spesa-intelligente-luca-gh.pages.dev](https://spesa-intelligente-luca-gh.pages.dev)**, progetto gratuito Cloudflare Pages collegato al solo repository `luca-gh/spesa-intelligente`. Non occorre tenere acceso il PC o acquistare un dominio.
+
+Configurazione: branch di produzione `main`, build `npm ci && npm run check && npm run check:secrets`, output `dist`, Node 22.23.5 tramite `.node-version`. Le variabili di build sono esclusivamente `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY`. Il file `public/_redirects` supporta il router client-side. `public/_headers` imposta CSP, permessi camera e rivalidazione di service worker e manifest; se usi un dominio Supabase personalizzato, aggiorna connect-src con gli endpoint HTTPS/WSS esplicitamente consentiti.
+
+**Installazione:** Android/Chrome → menu → Installa app; iPhone/Safari → Condividi → Aggiungi alla schermata Home. Accedere con l'account esistente: il database Supabase è lo stesso della versione locale. Le modifiche richiedono Internet.
+
+**Aggiornamenti:** sviluppare e verificare le modifiche con `npm run check`, `npm run check:secrets`, `npm run check:pwa` (dopo build e installazione Chromium) e `npm run test:e2e`, poi pubblicare su `main`. Cloudflare costruisce e distribuisce automaticamente una nuova versione allo stesso indirizzo, fermando la pubblicazione se i controlli della build falliscono. La CI GitHub esegue anche audit, prova degli aggiornamenti PWA e test browser. Le modifiche al database richiedono migrazioni separate, compatibili con i client già installati; il deploy del frontend non cancella né reinizializza i dati.
+
+L'app controlla nuove versioni al ritorno in primo piano, alla riconnessione e ogni ora mentre è aperta. Quando compare **Aggiorna app**, completare prima gli inserimenti in corso e premere il pulsante: non serve reinstallare. Un controllo di aggiornamento fallito lascia disponibile la versione corrente. Per tornare a una versione precedente usare un deployment riuscito nel pannello Cloudflare; il rollback del frontend non ripristina automaticamente lo schema o i dati Supabase.
 
 Non pubblicare `.env`, report con dati reali, dump del database o immagini private. I documenti originari del progetto sono mantenuti solo localmente e sono esclusi da Git perché possono includere informazioni personali. Pubblicare il codice non rende pubblici i dati Supabase: la protezione dipende dall'applicazione corretta delle RLS.
 
-Dopo il deploy aggiornare i redirect Auth. Verificare manifest, HTTPS, installazione, sessione persistente, fotocamera, riconnessione e due account reali prima di usare l'app come strumento quotidiano. Il service worker conserva solo asset statici; non memorizza risposte API. Le modifiche offline sono disabilitate.
+Supabase Site URL è l'origine HTTPS pubblica, con redirect esatti all'origine e a `/impostazioni`. Gli indirizzi localhost/127.0.0.1 di sviluppo sono conservati; non sono stati aggiunti wildcard. HTTPS, manifest, routing, icone, service worker, layout mobile e shell offline sono verificati sul sito reale. Restano da collaudare installazione e fotocamera su Android/iOS fisici e il percorso completo con due account reali, rinviato dall'utente. Il service worker conserva solo asset statici; non memorizza risposte API. Le modifiche offline sono disabilitate.
 
 ## Export e backup
 

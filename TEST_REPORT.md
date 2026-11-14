@@ -76,3 +76,13 @@ Supabase risulta installato. La sessione corrente non espone metodi amministrati
 49 test locali e 48 prove browser PASS. Nuovi casi: categoria usata eliminata senza cancellare prodotti; RPC vietate a famiglie esterne e anon; prodotti con prezzi e snapshot archiviabili senza variazioni monetarie; articoli con acquisti archiviabili con controllo di versione; piani archiviati invalidano vecchie anteprime; copia lista senza articoli archiviati e ripristino tramite conferma piano. Browser desktop/mobile: categorie, prodotti esclusi dalle nuove scelte e ripristino, punti vendita, articoli, ingredienti e ricette, piani, sconti e previsioni. Corretto un messaggio di stato che intercettava i tocchi su mobile.
 
 Migrazione 009 applicata sul progetto reale. Nessun dato esistente eliminato o archiviato durante lo sviluppo. Le verifiche browser usano fixture e non equivalgono al collaudo multi-account, rinviato su richiesta.
+
+## Deploy e aggiornamenti PWA
+
+Versione 574a09a pubblicata con successo su https://spesa-intelligente-luca-gh.pages.dev. Cloudflare ha costruito il commit corretto dopo il superamento dei controlli. CI [43642331112](https://github.com/luca-gh/spesa-intelligente/actions/runs/43642331112): PASS, inclusi 49 test locali, 48 browser, controllo segreti, audit runtime e nuovo `npm run check:pwa`.
+
+Il test PWA usa la build di produzione su un server locale isolato: attende l'attivazione iniziale, propone un worker modificato, scatena il controllo al ritorno in primo piano, verifica il pulsante Aggiorna app e l'attivazione dopo conferma. Non modifica dati Supabase. La prova è parte della CI; non equivale a un test su telefono fisico.
+
+Verifica in sola lettura del sito reale: HTTP 200 su home, route SPA /catalogo, manifest, sw.js e icone 192/512; manifest standalone corretto; CSP presente e cache worker/manifest rivalidabile. Chromium con viewport mobile: contesto sicuro, API fotocamera disponibile, nessun overflow, accesso visibile, service worker attivato e controllante, ricarica offline con messaggio di blocco modifiche e zero errori JS/console. Nessun login automatico, password, token di sessione o dato familiare letto. Installazione fisica e acquisizione foto Android/iOS: NOT RUN.
+
+Supabase Auth verificato dopo salvataggio e ricarica delle impostazioni: Site URL sull'origine pubblica, redirect esatti all'origine e /impostazioni, indirizzi locali conservati, nessun wildcard aggiunto.

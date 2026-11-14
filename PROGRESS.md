@@ -10,7 +10,7 @@ Aggiornamento: 14 novembre 2026. Implementazione progressiva: **consegna complet
 | 3 — Ricette e calendario        | BLOCKED        | Moduli indipendenti: creazione atomica, scaling, preferiti/ricerca, settimane/modelli, preview e conferma transazionale con versioni. Editing completo ingredienti, import e collaudo del percorso completo ancora da completare.                                                    |
 | 4 — Spesa e statistiche         | BLOCKED        | Acquisti e annullamenti, pagato opzionale, snapshot, statistiche e export implementati; test locali su residui e contabilità. Rilevazioni da acquisto con scelta esplicita e dettaglio analitico differenze previsto/effettivo ancora da completare.                                 |
 | 5 — Barcode e importazioni      | TODO           | Solo scanner/fallback manuale, checksum e gestione permesso camera negato implementati indipendentemente. OCR, URL ricette, foto, ricevute revisionabili e deduplica transazionale NON implementati.                                                                                 |
-| 6 — Consegna e deploy           | BLOCKED        | Documentazione e automazione predisposte; mancano backend reale, gate precedenti, collaudi Android/iOS fisici e destinazione di deploy. Nessun sito pubblicato.                                                                                                                      |
+| 6 — Consegna e deploy           | IN PROGRESS    | PWA pubblicata su Cloudflare Pages con HTTPS, deploy continuo da main e redirect Supabase aggiornati. Test PWA e CI PASS; restano gate funzionali precedenti, installazione e fotocamera su Android/iOS fisici.                                                                      |
 
 ## Stato corrente: migrazioni reali applicate
 
@@ -18,7 +18,7 @@ Aggiornamento: 14 novembre 2026. Implementazione progressiva: **consegna complet
 
 Il controllo del servizio ha rilevato grant automatici del proprietario non presenti nel PostgreSQL locale iniziale. Creata, testata e applicata la migrazione 008 explicit_privileges. I test locali ora emulano questi default Supabase.
 
-**Verifica finale: 20 tabelle con RLS, zero grant anon sulle tabelle e sulle RPC, 24 RPC abilitate per authenticated, quattro tabelle nella pubblicazione Realtime.** Otto versioni registrate nella struttura standard supabase_migrations.schema_migrations con SQL originale; checksum di tutte le versioni corrispondenti ai file locali.
+**Verifica finale: 20 tabelle con RLS, zero grant anon sulle tabelle e sulle RPC, 24 RPC abilitate per authenticated, quattro tabelle nella pubblicazione Realtime.** Nove versioni registrate nella struttura standard supabase_migrations.schema_migrations con SQL originale; checksum di tutte le versioni corrispondenti ai file locali.
 
 **Test SQL sul servizio reale: PASS.** supabase/tests/online_rls.sql verifica due membri, invito, seconda famiglia, blocco letture/scritture/RPC cross-family, acquisto parziale senza prezzo e idempotente, uscita e anon. Fixture create in una transazione annullata: nessuna email e nessun dato di test conservato. Dopo rollback: zero famiglie, liste, acquisti e identità Auth di test residue.
 
@@ -69,7 +69,7 @@ Verifiche locali PASS: lint/typecheck/build, 42 test di dominio/SQL, 24 test bro
 1. Configurare il backend e collaudare Auth, invito, due sessioni contemporanee, account esterno, riconnessione e acquisti concorrenti tramite PostgREST.
 2. Completare i requisiti residui di ogni fase prima di considerare il rispettivo gate PASS; non saltare il gate per la sola presenza del codice.
 3. Completare importazioni revisionabili e sicurezza upload/URL, cancellazione account self-service, test transazionali ricevute.
-4. Collaudare PWA installata e fotocamera su Android Chrome e iOS Safari reali; poi deploy HTTPS.
+4. Collaudare PWA installata e fotocamera su Android Chrome e iOS Safari reali; il deploy HTTPS è eseguito, come descritto sotto.
 
 ## Eliminazione dal catalogo
 
@@ -84,3 +84,11 @@ Installazione verificata nella directory delle integrazioni; gli strumenti SQL/p
 ## Rimozioni coerenti
 
 Categorie eliminabili anche se usate, con riclassificazione in Altri prodotti. Eliminazione punti vendita e regole sconto; archiviazione/ripristino di prodotti, negozi, ricette, articoli, piani e previsioni. Rimozione ingredienti salvati e ultimo ingrediente non salvato. Prezzi e acquisti annullabili, inviti revocabili. Cronologia finanziaria conservata; piani archiviati non modificano automaticamente le liste. Migrazione 009 applicata, 49 test locali e 48 prove browser PASS. Il test del secondo account resta rinviato.
+
+## Pubblicazione HTTPS e aggiornamenti
+
+Su richiesta esplicita dell'utente, PWA pubblicata il 14 novembre 2026 su https://spesa-intelligente-luca-gh.pages.dev tramite Cloudflare Pages gratuito. Collegamento GitHub limitato al repository luca-gh/spesa-intelligente, branch main, prima versione 574a09a. Nessun piano a pagamento attivato. Site URL e redirect Supabase configurati sul dominio pubblico; gli indirizzi locali di sviluppo rimangono disponibili.
+
+Build Pages con lint, typecheck, 49 test, build e controllo segreti. CI GitHub 43642331112 PASS con audit, prova reale aggiornamento service worker e 48 test browser. Controlli sul sito pubblicato PASS: HTTPS, SPA /catalogo, manifest, icone, cache worker, CSP, layout mobile, registrazione e controllo service worker, shell offline e zero errori browser. API fotocamera disponibile nel contesto HTTPS, ma nessuna acquisizione reale da telefono testata. Resta il collaudo fisico Android/iOS e quello multi-account rinviato.
+
+Gli aggiornamenti vengono cercati al ritorno nell'app, alla riconnessione e ogni ora. L'attivazione richiede il pulsante Aggiorna app. I deploy modificano gli asset; dati e migrazioni Supabase sono gestiti separatamente.
