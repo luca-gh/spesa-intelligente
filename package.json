@@ -22,6 +22,7 @@
     "licenses": "node scripts/licenses.mjs",
     "check:secrets": "node scripts/secrets.mjs",
     "check:backend": "node scripts/check-backend.mjs",
+    "check:pwa": "node scripts/check-pwa-update.mjs",
     "format": "prettier --write src tests scripts *.json *.ts *.js *.md index.html"
   },
   "dependencies": {

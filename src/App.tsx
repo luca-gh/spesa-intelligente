@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Route, Routes } from 'react-router-dom'
 import {
   BookOpen,
@@ -167,10 +167,37 @@ function Access() {
 }
 export function App() {
   const { household, session, loading, notice, online, sync, act } = useApp()
+  const registration = useRef<ServiceWorkerRegistration | undefined>(undefined)
   const {
     needRefresh: [needRefresh],
     updateServiceWorker,
-  } = useRegisterSW()
+  } = useRegisterSW({
+    onRegisteredSW(_url, registered) {
+      registration.current = registered
+    },
+  })
+  useEffect(() => {
+    let lastCheck = 0
+    const check = () => {
+      if (!navigator.onLine || document.visibilityState !== 'visible' || !registration.current) return
+      if (Date.now() - lastCheck < 30_000) return
+      lastCheck = Date.now()
+      void registration.current.update().catch(() => {
+        // A failed update check leaves the current version available; retry on next foreground event.
+        lastCheck = 0
+      })
+    }
+    window.addEventListener('focus', check)
+    window.addEventListener('online', check)
+    document.addEventListener('visibilitychange', check)
+    const timer = window.setInterval(check, 60 * 60 * 1000)
+    return () => {
+      window.removeEventListener('focus', check)
+      window.removeEventListener('online', check)
+      document.removeEventListener('visibilitychange', check)
+      window.clearInterval(timer)
+    }
+  }, [])
   const [menu, setMenu] = useState(false)
   if (loading)
     return (
