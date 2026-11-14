@@ -92,3 +92,7 @@ Su richiesta esplicita dell'utente, PWA pubblicata il 14 novembre 2026 su https:
 Build Pages con lint, typecheck, 49 test, build e controllo segreti. CI GitHub 43642331112 PASS con audit, prova reale aggiornamento service worker e 48 test browser. Controlli sul sito pubblicato PASS: HTTPS, SPA /catalogo, manifest, icone, cache worker, CSP, layout mobile, registrazione e controllo service worker, shell offline e zero errori browser. API fotocamera disponibile nel contesto HTTPS, ma nessuna acquisizione reale da telefono testata. Resta il collaudo fisico Android/iOS e quello multi-account rinviato.
 
 Gli aggiornamenti vengono cercati al ritorno nell'app, alla riconnessione e ogni ora. L'attivazione richiede il pulsante Aggiorna app. I deploy modificano gli asset; dati e migrazioni Supabase sono gestiti separatamente.
+
+## Correzione notifica persistente
+
+Il messaggio Salvato ora scompare dopo 4 secondi. I messaggi più lunghi restano visibili fino a 12 secondi; un nuovo salvataggio riavvia il timer. Test locali: 49 PASS e 52 prove browser PASS, inclusi i nuovi casi desktop/mobile per scadenza, cambio sezione e salvataggi consecutivi. Prova aggiornamenti PWA PASS. Nessuna modifica dello schema o dei dati reali.

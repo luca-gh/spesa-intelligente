@@ -36,6 +36,13 @@ export function Provider({ children }: { children: ReactNode }) {
   const [sync, setSync] = useState('Non connesso')
   const generation = useRef(0)
   useEffect(() => {
+    if (!notice) return
+    // Short confirmations disappear quickly; longer messages get time to be read.
+    const duration = Math.min(12_000, Math.max(4_000, notice.length * 60))
+    const timer = window.setTimeout(() => setNotice(''), duration)
+    return () => window.clearTimeout(timer)
+  }, [notice])
+  useEffect(() => {
     if (!client) return
     const { data: subscription } = client.auth.onAuthStateChange((_event, next) => {
       setSession(next)

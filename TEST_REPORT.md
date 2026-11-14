@@ -12,7 +12,7 @@ supabase/tests/online_rls.sql: PASS sul progetto reale. Due membri, invito/accet
 
 Check backend reale: PASS, Auth HTTP 200; 20 tabelle PROTETTA (401/42501 riferito alla tabella richiesta). Non equivale al collaudo autenticato Auth/JWT/PostgREST o Realtime su due client, tuttora NOT RUN completo.
 
-Suite locale attuale: 49 PASS in 5 file, inclusi bootstrap completo, privilegi predefiniti e script SQL online con rollback. Controlli locali finali PASS: lint, typecheck, build, 49 test, 48 test browser e controllo segreti. CI del nuovo commit verificata separatamente dopo la pubblicazione.
+Suite locale attuale: 49 PASS in 5 file, inclusi bootstrap completo, privilegi predefiniti e script SQL online con rollback. Controlli locali finali PASS: lint, typecheck, build, 49 test, 52 test browser e controllo segreti. CI del nuovo commit verificata separatamente dopo la pubblicazione.
 
 | Area                            | Ambiente e verifica                                                                                                  | Stato                                                                 |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
@@ -86,3 +86,9 @@ Il test PWA usa la build di produzione su un server locale isolato: attende l'at
 Verifica in sola lettura del sito reale: HTTP 200 su home, route SPA /catalogo, manifest, sw.js e icone 192/512; manifest standalone corretto; CSP presente e cache worker/manifest rivalidabile. Chromium con viewport mobile: contesto sicuro, API fotocamera disponibile, nessun overflow, accesso visibile, service worker attivato e controllante, ricarica offline con messaggio di blocco modifiche e zero errori JS/console. Nessun login automatico, password, token di sessione o dato familiare letto. Installazione fisica e acquisizione foto Android/iOS: NOT RUN.
 
 Supabase Auth verificato dopo salvataggio e ricarica delle impostazioni: Site URL sull'origine pubblica, redirect esatti all'origine e /impostazioni, indirizzi locali conservati, nessun wildcard aggiunto.
+
+## Notifica Salvato persistente
+
+Correzione della conferma che rimaneva in sovraimpressione anche cambiando pagina. Il Provider cancella il messaggio dopo 4 secondi; i testi lunghi hanno una durata proporzionata, fino a 12 secondi. Un nuovo messaggio annulla il timer precedente. Non sono richieste modifiche al database.
+
+PASS: 49 test locali, 52 prove browser desktop/mobile, lint, typecheck, build, controllo segreti e prova aggiornamenti PWA. Due scenari nuovi, eseguiti su entrambi i formati, verificano scadenza, navigazione senza ricomparsa e secondo salvataggio con durata rinnovata.
