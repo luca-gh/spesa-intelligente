@@ -12,7 +12,7 @@ supabase/tests/online_rls.sql: PASS sul progetto reale. Due membri, invito/accet
 
 Check backend reale: PASS, Auth HTTP 200; 20 tabelle PROTETTA (401/42501 riferito alla tabella richiesta). Non equivale al collaudo autenticato Auth/JWT/PostgREST o Realtime su due client, tuttora NOT RUN completo.
 
-Suite locale attuale: 49 PASS in 5 file, inclusi bootstrap completo, privilegi predefiniti e script SQL online con rollback. Controlli locali finali PASS: lint, typecheck, build, 49 test, 52 test browser e controllo segreti. CI del nuovo commit verificata separatamente dopo la pubblicazione.
+Suite locale attuale: 49 PASS in 5 file, inclusi bootstrap completo, privilegi predefiniti e script SQL online con rollback. Controlli locali finali PASS: lint, typecheck, build, 49 test, 56 test browser e controllo segreti. CI del nuovo commit verificata separatamente dopo la pubblicazione.
 
 | Area                            | Ambiente e verifica                                                                                                  | Stato                                                                 |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
@@ -92,3 +92,9 @@ Supabase Auth verificato dopo salvataggio e ricarica delle impostazioni: Site UR
 Correzione della conferma che rimaneva in sovraimpressione anche cambiando pagina. Il Provider cancella il messaggio dopo 4 secondi; i testi lunghi hanno una durata proporzionata, fino a 12 secondi. Un nuovo messaggio annulla il timer precedente. Non sono richieste modifiche al database.
 
 PASS: 49 test locali, 52 prove browser desktop/mobile, lint, typecheck, build, controllo segreti e prova aggiornamenti PWA. Due scenari nuovi, eseguiti su entrambi i formati, verificano scadenza, navigazione senza ricomparsa e secondo salvataggio con durata rinnovata.
+
+## Ordinamento del catalogo per prodotto
+
+Prodotti generici e commerciali ordinati insieme per nome italiano, A–Z come impostazione iniziale, Z–A selezionabile. Ordinamento applicato ai risultati della ricerca e agli archiviati, senza modificare l'ordine degli array condivisi o i dati salvati. Il selettore ha un'etichetta esplicita e la colonna comunica la direzione tramite aria-sort.
+
+PASS: 49 test locali e 56 prove browser. Due nuovi scenari su desktop/mobile verificano l'ordine combinato dei tipi, cambio direzione, ricerca e archiviati. Nessuna migrazione o modifica di dati reali.

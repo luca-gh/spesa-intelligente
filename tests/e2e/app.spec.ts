@@ -174,6 +174,55 @@ const productCatalog = {
   ],
 }
 
+test('catalogo: prodotti generici e commerciali ordinati insieme per nome A–Z e Z–A', async ({ page }) => {
+  await login(page, false, productCatalog)
+  await page.goto('/catalogo')
+  const names = page.locator('tbody tr td:first-child')
+  await expect(names).toHaveText(['Farina 00', /Farina fine/, 'Latte intero'])
+  await expect(page.getByRole('columnheader', { name: 'Prodotto', exact: true })).toHaveAttribute(
+    'aria-sort',
+    'ascending',
+  )
+  await page.getByLabel('Ordina prodotti', { exact: true }).selectOption('desc')
+  await expect(names).toHaveText(['Latte intero', /Farina fine/, 'Farina 00'])
+  await expect(page.getByRole('columnheader', { name: 'Prodotto', exact: true })).toHaveAttribute(
+    'aria-sort',
+    'descending',
+  )
+  await page.getByLabel('Cerca prodotto, marca o barcode').fill('farina')
+  await expect(names).toHaveText([/Farina fine/, 'Farina 00'])
+})
+
+test('catalogo: ordinamento alfabetico anche per i prodotti archiviati', async ({ page }) => {
+  await login(page, false, {
+    generic_products: [
+      ...productCatalog.generic_products,
+      {
+        id: 'archived-generic',
+        name: 'zucchine',
+        canonical_unit: 'g',
+        category_id: null,
+        archived_at: '2026-11-14T12:00:00Z',
+      },
+    ],
+    specific_products: [
+      ...productCatalog.specific_products,
+      {
+        ...productCatalog.specific_products[0],
+        id: 'archived-specific',
+        name: 'Ananas',
+        archived_at: '2026-11-14T12:00:00Z',
+      },
+    ],
+  })
+  await page.goto('/catalogo')
+  await page.getByLabel('Mostra archiviati', { exact: true }).check()
+  const names = page.locator('tbody tr td:first-child')
+  await expect(names).toHaveText([/Ananas/, 'zucchine'])
+  await page.getByLabel('Ordina prodotti', { exact: true }).selectOption('desc')
+  await expect(names).toHaveText(['zucchine', /Ananas/])
+})
+
 test('catalogo: elimina generico e commerciale inutilizzati e chiude la modifica', async ({ page }) => {
   const { catalogDeleteRequests } = await login(page, false, productCatalog)
   await page.goto('/catalogo')

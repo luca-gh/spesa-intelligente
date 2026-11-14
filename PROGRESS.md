@@ -96,3 +96,7 @@ Gli aggiornamenti vengono cercati al ritorno nell'app, alla riconnessione e ogni
 ## Correzione notifica persistente
 
 Il messaggio Salvato ora scompare dopo 4 secondi. I messaggi più lunghi restano visibili fino a 12 secondi; un nuovo salvataggio riavvia il timer. Test locali: 49 PASS e 52 prove browser PASS, inclusi i nuovi casi desktop/mobile per scadenza, cambio sezione e salvataggi consecutivi. Prova aggiornamenti PWA PASS. Nessuna modifica dello schema o dei dati reali.
+
+## Ordinamento prodotti
+
+Catalogo ordinato per nome prodotto A–Z, con generici e commerciali intercalati alfabeticamente e selettore per Z–A. Ricerca e archiviati mantengono la direzione scelta. Confronto locale italiano, senza distinzione di maiuscole, con ordine numerico naturale e criterio stabile per gli omonimi. Test: 49 locali e 56 browser desktop/mobile PASS. Nessuna modifica del database.

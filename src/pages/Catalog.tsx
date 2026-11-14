@@ -1,5 +1,5 @@
 import { ArchiveButton, ArchiveFilter } from '../components/ArchiveButton'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Plus, Tag, Store as StoreIcon } from 'lucide-react'
 import { useApp } from '../data/context'
@@ -19,14 +19,38 @@ import {
   UnitSelect,
 } from '../components/ui'
 
+const productNames = new Intl.Collator('it', { sensitivity: 'base', numeric: true })
+
 export function Catalog() {
   const { data, household, act } = useApp()
   const [search, setSearch] = useState('')
   const [archived, setArchived] = useState(false)
+  const [order, setOrder] = useState<'asc' | 'desc'>('asc')
+  const orderId = useId()
   const [generic, setGeneric] = useState('')
   const [specific, setSpecific] = useState('')
   const editing = data.generic_products.find((g) => g.id === generic)
   const editingSpecific = data.specific_products.find((s) => s.id === specific)
+  const query = search.trim().toLocaleLowerCase('it')
+  const products = [
+    ...data.generic_products.map((product) => ({ kind: 'generic' as const, product })),
+    ...data.specific_products.map((product) => ({ kind: 'specific' as const, product })),
+  ]
+    .filter(({ product }) => !!product.archived_at === archived)
+    .filter((entry) =>
+      (entry.kind === 'generic'
+        ? entry.product.name
+        : [entry.product.name, entry.product.brand, entry.product.barcode].join(' ')
+      )
+        .toLocaleLowerCase('it')
+        .includes(query),
+    )
+    .sort(
+      (a, b) =>
+        (order === 'asc' ? 1 : -1) * productNames.compare(a.product.name, b.product.name) ||
+        a.kind.localeCompare(b.kind) ||
+        a.product.id.localeCompare(b.product.id),
+    )
   return (
     <>
       <SectionTitle eyebrow="SAPERE COSA SCEGLIERE" title="Il vostro catalogo." />
@@ -147,56 +171,60 @@ export function Catalog() {
           storico. Puoi archiviarli per rimuoverli dalle viste attive e ripristinarli in seguito.
         </p>
         <ArchiveFilter value={archived} onChange={setArchived} />
+        <div className="field">
+          <label htmlFor={orderId}>Ordina prodotti</label>
+          <select id={orderId} value={order} onChange={(e) => setOrder(e.target.value as 'asc' | 'desc')}>
+            <option value="asc">Prodotto (A–Z)</option>
+            <option value="desc">Prodotto (Z–A)</option>
+          </select>
+        </div>
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Prodotto</th>
+                <th aria-sort={order === 'asc' ? 'ascending' : 'descending'}>Prodotto</th>
                 <th>Tipo / formato</th>
                 <th>Equivalenza</th>
                 <th>Azioni</th>
               </tr>
             </thead>
             <tbody>
-              {data.generic_products
-                .filter((g) => !!g.archived_at === archived)
-                .filter((g) => g.name.toLowerCase().includes(search.toLowerCase()))
-                .map((g) => (
-                  <tr key={g.id}>
-                    <td>{g.name}</td>
-                    <td>Generico · {g.canonical_unit}</td>
-                    <td>{data.categories.find((c) => c.id === g.category_id)?.name ?? 'Altri prodotti'}</td>
-                    <td>
-                      <button className="text-button" onClick={() => setGeneric(g.id)}>
-                        Modifica
-                      </button>
-                      <ArchiveButton
-                        table="generic_products"
-                        record={g}
-                        onDone={() => {
-                          if (generic === g.id) setGeneric('')
-                        }}
-                      />
-                      <ConfirmButton
-                        message={`Eliminare il prodotto generico «${g.name}» dal catalogo? L’operazione viene bloccata se è collegato ad altri dati.`}
-                        success="Prodotto eliminato dal catalogo."
-                        onConfirm={async () => {
-                          await removeCatalogProduct('generic_products', g.id)
-                          if (generic === g.id) setGeneric('')
-                        }}
-                      >
-                        Elimina
-                      </ConfirmButton>
-                    </td>
-                  </tr>
-                ))}
-              {data.specific_products
-                .filter((s) => !!s.archived_at === archived)
-                .filter((s) =>
-                  [s.name, s.brand, s.barcode].join(' ').toLowerCase().includes(search.toLowerCase()),
-                )
-                .map((s) => (
-                  <tr key={s.id}>
+              {products.map((entry) => {
+                if (entry.kind === 'generic') {
+                  const g = entry.product
+                  return (
+                    <tr key={`generic:${g.id}`}>
+                      <td>{g.name}</td>
+                      <td>Generico · {g.canonical_unit}</td>
+                      <td>{data.categories.find((c) => c.id === g.category_id)?.name ?? 'Altri prodotti'}</td>
+                      <td>
+                        <button className="text-button" onClick={() => setGeneric(g.id)}>
+                          Modifica
+                        </button>
+                        <ArchiveButton
+                          table="generic_products"
+                          record={g}
+                          onDone={() => {
+                            if (generic === g.id) setGeneric('')
+                          }}
+                        />
+                        <ConfirmButton
+                          message={`Eliminare il prodotto generico «${g.name}» dal catalogo? L’operazione viene bloccata se è collegato ad altri dati.`}
+                          success="Prodotto eliminato dal catalogo."
+                          onConfirm={async () => {
+                            await removeCatalogProduct('generic_products', g.id)
+                            if (generic === g.id) setGeneric('')
+                          }}
+                        >
+                          Elimina
+                        </ConfirmButton>
+                      </td>
+                    </tr>
+                  )
+                }
+                const s = entry.product
+                return (
+                  <tr key={`specific:${s.id}`}>
                     <td>
                       <strong>{s.name}</strong>
                       <small>
@@ -233,7 +261,8 @@ export function Catalog() {
                       </ConfirmButton>
                     </td>
                   </tr>
-                ))}
+                )
+              })}
             </tbody>
           </table>
         </div>
