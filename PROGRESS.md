@@ -5,7 +5,7 @@ Aggiornamento: 14 novembre 2026. Implementazione progressiva: **consegna complet
 | Fase                            | Stato del gate | Lavoro presente e blocchi                                                                                                                                                                                                                                |
 | ------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 0 — Fondazioni                  | PASS           | Repository pubblico, tooling, CI verde, migrazioni, RLS, test PostgreSQL, manifest/service worker e documentazione. Build, lint, typecheck, test e controllo segreti verificati localmente e in CI.                                                      |
-| 1 — Account, famiglia, liste    | IN PROGRESS    | Otto migrazioni applicate sul servizio reale; RLS/RPC verificate con due membri e una famiglia esterna. Restano collaudo Auth/JWT/PostgREST, WebSocket Realtime e riconnessione su due client.                                                           |
+| 1 — Account, famiglia, liste    | IN PROGRESS    | Schema e RLS/RPC verificati; primo account reale, email confermata, login, famiglia e lista verificati manualmente con riscontro DB. Persistenza articolo dopo refresh confermata. Secondo account rinviato; restano account esterno e sincronizzazione/riconnessione su due client.      |
 | 2 — Catalogo, prezzi, confronto | BLOCKED        | Moduli indipendenti implementati e testati: formati, promozioni, ranking, sconti personali per negozio, date e copertura. Gate complessivo dipende dalla fase 1 online. Condizioni sconto per intero scontrino ed esclusioni di categoria da completare. |
 | 3 — Ricette e calendario        | BLOCKED        | Moduli indipendenti: creazione atomica, scaling, preferiti/ricerca, settimane/modelli, preview e conferma transazionale con versioni. Editing completo ingredienti, import e collaudo del percorso completo ancora da completare.                        |
 | 4 — Spesa e statistiche         | BLOCKED        | Acquisti e annullamenti, pagato opzionale, snapshot, statistiche e export implementati; test locali su residui e contabilità. Rilevazioni da acquisto con scelta esplicita e dettaglio analitico differenze previsto/effettivo ancora da completare.     |
@@ -53,6 +53,18 @@ Rimane da applicare lo schema con un accesso amministrativo autorizzato. La sola
 - Build con backend configurato: riuscita, avviso non bloccante per il bundle iniziale oltre 500 kB; nessuna credenziale amministrativa inclusa.
 
 ## Prossime verifiche autorizzate
+
+Primo account reale: **PASS manuale con riscontro sul database** per registrazione, conferma email e accesso riferiti dall'utente; verificati un account confermato, una sessione Auth, una famiglia, un membro attivo e una lista. L'accesso è avvenuto nel browser dell'utente; la finestra automatizzata separata conserva la schermata login, quindi non viene dichiarato un E2E automatico della sessione. Password e token non letti. App locale su `http://127.0.0.1:5173`; Site URL e quattro redirect locali espliciti salvati e verificati sul servizio.
+
+Primo articolo reale: **PASS manuale con riscontro DB** per salvataggio e visualizzazione dopo ricaricamento, confermata dall'utente. Il test del secondo account è rinviato su richiesta dell'utente. Il gate completo resta subordinato al secondo account, al controllo esterno e a Realtime/riconnessione su due client.
+
+## Correzione del menu prodotto dal catalogo
+
+Il menu seleziona prodotti già presenti nel catalogo della famiglia. La verifica reale ha confermato catalogo vuoto e un articolo libero: aggiungere un nome in lista non crea automaticamente un prodotto di catalogo. Corretto lo stato vuoto con spiegazione, menu disabilitato e collegamento al Catalogo prodotti.
+
+Selezione, ricerca, nome libero, quantità e unità sono ora controllati. Un commerciale propone il contenuto netto di una confezione; un generico usa l'unità canonica. Solo unità compatibili, con conversione al cambio unità. Ricerca per nome, marca, variante, barcode e generico associato; un nuovo filtro annulla la selezione precedente. Pulizia del modulo solo dopo successo, valori conservati dopo errore.
+
+Verifiche locali PASS: lint/typecheck/build, 42 test di dominio/SQL, 24 test browser desktop/mobile e controllo segreti. Cinque scenari nuovi coprono stato vuoto/validazione, commerciale, generico/conversioni, ricerca e selezione, errore/nuovo tentativo. Accessibilità del nuovo modulo verificata con axe; screenshot mobile e assenza di overflow verificati. Nessun prodotto di test inserito nel database reale. CI del commit verificata dopo pubblicazione.
 
 1. Configurare il backend e collaudare Auth, invito, due sessioni contemporanee, account esterno, riconnessione e acquisti concorrenti tramite PostgREST.
 2. Completare i requisiti residui di ogni fase prima di considerare il rispettivo gate PASS; non saltare il gate per la sola presenza del codice.

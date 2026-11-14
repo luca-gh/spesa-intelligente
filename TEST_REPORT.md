@@ -43,6 +43,20 @@ I test browser non sostituiscono RLS né il servizio Realtime; l'emulazione mobi
 
 CI verificata: [esecuzione 43617987975](https://github.com/luca-gh/spesa-intelligente/actions/runs/43617987975), conclusa con successo il 14 novembre 2026 alle 17:53 Europe/Rome. Verificato anche il rifiuto effettivo di una build con chiave privilegiata fittizia. Nessun segreto reale utilizzato per questa prova.
 
+## Primo account reale
+
+**PASS manuale con riscontro DB**: l'utente conferma l'accesso riuscito; query di sola lettura su conteggi aggregati conferma un account con email verificata, una sessione Auth, una famiglia, un membro attivo e una lista. La sessione appartiene al browser dell'utente, mentre il browser automatizzato separato rimane sul login: nessuna dichiarazione di test E2E automatico per questo percorso. Nessuna email, password o token riportati nei log o nei documenti.
+
+Redirect locali Auth salvati e verificati sul servizio dopo ricaricamento: Site URL `http://127.0.0.1:5173`; quattro redirect espliciti per le due origini locali, radice e `/impostazioni`. Salvataggio del primo articolo verificato sul DB; visualizzazione dopo refresh **PASS manuale**, confermata dall'utente. Secondo account rinviato su richiesta dell'utente; sincronizzazione su due client ancora da collaudare.
+
+## Regressioni del menu prodotto
+
+Prima della correzione riprodotti errori nei nuovi test. Verifica reale di sola lettura: catalogo vuoto e un articolo libero. Nessun prodotto dimostrativo aggiunto al progetto ospitato; cataloghi fittizi solo nei test browser.
+
+**PASS: 24 test browser**, 12 scenari su desktop e mobile. I cinque aggiunti coprono catalogo vuoto/nome obbligatorio; commerciale e payload; generico/conversione L/ml; ricerca marca/EAN senza selezioni nascoste; dati conservati al fallimento e puliti dopo successo. Axe A/AA sul nuovo modulo senza violazioni; screenshot e controllo overflow verificati. Corretto un matcher di test non supportato prima della verifica finale.
+
+`npm run check`, `npm run test:e2e` e `npm run check:secrets` PASS: 42 test dominio/SQL e 24 browser. Resta l'avviso noto di build per il bundle iniziale oltre 500 kB. CI del nuovo commit verificata dopo pubblicazione, separatamente dai risultati locali.
+
 ## Storico del collegamento prima delle migrazioni
 
 URL e publishable key ricevuti e salvati esclusivamente in .env, ignorato da Git. Check in sola lettura: Auth HTTP 200, email/password attiva, conferma email richiesta; 20 tabelle non esposte nella Data API (HTTP 404/PGRST205). Migrazioni remote non eseguite e nessun utente creato. Il gate online rimane BLOCKED.

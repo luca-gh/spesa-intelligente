@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 
 // Browser-only fixtures. PostgreSQL authorization is tested independently, not mocked here as proof of RLS.
-async function login(page: Page, populated = false) {
+async function login(page: Page, populated = false, catalog: Record<string, unknown[]> = {}) {
   const home = {
     id: '10000000-0000-4000-8000-000000000001',
     name: 'Famiglia di test',
@@ -43,7 +43,9 @@ async function login(page: Page, populated = false) {
     shopping_list_items: items,
     list_item_contributions: contributions,
     purchases,
+    ...catalog,
   }
+  const itemRequests: Record<string, unknown>[] = []
   await page.route('https://fixture.supabase.test/**', async (route) => {
     const url = new URL(route.request().url())
     const table = url.pathname.split('/').pop()!
@@ -51,24 +53,26 @@ async function login(page: Page, populated = false) {
     if (table === 'households') result = home
     else if (table === 'add_list_item') {
       const body = route.request().postDataJSON()
+      itemRequests.push(body)
+      const id = `item-new-${items.length + 1}`
       items.push({
-        id: 'item-new',
+        id,
         list_id: body.p_list,
         name: body.p_name,
         unit: body.p_unit,
-        generic_product_id: null,
-        specific_product_id: null,
+        generic_product_id: body.p_generic,
+        specific_product_id: body.p_specific,
         note: '',
         created_at: '2026-11-14T13:00:00Z',
       })
       contributions.push({
         id: 'new-manual',
-        item_id: 'item-new',
+        item_id: id,
         origin_type: 'manual',
-        origin_id: 'item-new',
+        origin_id: id,
         requested_quantity: body.p_quantity,
       })
-      result = 'item-new'
+      result = id
     } else if (table === 'record_purchase') {
       const body = route.request().postDataJSON()
       purchases.push({
@@ -118,7 +122,145 @@ async function login(page: Page, populated = false) {
       }),
     )
   })
+  return { itemRequests }
 }
+
+const productCatalog = {
+  generic_products: [
+    { id: 'generic-milk', name: 'Latte intero', canonical_unit: 'L', category_id: null },
+    { id: 'generic-flour', name: 'Farina 00', canonical_unit: 'g', category_id: null },
+  ],
+  specific_products: [
+    {
+      id: 'specific-flour',
+      generic_product_id: 'generic-flour',
+      name: 'Farina fine',
+      brand: 'Molino Test',
+      variant: '00',
+      package_quantity: '500',
+      package_unit: 'g',
+      barcode: '8000500037560',
+    },
+  ],
+}
+
+test('catalogo vuoto esplicito e articolo libero obbligatorio', async ({ page }) => {
+  const { itemRequests } = await login(page, true)
+  await page.goto('/liste/20000000-0000-4000-8000-000000000001')
+  await expect(page.getByText('Il catalogo è vuoto.', { exact: false })).toBeVisible()
+  await expect(page.getByRole('combobox', { name: /Prodotto.*facoltativo/ })).toBeDisabled()
+  const name = page.getByLabel('Nome per articolo libero')
+  await expect(name).toHaveAttribute('required', '')
+  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
+  expect(await name.evaluate((input) => input.matches(':invalid'))).toBe(true)
+  expect(itemRequests).toHaveLength(0)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await page
+    .getByRole('form', { name: 'Aggiungi un articolo alla lista' })
+    .screenshot({ path: `test-results/add-item-empty-${test.info().project.name}.png` })
+})
+test('prodotto commerciale: quantità del formato, unità e riferimento corretti, reset dopo salvataggio', async ({
+  page,
+}) => {
+  const { itemRequests } = await login(page, true, productCatalog)
+  await page.goto('/liste/20000000-0000-4000-8000-000000000001')
+  const product = page.getByRole('combobox', { name: /Prodotto.*facoltativo/ })
+  await product.selectOption('specific-flour')
+  await expect(page.getByLabel('Unità', { exact: true })).toHaveValue('g')
+  await expect(page.getByLabel('Quantità', { exact: true })).toHaveValue('500')
+  await expect(page.getByLabel('Nome per articolo libero')).toHaveCount(0)
+  const accessibility = await new AxeBuilder({ page })
+    .include('form[aria-label="Aggiungi un articolo alla lista"]')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+    .analyze()
+  expect(
+    accessibility.violations.map((violation) => ({
+      id: violation.id,
+      nodes: violation.nodes.map((node) => node.target),
+    })),
+  ).toEqual([])
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await page
+    .getByRole('form', { name: 'Aggiungi un articolo alla lista' })
+    .screenshot({ path: `test-results/add-item-product-${test.info().project.name}.png` })
+  await page.getByLabel('Quantità', { exact: true }).fill('750')
+  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
+  await expect(page.getByText('Farina fine', { exact: true })).toBeVisible()
+  expect(itemRequests[0]).toMatchObject({
+    p_name: 'Farina fine',
+    p_specific: 'specific-flour',
+    p_generic: null,
+    p_unit: 'g',
+    p_quantity: '750',
+  })
+  await expect(product).toHaveValue('')
+  await expect(page.getByLabel('Unità', { exact: true })).toHaveValue('pz')
+  await expect(page.getByLabel('Quantità', { exact: true })).toHaveValue('1')
+  await expect(page.getByLabel('Nome per articolo libero')).toHaveValue('')
+})
+test('generico: unità coerenti e conversione della quantità prima del salvataggio', async ({ page }) => {
+  const { itemRequests } = await login(page, true, productCatalog)
+  await page.goto('/liste/20000000-0000-4000-8000-000000000001')
+  await page.getByRole('combobox', { name: /Prodotto.*facoltativo/ }).selectOption('generic-milk')
+  const unit = page.getByLabel('Unità', { exact: true })
+  await expect(unit).toHaveValue('L')
+  await expect(unit.getByRole('option', { name: 'g', exact: true })).toHaveCount(0)
+  await unit.selectOption('ml')
+  await expect(page.getByLabel('Quantità', { exact: true })).toHaveValue('1000')
+  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
+  await expect(
+    page.locator('.shopping-item .item-text').getByText('Latte intero', { exact: true }),
+  ).toBeVisible()
+  expect(itemRequests[0]).toMatchObject({
+    p_name: 'Latte intero',
+    p_specific: null,
+    p_generic: 'generic-milk',
+    p_unit: 'ml',
+    p_quantity: '1000',
+  })
+})
+test('ricerca per marca e codice, nessuna selezione nascosta quando il filtro cambia', async ({ page }) => {
+  await login(page, true, productCatalog)
+  await page.goto('/liste/20000000-0000-4000-8000-000000000001')
+  const product = page.getByRole('combobox', { name: /Prodotto.*facoltativo/ })
+  const search = page.getByLabel('Cerca nel catalogo')
+  await product.selectOption('generic-milk')
+  await search.fill('Molino')
+  await expect(product).toHaveValue('')
+  await expect(product.getByRole('option', { name: /Farina fine/ })).toHaveCount(1)
+  await search.fill('8000500037560')
+  await product.selectOption('specific-flour')
+  await search.fill('senza corrispondenze')
+  await expect(product).toHaveValue('')
+  await expect(page.getByText('Nessun prodotto trovato.', { exact: false })).toBeVisible()
+  await expect(page.getByLabel('Nome per articolo libero')).toHaveAttribute('required', '')
+})
+test('errore di salvataggio conserva prodotto, quantità e ricerca per riprovare', async ({ page }) => {
+  await login(page, true, productCatalog)
+  let fail = true
+  await page.route('**/rest/v1/rpc/add_list_item', async (route) => {
+    if (fail) {
+      fail = false
+      await route.fulfill({
+        status: 503,
+        json: { message: 'Errore temporaneo di test', code: 'fixture_error' },
+      })
+    } else await route.fallback()
+  })
+  await page.goto('/liste/20000000-0000-4000-8000-000000000001')
+  await page.getByLabel('Cerca nel catalogo').fill('Molino')
+  const product = page.getByRole('combobox', { name: /Prodotto.*facoltativo/ })
+  await product.selectOption('specific-flour')
+  await page.getByLabel('Quantità', { exact: true }).fill('750')
+  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'Operazione non riuscita' })).toBeVisible()
+  await expect(product).toHaveValue('specific-flour')
+  await expect(page.getByLabel('Quantità', { exact: true })).toHaveValue('750')
+  await expect(page.getByLabel('Cerca nel catalogo')).toHaveValue('Molino')
+  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
+  await expect(page.getByText('Farina fine', { exact: true })).toBeVisible()
+  await expect(page.getByLabel('Cerca nel catalogo')).toHaveValue('')
+})
 test('accesso senza sessione e layout responsive', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Bentornato a casa.' })).toBeVisible()

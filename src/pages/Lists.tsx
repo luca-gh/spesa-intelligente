@@ -4,6 +4,7 @@ import { Plus, ArrowLeft, Check, ShoppingBasket } from 'lucide-react'
 import { useApp } from '../data/context'
 import { insert, remove, rpc, update } from '../data/client'
 import { euro, quantity } from '../domain/math'
+import { AddListItemForm } from '../components/AddListItemForm'
 import type { Item } from '../data/types'
 import {
   ConfirmButton,
@@ -15,7 +16,6 @@ import {
   Select,
   Submit,
   text,
-  UnitSelect,
 } from '../components/ui'
 
 export function Lists() {
@@ -110,7 +110,6 @@ function ListDetail({ id }: { id: string }) {
   const [search, setSearch] = useState('')
   const [buy, setBuy] = useState<string | null>(null)
   const [edit, setEdit] = useState<string | null>(null)
-  const [catalogSearch, setCatalogSearch] = useState('')
   const [purchaseOperation, setPurchaseOperation] = useState(crypto.randomUUID())
   if (!list)
     return (
@@ -411,63 +410,7 @@ function ListDetail({ id }: { id: string }) {
         </Panel>
       )}
       <Panel title="Aggiungi alla lista">
-        <Form
-          className="item-form"
-          onSave={(f) => {
-            const ref = text(f, 'product')
-            const product = data.generic_products.find((g) => g.id === ref)
-            const specific = data.specific_products.find((s) => s.id === ref)
-            return rpc('add_list_item', {
-              p_list: id,
-              p_name: product?.name ?? specific?.name ?? text(f, 'name'),
-              p_quantity: quantity(text(f, 'quantity')).toString(),
-              p_unit: text(f, 'unit'),
-              p_generic: product?.id ?? null,
-              p_specific: specific?.id ?? null,
-            })
-          }}
-        >
-          <label className="field">
-            Cerca nel catalogo
-            <input
-              value={catalogSearch}
-              onChange={(e) => setCatalogSearch(e.target.value)}
-              placeholder="Nome del prodotto…"
-            />
-          </label>
-          <Select label="Prodotto (facoltativo)" name="product" required={false}>
-            <option value="">Articolo libero</option>
-            <optgroup label="Generici">
-              {data.generic_products
-                .filter((g) => g.name.toLowerCase().includes(catalogSearch.toLowerCase()))
-                .map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name}
-                  </option>
-                ))}
-            </optgroup>
-            <optgroup label="Commerciali">
-              {data.specific_products
-                .filter((s) => s.name.toLowerCase().includes(catalogSearch.toLowerCase()))
-                .map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-            </optgroup>
-          </Select>
-          <Field
-            label="Nome per articolo libero"
-            name="name"
-            required={false}
-            placeholder="Es. pane fresco"
-          />
-          <Field label="Quantità" name="quantity" value="1" />
-          <UnitSelect />
-          <Submit>
-            <Plus size={18} /> Aggiungi
-          </Submit>
-        </Form>
+        <AddListItemForm key={id} listId={id} />
       </Panel>
       <label className="field search-field">
         Filtra articoli
