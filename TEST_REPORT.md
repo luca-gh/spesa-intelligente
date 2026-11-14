@@ -1,6 +1,6 @@
 # Rapporto test
 
-Data: 14 novembre 2026, Europe/Rome. Ambiente locale Windows, Node.js 22 LTS portatile, npm, PGlite/PostgreSQL, Playwright Chromium. Versioni esatte nel lockfile. Verifiche locali concluse; CI registrata separatamente dopo pubblicazione.
+Data: 14 novembre 2026, Europe/Rome. Ambiente locale Windows, Node.js 22 LTS portatile, npm, PGlite/PostgreSQL, Playwright Chromium. Versioni esatte nel lockfile. Verifiche locali concluse e confermate in CI su Linux/Node 22.
 
 | Area                            | Ambiente e verifica                                                                                                  | Stato                                                                 |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
@@ -16,7 +16,7 @@ Data: 14 novembre 2026, Europe/Rome. Ambiente locale Windows, Node.js 22 LTS por
 | Segreti in configurazione       | Build rifiuta JWT service_role e nuove secret key; chiavi pubbliche ammesse                                          | PASS                                                                  |
 | Browser base                    | 10 casi Chromium desktop/mobile, HTTP Supabase fixture                                                               | PASS, esecuzione iniziale                                             |
 | Browser ampliato                | Accessibilità WCAG A/AA automatica e camera negata, 14 casi totali                                                   | PASS                                                                  |
-| Lint/typecheck/build            | `npm run check` completo prima dell'ampliamento, ulteriori verifiche finali in corso                                 | PASS                                                                  |
+| Lint/typecheck/build            | `npm run check` completo, verificato localmente e in CI                                                              | PASS                                                                  |
 | Audit runtime                   | `npm audit --omit=dev`                                                                                               | PASS: 0 vulnerabilità segnalate                                       |
 | Audit tooling                   | `npm audit`                                                                                                          | 4 LOW residui PWA/workbox/resolve/deepmerge, 0 moderate/high/critical |
 | Auth/PostgREST/Realtime online  | Due account e un esterno, reconnessione, sessione, concorrenza distribuita                                           | NOT RUN: progetto Supabase assente                                    |
@@ -24,7 +24,9 @@ Data: 14 novembre 2026, Europe/Rome. Ambiente locale Windows, Node.js 22 LTS por
 | Storage privato                 | Nessun upload o bucket attivo                                                                                        | NOT RUN; funzionalità rinviata                                        |
 | Importazioni                    | OCR ricette/scontrini, URL/SSRF, revisione e deduplica                                                               | NOT RUN: funzionalità non implementata                                |
 | Android/iOS fisici              | Installazione PWA, camera e sessione su dispositivi                                                                  | NOT RUN: dispositivi non collegati                                    |
-| CI GitHub                       | Workflow predisposto                                                                                                 | NOT RUN al momento della stesura                                      |
+| CI GitHub                       | Workflow predisposto                                                                                                 | PASS: run 43617987975, commit 566e874                                 |
 | Hosting HTTPS                   | Deployment e smoke test                                                                                              | NOT RUN: non pubblicato                                               |
 
 I test browser non sostituiscono RLS né il servizio Realtime; l'emulazione mobile Chromium non è Safari iOS. Le migrazioni di dominio vengono applicate a un PostgreSQL vuoto ad ogni esecuzione dei test. Non è stato effettuato un ripristino su Supabase ospitato né un benchmark con grandi volumi. Gli strumenti di accessibilità automatici non equivalgono a una verifica con lettore schermo reale.
+
+CI verificata: [esecuzione 43617987975](https://github.com/luca-gh/spesa-intelligente/actions/runs/43617987975), conclusa con successo il 14 novembre 2026 alle 17:53 Europe/Rome. Verificato anche il rifiuto effettivo di una build con chiave privilegiata fittizia. Nessun segreto reale utilizzato per questa prova.

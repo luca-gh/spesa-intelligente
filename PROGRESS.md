@@ -4,7 +4,7 @@ Aggiornamento: 14 novembre 2026. Implementazione progressiva: **consegna complet
 
 | Fase                            | Stato del gate | Lavoro presente e blocchi                                                                                                                                                                                                                                           |
 | ------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0 — Fondazioni                  | IN PROGRESS    | Repository locale, tooling, CI, migrazioni, RLS, test PostgreSQL, manifest/service worker, documentazione. Lint/typecheck/build e test locali eseguiti. Pubblicazione e CI da verificare nel passaggio finale.                                                      |
+| 0 — Fondazioni                  | PASS           | Repository pubblico, tooling, CI verde, migrazioni, RLS, test PostgreSQL, manifest/service worker e documentazione. Build, lint, typecheck, test e controllo segreti verificati localmente e in CI.                                                                 |
 | 1 — Account, famiglia, liste    | BLOCKED        | UI e RPC implementate, inviti, acquisti parziali, refresh Realtime, dashboard, responsive. Manca un progetto Supabase configurato per il gate con due utenti reali e riconnessione. Raggruppamento visivo per categoria e frequenti da acquisti reali implementati. |
 | 2 — Catalogo, prezzi, confronto | BLOCKED        | Moduli indipendenti implementati e testati: formati, promozioni, ranking, sconti personali per negozio, date e copertura. Gate complessivo dipende dalla fase 1 online. Condizioni sconto per intero scontrino ed esclusioni di categoria da completare.            |
 | 3 — Ricette e calendario        | BLOCKED        | Moduli indipendenti: creazione atomica, scaling, preferiti/ricerca, settimane/modelli, preview e conferma transazionale con versioni. Editing completo ingredienti, import e collaudo del percorso completo ancora da completare.                                   |
@@ -15,12 +15,15 @@ Aggiornamento: 14 novembre 2026. Implementazione progressiva: **consegna complet
 ## Comandi e risultati effettivi
 
 - Installato Node.js 22 LTS ufficiale in `.tools`, verificando SHA-256 prima di estrarre. Dipendenze npm installate con lockfile.
-- `npm run check`: PASS (lint, typecheck, test e build PWA); nuova verifica CI dopo pubblicazione.
+- `npm run check`: PASS (lint, typecheck, test e build PWA); confermato anche dalla CI GitHub.
 - `npm test`: ultima esecuzione 38 test PASS (dominio, configurazione segreti e PostgreSQL/RLS).
-- `npm run test:e2e`: PASS, 14 casi desktop/mobile inclusi accessibilità dashboard e camera negata. Corretti e rieseguiti i test dei contrasti. Un'esecuzione successiva non è partita per porta 4173 occupata dal precedente server, chiuso prima del nuovo tentativo.
+- `npm run test:e2e`: PASS, 14 casi desktop/mobile inclusi accessibilità dashboard e camera negata. Corretti e rieseguiti i test dei contrasti.
 - `npm audit --omit=dev`: 0 vulnerabilità alla verifica online del 14 novembre 2026.
 - `npm audit`: 4 avvisi low nella catena di tooling PWA/deepmerge, nessun moderate/high/critical dopo override compatibili e build verificata. Non vengono trattati come eliminati.
-- Account `luca-gh` verificato con GitHub CLI, senza stampare token o cambiare l'account globale. Repository remoto da creare dopo la revisione finale dei file.
+- Account `luca-gh` verificato con GitHub CLI, senza stampare token o cambiare l'account globale. Repository pubblico creato e codice pubblicato: https://github.com/luca-gh/spesa-intelligente.
+
+- CI GitHub: PASS sul commit 566e874, esecuzione https://github.com/luca-gh/spesa-intelligente/actions/runs/43617987975, completata alle 17:53 Europe/Rome. Include npm ci, check, controllo segreti, audit runtime e 14 test browser su Linux.
+- Verificata anche l’effettiva interruzione di una build Vite con una chiave privilegiata fittizia, prima della compilazione.
 
 ## Blocco esterno preciso
 

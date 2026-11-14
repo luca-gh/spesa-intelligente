@@ -1,5 +1,7 @@
 # Spesa Intelligente
 
+[![Verifiche](https://github.com/luca-gh/spesa-intelligente/actions/workflows/ci.yml/badge.svg)](https://github.com/luca-gh/spesa-intelligente/actions/workflows/ci.yml)
+
 PWA in italiano per organizzare la spesa di una famiglia: liste condivise, acquisti parziali, catalogo, prezzi per punto vendita, confronto con sconti personali, ricette e calendario.
 
 **Stato: prima implementazione, non ancora collaudata su Supabase online.** Consultare [PROGRESS.md](PROGRESS.md) e [TEST_REPORT.md](TEST_REPORT.md). OCR, importazioni e alcune funzioni avanzate restano da completare. Nessun dato dimostrativo viene caricato in produzione.
@@ -38,7 +40,7 @@ Non vengono creati bucket di immagini. Non c'è un percorso di upload attivo, qu
 
 ## Flussi disponibili
 
-- **Liste:** creazione, rinomina, duplicazione, archiviazione, ripristino, stato completato; articoli liberi o collegati al catalogo, ricerca, quantità manuali e note. Gli acquisti restano separati dai contributi e possono essere annullati conservando la traccia.
+- **Liste:** creazione, rinomina, duplicazione, archiviazione, ripristino, stato completato; articoli liberi o collegati al catalogo, ricerca, quantità manuali e note, raggruppamento per categoria e suggerimenti dagli acquisti reali. Gli acquisti restano separati dai contributi e possono essere annullati conservando la traccia.
 - **Acquisti:** quantità parziali e surplus; prezzo totale effettivo facoltativo, completabile dopo; negozio, prodotto commerciale e stato promozionale. Il semplice acquisto senza prezzo non genera osservazioni di prezzo. Una correzione si effettua annullando e registrando un nuovo evento.
 - **Catalogo e negozi:** generici e commerciali con equivalenza esplicita, formati, EAN e categorie; negozi indipendenti con indirizzo e archiviazione.
 - **Prezzi:** ordinari storici, promozioni datate, rilevazioni non classificate, annullamenti tracciati. Il prezzo è **per confezione**, non per kg/litro salvo che il formato sia esattamente kg/litro. Non si trasformano automaticamente acquisti in prezzi ordinari.
@@ -65,7 +67,7 @@ La CI GitHub esegue lint, typecheck, test, build e browser test. [TEST_REPORT.md
 
 ## Deploy statico con HTTPS
 
-Il deploy non è stato eseguito: manca la configurazione del backend e il relativo collaudo. Opzione documentata: **Cloudflare Pages**, verificando il piano gratuito e i termini al momento dell'attivazione; non è necessario acquistare un dominio. Collegare il repository pubblico dell'account `luca-gh`, impostare build `npm ci && npm run build`, cartella `dist`, Node 22 e le due variabili pubbliche. Il file `public/_redirects` supporta il router client-side. Altra opzione: hosting statico Netlify con fallback equivalente, dopo verifica del piano corrente.
+Il deploy non è stato eseguito: manca la configurazione del backend e il relativo collaudo. Opzione documentata: **Cloudflare Pages**, verificando il piano gratuito e i termini al momento dell'attivazione; non è necessario acquistare un dominio. Collegare il repository pubblico dell'account `luca-gh`, impostare build `npm ci && npm run build`, cartella `dist`, Node 22 e le due variabili pubbliche. Il file `public/_redirects` supporta il router client-side. `public/_headers` imposta CSP e permessi camera: se usi un dominio Supabase personalizzato, aggiorna connect-src con gli endpoint HTTPS/WSS esplicitamente consentiti. Altra opzione: hosting statico Netlify con fallback equivalente, dopo verifica del piano corrente.
 
 Non pubblicare `.env`, report con dati reali, dump del database o immagini private. I documenti originari del progetto sono mantenuti solo localmente e sono esclusi da Git perché possono includere informazioni personali. Pubblicare il codice non rende pubblici i dati Supabase: la protezione dipende dall'applicazione corretta delle RLS.
 
