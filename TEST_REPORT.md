@@ -4,19 +4,19 @@ Data: 14 novembre 2026, Europe/Rome. Ambiente locale Windows, Node.js 22 LTS por
 
 ## Verifica sul servizio reale dopo le migrazioni
 
-Migrazioni 001–008: PASS, applicate e registrate nella cronologia standard con SQL originale e checksum verificati. Il dashboard è stato usato dopo login interattivo, senza acquisire chiavi amministrative.
+Migrazioni 001–009: PASS, applicate e registrate nella cronologia standard con SQL originale e checksum verificati. Il dashboard è stato usato dopo login interattivo, senza acquisire chiavi amministrative.
 
-Security review reale: 20 RLS attive, 0 grant anon sulle tabelle e sulle RPC, 22 RPC per authenticated con search_path fissato, quattro tabelle nella pubblicazione Realtime. Migrazione 008 verificata anche con default grant Supabase emulati localmente.
+Security review reale: 20 RLS attive, 0 grant anon sulle tabelle e sulle RPC, 24 RPC per authenticated con search_path fissato, quattro tabelle nella pubblicazione Realtime. Migrazione 008 verificata anche con default grant Supabase emulati localmente.
 
 supabase/tests/online_rls.sql: PASS sul progetto reale. Due membri, invito/accettazione, seconda famiglia, isolamento di letture/scritture/RPC, acquisto parziale senza prezzo idempotente, uscita e accesso anon negato. La transazione viene annullata: dopo rollback zero famiglie, liste, acquisti e identità sintetiche residue. Nessuna email inviata.
 
 Check backend reale: PASS, Auth HTTP 200; 20 tabelle PROTETTA (401/42501 riferito alla tabella richiesta). Non equivale al collaudo autenticato Auth/JWT/PostgREST o Realtime su due client, tuttora NOT RUN completo.
 
-Suite locale attuale: 44 PASS in 5 file, inclusi bootstrap completo, privilegi predefiniti e script SQL online con rollback. Controlli locali finali PASS: lint, typecheck, build, 44 test, 32 test browser e controllo segreti. CI del nuovo commit verificata separatamente dopo la pubblicazione.
+Suite locale attuale: 49 PASS in 5 file, inclusi bootstrap completo, privilegi predefiniti e script SQL online con rollback. Controlli locali finali PASS: lint, typecheck, build, 49 test, 48 test browser e controllo segreti. CI del nuovo commit verificata separatamente dopo la pubblicazione.
 
 | Area                            | Ambiente e verifica                                                                                                  | Stato                                                                 |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Dominio e RLS                   | `npm test`: 44 test, 5 file                                                                                          | PASS                                                                  |
+| Dominio e RLS                   | `npm test`: 49 test, 5 file                                                                                          | PASS                                                                  |
 | Arrotondamenti e unità          | HALF_UP, virgola, 750g/500g, conversioni incompatibili, residuo/surplus, porzioni e discreti                         | PASS                                                                  |
 | Prezzi e promozioni             | Ordinario vecchio, promo scaduta/senza scadenza, generico/specifico, ignoti, copertura, pareggi e negozi separati    | PASS                                                                  |
 | Sconti personali                | Martedì/mercoledì/giovedì, non cumulo, conferma, altro negozio, incertezza, ranking al cambio data, storico immutato | PASS                                                                  |
@@ -27,7 +27,7 @@ Suite locale attuale: 44 PASS in 5 file, inclusi bootstrap completo, privilegi p
 | Workflow SQL                    | Ricetta atomica, scaling discreto/addizione idempotente, duplicazioni, snapshot immutabile, cancellazione protetta   | PASS                                                                  |
 | Segreti in configurazione       | Build rifiuta JWT service_role e nuove secret key; chiavi pubbliche ammesse                                          | PASS                                                                  |
 | Browser base                    | 10 casi Chromium desktop/mobile, HTTP Supabase fixture                                                               | PASS, esecuzione iniziale                                             |
-| Browser ampliato                | Accessibilità WCAG A/AA automatica e camera negata, 32 casi totali                                                   | PASS                                                                  |
+| Browser ampliato                | Accessibilità WCAG A/AA automatica e camera negata, 48 casi totali                                                   | PASS                                                                  |
 | Lint/typecheck/build            | `npm run check` completo, verificato localmente e in CI                                                              | PASS                                                                  |
 | Audit runtime                   | `npm audit --omit=dev`                                                                                               | PASS: 0 vulnerabilità segnalate                                       |
 | Audit tooling                   | `npm audit`                                                                                                          | 4 LOW residui PWA/workbox/resolve/deepmerge, 0 moderate/high/critical |
@@ -65,8 +65,14 @@ Nuovi test bootstrap: sette migrazioni applicate in un'unica transazione su PGli
 
 ## Eliminazione di prodotti dal catalogo
 
-**PASS locale: 44 test dominio/SQL e 32 test browser.** Due nuovi test PostgreSQL verificano eliminazione dei prodotti inutilizzati con RLS, rifiuto cross-family e blocco FK senza perdita di lista o prezzi. Quattro scenari browser su desktop/mobile verificano rimozione di generico e commerciale, uscita dalla modifica, annullamento senza richiesta DELETE e messaggio sicuro per entrambi i tipi di prodotto in uso. Lint, typecheck, build e controllo segreti PASS. Nessuna cancellazione sul database reale e nessuna modifica dello schema. CI verificata separatamente dopo pubblicazione.
+**PASS locale: 49 test dominio/SQL e 48 test browser.** Due nuovi test PostgreSQL verificano eliminazione dei prodotti inutilizzati con RLS, rifiuto cross-family e blocco FK senza perdita di lista o prezzi. Quattro scenari browser su desktop/mobile verificano rimozione di generico e commerciale, uscita dalla modifica, annullamento senza richiesta DELETE e messaggio sicuro per entrambi i tipi di prodotto in uso. Lint, typecheck, build e controllo segreti PASS. Nessuna cancellazione sul database reale e nessuna modifica dello schema. CI verificata separatamente dopo pubblicazione.
 
 ## Storico dopo installazione, prima della sessione web
 
 Supabase risulta installato. La sessione corrente non espone metodi amministrativi del servizio: esecuzione SQL e migrazioni remote NOT RUN. Nuovo check backend in sola lettura conferma Auth HTTP 200 e 20 tabelle non esposte (404/PGRST205, exit code 2). Gli esiti locali e CI precedenti restano distinti dal gate online, tuttora BLOCKED.
+
+## Rimozioni e archiviazione — migrazione 009
+
+49 test locali e 48 prove browser PASS. Nuovi casi: categoria usata eliminata senza cancellare prodotti; RPC vietate a famiglie esterne e anon; prodotti con prezzi e snapshot archiviabili senza variazioni monetarie; articoli con acquisti archiviabili con controllo di versione; piani archiviati invalidano vecchie anteprime; copia lista senza articoli archiviati e ripristino tramite conferma piano. Browser desktop/mobile: categorie, prodotti esclusi dalle nuove scelte e ripristino, punti vendita, articoli, ingredienti e ricette, piani, sconti e previsioni. Corretto un messaggio di stato che intercettava i tocchi su mobile.
+
+Migrazione 009 applicata sul progetto reale. Nessun dato esistente eliminato o archiviato durante lo sviluppo. Le verifiche browser usano fixture e non equivalgono al collaudo multi-account, rinviato su richiesta.

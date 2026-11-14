@@ -93,8 +93,28 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
       const next = { ...list, title: body.title }
       collections.shopping_lists.push(next)
       result = next
+    } else if (table === 'set_record_archived') {
+      const body = route.request().postDataJSON()
+      const records = (collections[body.p_type] ?? []) as Record<string, unknown>[]
+      const record = records.find((r) => r.id === body.p_id)
+      if (record) record.archived_at = body.p_archived ? '2026-11-14T13:00:00Z' : null
+      result = null
+    } else if (table === 'delete_category') {
+      const { p_id } = route.request().postDataJSON()
+      collections.categories = (collections.categories ?? []).filter((c) => (c as { id: string }).id !== p_id)
+      for (const p of (collections.generic_products ?? []) as Record<string, unknown>[])
+        if (p.category_id === p_id) p.category_id = null
+      result = null
     } else if (
-      ['generic_products', 'specific_products'].includes(table) &&
+      [
+        'generic_products',
+        'specific_products',
+        'stores',
+        'store_discount_rules',
+        'recipes',
+        'recipe_ingredients',
+        'meal_templates',
+      ].includes(table) &&
       route.request().method() === 'DELETE'
     ) {
       const id = url.searchParams.get('id')?.replace(/^eq\./, '') ?? ''
@@ -392,6 +412,171 @@ test('accessibilità essenziale della dashboard', async ({ page }) => {
     })),
   ).toEqual([])
 })
+test('categoria già usata: eliminazione conserva i prodotti sotto Altri prodotti', async ({ page }) => {
+  await login(page, false, {
+    ...productCatalog,
+    categories: [{ id: 'category', name: 'Dispensa', sort_order: 0 }],
+    generic_products: [{ ...productCatalog.generic_products[0], category_id: 'category' }],
+  })
+  await page.goto('/catalogo')
+  page.on('dialog', (dialog) => dialog.accept())
+  await page.getByRole('button', { name: 'Elimina categoria Dispensa', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Elimina categoria Dispensa', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('row').filter({ hasText: 'Latte intero' })).toContainText('Altri prodotti')
+})
+
+test('prodotti archiviati: scompaiono dalle scelte e possono essere ripristinati', async ({ page }) => {
+  await login(page, true, productCatalog)
+  await page.goto('/catalogo')
+  page.on('dialog', (dialog) => dialog.accept())
+  await page
+    .getByRole('row')
+    .filter({ hasText: 'Latte intero' })
+    .getByRole('button', { name: 'Archivia', exact: true })
+    .click()
+  await expect(page.getByRole('row').filter({ hasText: 'Latte intero' })).toHaveCount(0)
+  await page.goto('/liste/20000000-0000-4000-8000-000000000001')
+  await expect(
+    page.getByRole('combobox', { name: /Prodotto.*facoltativo/ }).locator('option[value="generic-milk"]'),
+  ).toHaveCount(0)
+  await page.goto('/catalogo')
+  await page.getByLabel('Mostra archiviati', { exact: true }).check()
+  await page
+    .getByRole('row')
+    .filter({ hasText: 'Latte intero' })
+    .getByRole('button', { name: 'Ripristina', exact: true })
+    .click()
+  await page.getByLabel('Mostra archiviati', { exact: true }).uncheck()
+  await expect(page.getByRole('row').filter({ hasText: 'Latte intero' })).toBeVisible()
+})
+
+test('punti vendita: eliminazione definitiva, archiviazione e ripristino', async ({ page }) => {
+  await login(page, false, {
+    stores: [
+      { id: 'store', name: 'Negozio Test', chain: '', address: 'Via Test', city: 'Roma', archived_at: null },
+    ],
+  })
+  await page.goto('/negozi')
+  page.on('dialog', (dialog) => dialog.accept())
+  await page.getByRole('button', { name: 'Archivia', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Negozio Test', exact: true })).toHaveCount(0)
+  await page.getByLabel('Mostra archiviati', { exact: true }).check()
+  await page.getByRole('button', { name: 'Ripristina', exact: true }).click()
+  await page.getByLabel('Mostra archiviati', { exact: true }).uncheck()
+  await page.getByRole('button', { name: 'Elimina', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Negozio Test', exact: true })).toHaveCount(0)
+})
+
+test('articolo con storico: archiviazione dalla lista e ripristino', async ({ page }) => {
+  await login(page, true)
+  await page.goto('/liste/20000000-0000-4000-8000-000000000001')
+  page.on('dialog', (dialog) => dialog.accept())
+  await page.getByRole('button', { name: 'Archivia', exact: true }).click()
+  await expect(page.locator('.shopping-item')).toHaveCount(0)
+  await page.getByLabel('Mostra articoli archiviati').check()
+  await page.getByRole('button', { name: 'Ripristina', exact: true }).click()
+  await expect(page.locator('.shopping-item')).toContainText('Latte')
+})
+
+test('previsioni salvate: archiviazione ripristinabile mantiene importi', async ({ page }) => {
+  await login(page, true, {
+    price_estimate_snapshots: [
+      {
+        id: 'snapshot',
+        list_id: '20000000-0000-4000-8000-000000000001',
+        store_id: 'store',
+        estimated_total: '12.34',
+        coverage: 1,
+        shopping_date: '2026-11-14',
+        created_at: '2026-11-14T12:00:00Z',
+        detail_json: {},
+        archived_at: null,
+      },
+    ],
+  })
+  await page.goto('/statistiche')
+  page.on('dialog', (dialog) => dialog.accept())
+  await page.locator('details').last().locator('summary').click()
+  await expect(page.locator('details').last()).toContainText('12,34')
+  await page.getByRole('button', { name: 'Archivia', exact: true }).click()
+  await expect(page.locator('details')).toHaveCount(0)
+  await page.getByLabel('Mostra archiviati', { exact: true }).check()
+  await page.locator('details').last().locator('summary').click()
+  await expect(page.locator('details').last()).toContainText('12,34')
+  await page.getByRole('button', { name: 'Ripristina', exact: true }).click()
+  await page.getByLabel('Mostra archiviati', { exact: true }).uncheck()
+  await expect(page.locator('details')).toHaveCount(1)
+})
+
+test('ricette: rimozione ingrediente, archiviazione e ripristino', async ({ page }) => {
+  await login(page, false, {
+    ...productCatalog,
+    recipes: [
+      {
+        id: 'recipe',
+        title: 'Ricetta Test',
+        base_servings: 2,
+        instructions: 'Mescola',
+        notes: '',
+        is_favorite: false,
+        source_url: null,
+      },
+    ],
+    recipe_ingredients: [
+      {
+        id: 'ingredient',
+        recipe_id: 'recipe',
+        generic_product_id: 'generic-flour',
+        quantity: '200',
+        unit: 'g',
+      },
+    ],
+  })
+  await page.goto('/ricette')
+  page.on('dialog', (dialog) => dialog.accept())
+  await page.getByRole('button', { name: 'Apri ricetta →', exact: true }).click()
+  await page.getByRole('button', { name: 'Rimuovi ingrediente', exact: true }).click()
+  await expect(page.locator('.ingredients li')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Archivia', exact: true }).click()
+  await expect(page.locator('.recipe-card')).toHaveCount(0)
+  await page.getByLabel('Mostra archiviati', { exact: true }).check()
+  await page.getByRole('button', { name: 'Apri ricetta →', exact: true }).click()
+  await page.getByRole('button', { name: 'Ripristina', exact: true }).click()
+  await page.getByLabel('Mostra archiviati', { exact: true }).uncheck()
+  await expect(page.locator('.recipe-card')).toContainText('Ricetta Test')
+})
+
+test('piano settimanale archiviato nasconde il calendario ed è ripristinabile', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-11-18T12:00:00Z') })
+  await login(page, false, {
+    meal_plans: [
+      { id: 'plan', week_start: '2026-11-16', linked_list_id: null, version: 1, archived_at: null },
+    ],
+  })
+  await page.goto('/pasti')
+  page.on('dialog', (dialog) => dialog.accept())
+  await expect(page.locator('.week-grid')).toBeVisible()
+  await page.getByRole('button', { name: 'Archivia', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Piano settimanale archiviato', exact: true })).toBeVisible()
+  await expect(page.locator('.week-grid')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /Crea piano settimanale/ })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Ripristina', exact: true }).click()
+  await expect(page.locator('.week-grid')).toBeVisible()
+})
+
+test('sconti: una regola configurata può essere eliminata', async ({ page }) => {
+  await login(page, false, {
+    store_discount_rules: [
+      { id: 'rule', name: 'Sconto Test', percentage: '10', active: true, confirmed: true, store_id: 'store' },
+    ],
+  })
+  await page.goto('/prezzi')
+  page.on('dialog', (dialog) => dialog.accept())
+  const row = page.locator('.data-row').filter({ hasText: 'Sconto Test' })
+  await row.getByRole('button', { name: 'Elimina', exact: true }).click()
+  await expect(row).toHaveCount(0)
+})
+
 test('permesso fotocamera negato offre inserimento manuale', async ({ page }) => {
   await login(page)
   await page.addInitScript(() => {

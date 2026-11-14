@@ -18,7 +18,7 @@ Aggiornamento: 14 novembre 2026. Implementazione progressiva: **consegna complet
 
 Il controllo del servizio ha rilevato grant automatici del proprietario non presenti nel PostgreSQL locale iniziale. Creata, testata e applicata la migrazione 008 explicit_privileges. I test locali ora emulano questi default Supabase.
 
-**Verifica finale: 20 tabelle con RLS, zero grant anon sulle tabelle e sulle RPC, 22 RPC abilitate per authenticated, quattro tabelle nella pubblicazione Realtime.** Otto versioni registrate nella struttura standard supabase_migrations.schema_migrations con SQL originale; checksum di tutte le versioni corrispondenti ai file locali.
+**Verifica finale: 20 tabelle con RLS, zero grant anon sulle tabelle e sulle RPC, 24 RPC abilitate per authenticated, quattro tabelle nella pubblicazione Realtime.** Otto versioni registrate nella struttura standard supabase_migrations.schema_migrations con SQL originale; checksum di tutte le versioni corrispondenti ai file locali.
 
 **Test SQL sul servizio reale: PASS.** supabase/tests/online_rls.sql verifica due membri, invito, seconda famiglia, blocco letture/scritture/RPC cross-family, acquisto parziale senza prezzo e idempotente, uscita e anon. Fixture create in una transazione annullata: nessuna email e nessun dato di test conservato. Dopo rollback: zero famiglie, liste, acquisti e identità Auth di test residue.
 
@@ -80,3 +80,7 @@ Verifiche locali PASS: lint/typecheck/build, 44 test dominio/SQL, 32 test browse
 ## Storico della ripresa dopo il collegamento Supabase
 
 Installazione verificata nella directory delle integrazioni; gli strumenti SQL/progetti/migrazioni non compaiono tra le capacità disponibili della sessione corrente. Nuova verifica in sola lettura: Auth HTTP 200, tutte le 20 tabelle ancora non esposte (404/PGRST205). Nessuna migrazione remota eseguita. Richiesta attivazione esplicita di Supabase dal compositore della chat; non è richiesta una nuova installazione né l'invio di credenziali.
+
+## Rimozioni coerenti
+
+Categorie eliminabili anche se usate, con riclassificazione in Altri prodotti. Eliminazione punti vendita e regole sconto; archiviazione/ripristino di prodotti, negozi, ricette, articoli, piani e previsioni. Rimozione ingredienti salvati e ultimo ingrediente non salvato. Prezzi e acquisti annullabili, inviti revocabili. Cronologia finanziaria conservata; piani archiviati non modificano automaticamente le liste. Migrazione 009 applicata, 49 test locali e 48 prove browser PASS. Il test del secondo account resta rinviato.

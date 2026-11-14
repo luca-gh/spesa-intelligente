@@ -1,3 +1,4 @@
+import { ArchiveButton, ArchiveFilter } from '../components/ArchiveButton'
 import { useState } from 'react'
 import Decimal from 'decimal.js'
 import { CalendarDays, Star, Plus, ArrowLeft, ArrowRight } from 'lucide-react'
@@ -22,6 +23,7 @@ export function Recipes() {
   const { data, act } = useApp()
   const [search, setSearch] = useState('')
   const [favorites, setFavorites] = useState(false)
+  const [archived, setArchived] = useState(false)
   const [selected, setSelected] = useState('')
   const [servings, setServings] = useState(2)
   const [ingredientCount, setIngredientCount] = useState(1)
@@ -40,9 +42,19 @@ export function Recipes() {
           preferite
         </label>
       </div>
+      <ArchiveFilter
+        value={archived}
+        onChange={(value) => {
+          setArchived(value)
+          setSelected('')
+        }}
+      />
       {recipe && (
         <Panel title={recipe.title}>
           <div className="inline">
+            <p className="muted">
+              Aggiungere ingredienti ripristina gli eventuali articoli archiviati corrispondenti nella lista.
+            </p>
             <label className="field">
               Porzioni richieste
               <input
@@ -63,6 +75,12 @@ export function Recipes() {
                   {i.unit}
                 </strong>{' '}
                 {data.generic_products.find((p) => p.id === i.generic_product_id)?.name}
+                <ConfirmButton
+                  message="Rimuovere questo ingrediente dalla ricetta? Le liste già create non cambieranno; i piani richiederanno una nuova anteprima."
+                  onConfirm={() => remove('recipe_ingredients', i.id)}
+                >
+                  Rimuovi ingrediente
+                </ConfirmButton>
               </li>
             ))}
           </ul>
@@ -102,9 +120,13 @@ export function Recipes() {
             >
               Duplica ricetta
             </button>
+            <ArchiveButton table="recipes" record={recipe} onDone={() => setSelected('')} />
             <ConfirmButton
               message="Eliminare questa ricetta? I collegamenti ai pasti possono impedire l’eliminazione."
-              onConfirm={() => remove('recipes', recipe.id)}
+              onConfirm={async () => {
+                await remove('recipes', recipe.id)
+                setSelected('')
+              }}
             >
               Elimina
             </ConfirmButton>
@@ -138,6 +160,7 @@ export function Recipes() {
         {data.recipes
           .filter(
             (r) =>
+              !!r.archived_at === archived &&
               (!favorites || r.is_favorite) &&
               (r.title.toLowerCase().includes(search.toLowerCase()) ||
                 data.recipe_ingredients
@@ -219,11 +242,13 @@ export function Recipes() {
               <div className="ingredient-form" key={i}>
                 <Select label={`Ingrediente ${i + 1}`} name={`product${i}`}>
                   <option value="">Scegli prodotto</option>
-                  {data.generic_products.map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.name}
-                    </option>
-                  ))}
+                  {data.generic_products
+                    .filter((g) => !g.archived_at)
+                    .map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name}
+                      </option>
+                    ))}
                 </Select>
                 <Field label="Quantità" name={`quantity${i}`} value="1" />
                 <Select label="Unità" name={`unit${i}`}>
@@ -240,6 +265,15 @@ export function Recipes() {
             >
               <Plus size={16} /> Altro ingrediente
             </button>
+            {ingredientCount > 1 && (
+              <button
+                className="text-button"
+                type="button"
+                onClick={() => setIngredientCount(ingredientCount - 1)}
+              >
+                Rimuovi ultimo ingrediente
+              </button>
+            )}
           </fieldset>
           <label className="field">
             Procedimento
@@ -384,8 +418,17 @@ export function Meals() {
             <CalendarDays size={18} /> Crea piano settimanale
           </button>
         </Panel>
+      ) : plan.archived_at ? (
+        <Panel title="Piano settimanale archiviato">
+          <p>
+            Il piano è nascosto dal calendario. Le quantità già trasferite nelle liste e gli acquisti sono
+            conservati. Ripristinalo per modificarlo.
+          </p>
+          <ArchiveButton table="meal_plans" record={plan} />
+        </Panel>
       ) : (
         <>
+          <ArchiveButton table="meal_plans" record={plan} onDone={() => setPreview(null)} />
           <div className="week-grid">
             {days.map((day) => (
               <section className="day-card" key={day}>
@@ -458,18 +501,22 @@ export function Meals() {
               <Select label="Ricetta o alimento" name="component">
                 <option value="">Scegli</option>
                 <optgroup label="Ricette">
-                  {data.recipes.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.title}
-                    </option>
-                  ))}
+                  {data.recipes
+                    .filter((r) => !r.archived_at)
+                    .map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.title}
+                      </option>
+                    ))}
                 </optgroup>
                 <optgroup label="Alimenti">
-                  {data.generic_products.map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.name}
-                    </option>
-                  ))}
+                  {data.generic_products
+                    .filter((g) => !g.archived_at)
+                    .map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name}
+                      </option>
+                    ))}
                 </optgroup>
               </Select>
               <Field
@@ -523,6 +570,16 @@ export function Meals() {
             {preview && (
               <div className="diff">
                 <h3>Anteprima · versione lista {preview.version}</h3>
+                {data.shopping_list_items
+                  .filter(
+                    (i) =>
+                      i.list_id === preview.listId &&
+                      i.archived_at &&
+                      preview.rows.some((r) => r.product_id === i.generic_product_id && r.unit === i.unit),
+                  )
+                  .map((i) => (
+                    <p key={i.id}>Verrà ripristinato l’articolo archiviato: {i.name}.</p>
+                  ))}
                 {preview.changes.length ? (
                   preview.changes.map((c) => (
                     <p key={c.itemId}>

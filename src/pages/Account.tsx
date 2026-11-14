@@ -1,3 +1,4 @@
+import { ArchiveButton, ArchiveFilter } from '../components/ArchiveButton'
 import { useEffect, useRef, useState } from 'react'
 import Decimal from 'decimal.js'
 import { Camera, Download, KeyRound, ScanLine } from 'lucide-react'
@@ -8,6 +9,7 @@ import { statistics } from '../domain/planning'
 import { ConfirmButton, Empty, Field, Form, Panel, SectionTitle, Submit, text } from '../components/ui'
 
 export function Stats() {
+  const [archived, setArchived] = useState(false)
   const { data, household } = useApp()
   const today = dateInZone(new Date(), household!.timezone)
   const [from, setFrom] = useState(today.slice(0, 7) + '-01')
@@ -180,35 +182,39 @@ export function Stats() {
           Le stime sono snapshot storici immutabili. La differenza aggregata include variazioni di quantità e
           acquisti registrati dopo la previsione; non è una misura pura della variazione prezzi.
         </p>
-        {data.price_estimate_snapshots.map((s) => {
-          const purchases = data.purchases.filter(
-            (p) =>
-              !p.voided_at &&
-              p.store_id === s.store_id &&
-              p.purchased_at >= s.created_at &&
-              data.shopping_list_items.find((i) => i.id === p.list_item_id)?.list_id === s.list_id,
-          )
-          const actual = purchases.reduce((sum, p) => sum.plus(p.total_paid ?? 0), new Decimal(0))
-          return (
-            <details key={s.id}>
-              <summary>
-                {data.shopping_lists.find((l) => l.id === s.list_id)?.title} ·{' '}
-                {data.stores.find((st) => st.id === s.store_id)?.name} ·{' '}
-                {new Date(s.created_at).toLocaleString('it-IT', { timeZone: household!.timezone })}
-              </summary>
-              <p>
-                Previsto: {euro(s.estimated_total)} · copertura {Math.round(s.coverage * 100)}% · spesa
-                prevista il {s.shopping_date}
-              </p>
-              <p>
-                Pagato registrato dopo lo snapshot: {euro(actual.toString())} · differenza{' '}
-                {euro(actual.minus(s.estimated_total).toString())}
-                {purchases.some((p) => p.total_paid === null) && ' · pagato parziale'}
-              </p>
-              <pre>{JSON.stringify(s.detail_json, null, 2)}</pre>
-            </details>
-          )
-        })}
+        <ArchiveFilter value={archived} onChange={setArchived} />
+        {data.price_estimate_snapshots
+          .filter((s) => !!s.archived_at === archived)
+          .map((s) => {
+            const purchases = data.purchases.filter(
+              (p) =>
+                !p.voided_at &&
+                p.store_id === s.store_id &&
+                p.purchased_at >= s.created_at &&
+                data.shopping_list_items.find((i) => i.id === p.list_item_id)?.list_id === s.list_id,
+            )
+            const actual = purchases.reduce((sum, p) => sum.plus(p.total_paid ?? 0), new Decimal(0))
+            return (
+              <details key={s.id}>
+                <summary>
+                  {data.shopping_lists.find((l) => l.id === s.list_id)?.title} ·{' '}
+                  {data.stores.find((st) => st.id === s.store_id)?.name} ·{' '}
+                  {new Date(s.created_at).toLocaleString('it-IT', { timeZone: household!.timezone })}
+                </summary>
+                <p>
+                  Previsto: {euro(s.estimated_total)} · copertura {Math.round(s.coverage * 100)}% · spesa
+                  prevista il {s.shopping_date}
+                </p>
+                <p>
+                  Pagato registrato dopo lo snapshot: {euro(actual.toString())} · differenza{' '}
+                  {euro(actual.minus(s.estimated_total).toString())}
+                  {purchases.some((p) => p.total_paid === null) && ' · pagato parziale'}
+                </p>
+                <pre>{JSON.stringify(s.detail_json, null, 2)}</pre>
+                <ArchiveButton table="price_estimate_snapshots" record={s} />
+              </details>
+            )
+          })}
         {!data.price_estimate_snapshots.length && (
           <p className="muted">Salva una previsione dal confronto prezzi prima di fare la spesa.</p>
         )}
@@ -291,7 +297,10 @@ export function Account() {
                 </span>
                 <ConfirmButton
                   message="Revocare questo invito?"
-                  onConfirm={() => rpc('revoke_invite', { p_id: i.id })}
+                  onConfirm={async () => {
+                    await rpc('revoke_invite', { p_id: i.id })
+                    setToken('')
+                  }}
                 >
                   Revoca
                 </ConfirmButton>
@@ -538,6 +547,12 @@ export function Scanner() {
             product ? (
               <div className="callout">
                 <h3>{product.name}</h3>
+                {product.archived_at && (
+                  <p>
+                    Prodotto archiviato: puoi ripristinarlo dalla vista Mostra archiviati del Catalogo
+                    prodotti.
+                  </p>
+                )}
                 <p>
                   {product.brand} · {product.package_quantity} {product.package_unit}
                 </p>

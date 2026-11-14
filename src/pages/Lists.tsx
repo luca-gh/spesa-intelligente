@@ -1,3 +1,4 @@
+import { ArchiveButton } from '../components/ArchiveButton'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Plus, ArrowLeft, Check, ShoppingBasket } from 'lucide-react'
@@ -54,7 +55,7 @@ function ListIndex() {
         {data.shopping_lists
           .filter((l) => l.status === filter)
           .map((list) => {
-            const items = data.shopping_list_items.filter((i) => i.list_id === list.id)
+            const items = data.shopping_list_items.filter((i) => i.list_id === list.id && !i.archived_at)
             return (
               <article className="panel" key={list.id}>
                 <span className="list-icon">
@@ -106,6 +107,7 @@ function ListDetail({ id }: { id: string }) {
   const { data, household, itemQuantity, act } = useApp()
   const list = data.shopping_lists.find((l) => l.id === id)
   const [shopping, setShopping] = useState(false)
+  const [showArchived, setShowArchived] = useState(false)
   const [store, setStore] = useState('')
   const [search, setSearch] = useState('')
   const [buy, setBuy] = useState<string | null>(null)
@@ -118,7 +120,7 @@ function ListDetail({ id }: { id: string }) {
       </Empty>
     )
   const items = data.shopping_list_items
-    .filter((i) => i.list_id === id)
+    .filter((i) => i.list_id === id && !i.archived_at)
     .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))
   const pending = items.filter((i) => Number(itemQuantity(i).remaining) > 0)
   const done = items.filter((i) => Number(itemQuantity(i).remaining) === 0)
@@ -136,7 +138,13 @@ function ListDetail({ id }: { id: string }) {
   const frequent = new Map<string, { item: Item; count: number }>()
   for (const purchase of data.purchases.filter((p) => !p.voided_at)) {
     const old = data.shopping_list_items.find((i) => i.id === purchase.list_item_id)
-    if (!old) continue
+    if (
+      !old ||
+      old.archived_at ||
+      data.generic_products.find((g) => g.id === old.generic_product_id)?.archived_at ||
+      data.specific_products.find((s) => s.id === old.specific_product_id)?.archived_at
+    )
+      continue
     const key =
       (old.specific_product_id ?? old.generic_product_id ?? old.name.trim().toLocaleLowerCase('it')) +
       ':' +
@@ -174,6 +182,14 @@ function ListDetail({ id }: { id: string }) {
               {item.note && ` · ${item.note}`}
             </small>
           </div>
+          <ArchiveButton
+            table="shopping_list_items"
+            record={{ ...item, version: listVersion }}
+            onDone={() => {
+              setBuy(null)
+              setEdit(null)
+            }}
+          />
           <button className="text-button" onClick={() => setEdit(edit === item.id ? null : item.id)}>
             Modifica
           </button>
@@ -265,6 +281,7 @@ function ListDetail({ id }: { id: string }) {
             >
               <option value="">Non specificato</option>
               {data.specific_products
+                .filter((s) => !s.archived_at || s.id === item.specific_product_id)
                 .filter((s) =>
                   item.specific_product_id
                     ? s.id === item.specific_product_id
@@ -441,6 +458,22 @@ function ListDetail({ id }: { id: string }) {
           </Empty>
         )}
       </section>
+      <label className="checkbox">
+        <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
+        Mostra articoli archiviati
+      </label>
+      {showArchived && (
+        <Panel title="Articoli archiviati">
+          {data.shopping_list_items
+            .filter((i) => i.list_id === id && i.archived_at)
+            .map((i) => (
+              <div className="data-row" key={i.id}>
+                <span>{i.name}</span>
+                <ArchiveButton table="shopping_list_items" record={{ ...i, version: listVersion }} />
+              </div>
+            ))}
+        </Panel>
+      )}
       {done.length > 0 && (
         <section className="panel">
           <h2>

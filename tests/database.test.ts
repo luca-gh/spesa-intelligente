@@ -29,6 +29,7 @@ beforeAll(async () => {
     '202611140006_plan_versions.sql',
     '202611140007_barcode_validation.sql',
     '202611140008_explicit_privileges.sql',
+    '202611140009_removal.sql',
   ])
     await db.exec(readFileSync(`supabase/migrations/${file}`, 'utf8'))
   await as(alice)
@@ -265,7 +266,7 @@ describe('RLS PostgreSQL reale e RPC', () => {
     const functions = await db.query<{ anon_execute: boolean; authenticated_execute: boolean }>(
       "select has_function_privilege('anon',p.oid,'EXECUTE') as anon_execute,has_function_privilege('authenticated',p.oid,'EXECUTE') as authenticated_execute from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.prosecdef",
     )
-    expect(functions.rows).toHaveLength(22)
+    expect(functions.rows).toHaveLength(24)
     expect(functions.rows.every((f) => !f.anon_execute && f.authenticated_execute)).toBe(true)
     expect(
       await scalar("select has_table_privilege('authenticated','public.purchases','INSERT')::text"),
@@ -340,6 +341,148 @@ describe('RLS PostgreSQL reale e RPC', () => {
       code: '23503',
     })
     expect((await db.query('select id from shopping_list_items where id=$1', [item])).rows).toHaveLength(1)
+  })
+  it('elimina categorie usate spostando i prodotti senza cancellarli e vieta altre famiglie', async () => {
+    await as(alice)
+    const category = await scalar(
+      "insert into categories(household_id,name) values($1,'Categoria da rimuovere') returning id",
+      [home],
+    )
+    const product = await scalar(
+      "insert into generic_products(household_id,name,canonical_unit,category_id) values($1,'Prodotto riclassificato','pz',$2) returning id",
+      [home, category],
+    )
+    await as(eve)
+    await expect(db.query('select delete_category($1)', [category])).rejects.toThrow('Accesso negato')
+    await as(alice)
+    await db.query('select delete_category($1)', [category])
+    expect((await db.query('select id from categories where id=$1', [category])).rows).toHaveLength(0)
+    expect((await db.query('select category_id from generic_products where id=$1', [product])).rows).toEqual([
+      { category_id: null },
+    ])
+  })
+  it('archivia prodotti con storico e previsioni senza modificare importi o riferimenti', async () => {
+    await as(alice)
+    const product = await scalar("select id from specific_products where name='Formato test'")
+    const snapshot = await scalar('select id from price_estimate_snapshots limit 1')
+    const before = (
+      await db.query(
+        'select estimated_total,detail_json,created_at from price_estimate_snapshots where id=$1',
+        [snapshot],
+      )
+    ).rows
+    for (const [table, id] of [
+      ['specific_products', product],
+      ['price_estimate_snapshots', snapshot],
+    ]) {
+      await as(eve)
+      await expect(db.query('select set_record_archived($1,$2,true)', [table, id])).rejects.toThrow(
+        'Accesso negato',
+      )
+      await as(alice)
+      await db.query('select set_record_archived($1,$2,true)', [table, id])
+      expect(await scalar(`select archived_at is not null from ${table} where id=$1`, [id])).toBe(true)
+      await db.query('select set_record_archived($1,$2,false)', [table, id])
+      expect(await scalar(`select archived_at is null from ${table} where id=$1`, [id])).toBe(true)
+    }
+    expect(
+      (
+        await db.query(
+          'select estimated_total,detail_json,created_at from price_estimate_snapshots where id=$1',
+          [snapshot],
+        )
+      ).rows,
+    ).toEqual(before)
+    await expect(db.query("select set_record_archived('purchases',$1,true)", [product])).rejects.toThrow(
+      'Accesso negato',
+    )
+  })
+  it('archivia articoli anche acquistati, preserva quantità e invalida anteprime precedenti', async () => {
+    await as(alice)
+    const boughtItem = await scalar('select list_item_id from purchases limit 1')
+    const parent = await scalar('select list_id from shopping_list_items where id=$1', [boughtItem])
+    const version = Number(await scalar('select version from shopping_lists where id=$1', [parent]))
+    const purchases = (await db.query('select * from purchases where list_item_id=$1', [boughtItem])).rows
+    const contributions = (
+      await db.query('select * from list_item_contributions where item_id=$1', [boughtItem])
+    ).rows
+    await db.query("select set_record_archived('shopping_list_items',$1,true,$2)", [boughtItem, version])
+    expect(
+      await scalar('select archived_at is not null from shopping_list_items where id=$1', [boughtItem]),
+    ).toBe(true)
+    expect(Number(await scalar('select version from shopping_lists where id=$1', [parent]))).toBe(version + 1)
+    await expect(
+      db.query("select set_record_archived('shopping_list_items',$1,false,$2)", [boughtItem, version]),
+    ).rejects.toThrow('Lista modificata')
+    expect((await db.query('select * from purchases where list_item_id=$1', [boughtItem])).rows).toEqual(
+      purchases,
+    )
+    expect(
+      (await db.query('select * from list_item_contributions where item_id=$1', [boughtItem])).rows,
+    ).toEqual(contributions)
+    await db.query("select set_record_archived('shopping_list_items',$1,false,$2)", [boughtItem, version + 1])
+    const plan = await scalar('select id from meal_plans limit 1')
+    const planVersion = Number(await scalar('select version from meal_plans where id=$1', [plan]))
+    await db.query("select set_record_archived('meal_plans',$1,true,$2)", [plan, planVersion])
+    expect(await scalar('select archived_at is not null from meal_plans where id=$1', [plan])).toBe(true)
+    await expect(
+      db.query('select apply_plan_diff($1,$2,$3,$4,$5)', [parent, plan, version + 2, '[]', planVersion]),
+    ).rejects.toThrow('piano è cambiato')
+    await db.query("select set_record_archived('meal_plans',$1,false,$2)", [plan, planVersion + 1])
+  })
+  it('la copia esclude articoli archiviati e una nuova conferma piano li ripristina', async () => {
+    await as(alice)
+    const target = await scalar(
+      "insert into shopping_lists(household_id,title) values($1,'Archivio prova copia') returning id",
+      [home],
+    )
+    const product = await scalar(
+      "insert into generic_products(household_id,name,canonical_unit) values($1,'Prodotto prova ripristino','pz') returning id",
+      [home],
+    )
+    const archived = await scalar("select add_list_item($1,'Prodotto prova ripristino',2,'pz',$2)", [
+      target,
+      product,
+    ])
+    const version = Number(await scalar('select version from shopping_lists where id=$1', [target]))
+    await db.query("select set_record_archived('shopping_list_items',$1,true,$2)", [archived, version])
+    const copy = await scalar('select duplicate_list($1)', [target])
+    expect((await db.query('select id from shopping_list_items where list_id=$1', [copy])).rows).toHaveLength(
+      0,
+    )
+    const plan = await scalar(
+      "insert into meal_plans(household_id,week_start) values($1,'2027-01-04') returning id",
+      [home],
+    )
+    await db.query('select apply_plan_diff($1,$2,$3,$4,1)', [
+      target,
+      plan,
+      version + 1,
+      JSON.stringify([{ product_id: product, quantity: '1', unit: 'pz' }]),
+    ])
+    expect(await scalar('select archived_at is null from shopping_list_items where id=$1', [archived])).toBe(
+      true,
+    )
+    expect(
+      Number(
+        await scalar('select sum(requested_quantity) from list_item_contributions where item_id=$1', [
+          archived,
+        ]),
+      ),
+    ).toBe(3)
+  })
+  it('elimina negozi vuoti e protegge quelli con prezzi, che restano archiviabili', async () => {
+    await as(alice)
+    const unused = await scalar(
+      "insert into stores(household_id,name) values($1,'Negozio vuoto') returning id",
+      [home],
+    )
+    await db.query('delete from stores where id=$1', [unused])
+    expect((await db.query('select id from stores where id=$1', [unused])).rows).toHaveLength(0)
+    const used = await scalar('select store_id from price_observations limit 1')
+    await expect(db.query('delete from stores where id=$1', [used])).rejects.toMatchObject({ code: '23503' })
+    await db.query("select set_record_archived('stores',$1,true)", [used])
+    expect(await scalar('select archived_at is not null from stores where id=$1', [used])).toBe(true)
   })
   it('eliminazione famiglia richiede conferma e non tocca altre famiglie', async () => {
     await as(eve)

@@ -4,7 +4,7 @@
 
 PWA in italiano per organizzare la spesa di una famiglia: liste condivise, acquisti parziali, catalogo, prezzi per punto vendita, confronto con sconti personali, ricette e calendario.
 
-**Stato: otto migrazioni applicate e controlli SQL RLS/RPC superati sul database Supabase reale; collaudo Auth/JWT e Realtime completo ancora da eseguire.** Consultare [PROGRESS.md](PROGRESS.md) e [TEST_REPORT.md](TEST_REPORT.md). OCR, importazioni e alcune funzioni avanzate restano da completare. Nessun dato dimostrativo viene conservato in produzione.
+**Stato: nove migrazioni applicate e controlli SQL RLS/RPC superati sul database Supabase reale; collaudo Auth/JWT e Realtime completo ancora da eseguire.** Consultare [PROGRESS.md](PROGRESS.md) e [TEST_REPORT.md](TEST_REPORT.md). OCR, importazioni e alcune funzioni avanzate restano da completare. Nessun dato dimostrativo viene conservato in produzione.
 
 ## Avvio locale
 
@@ -38,15 +38,24 @@ VITE_SUPABASE_PUBLISHABLE_KEY=LA-CHIAVE-PUBBLICA
 
 Non vengono creati bucket di immagini. Non c'è un percorso di upload attivo, quindi nessuna foto privata viene pubblicata. Non creare bucket pubblici per aggirare questa limitazione.
 
-Se il progetto è nuovo e non hai accesso alla CLI o all'integrazione, `node scripts/prepare-bootstrap.mjs` prepara `.tools/supabase-bootstrap.sql`: contiene le otto migrazioni in un'unica transazione, senza credenziali o dati dimostrativi. Aprilo in SQL Editor ed eseguilo **una sola volta sul progetto vuoto**. Il controllo iniziale interrompe l'esecuzione se rileva lo schema dell'app. Lo script è testato su PostgreSQL locale, compresa la pubblicazione delle quattro tabelle delle liste; il servizio Realtime ospitato richiede ancora collaudo.
+Se il progetto è nuovo e non hai accesso alla CLI o all'integrazione, `node scripts/prepare-bootstrap.mjs` prepara `.tools/supabase-bootstrap.sql`: contiene le nove migrazioni in un'unica transazione, senza credenziali o dati dimostrativi. Aprilo in SQL Editor ed eseguilo **una sola volta sul progetto vuoto**. Il controllo iniziale interrompe l'esecuzione se rileva lo schema dell'app. Lo script è testato su PostgreSQL locale, compresa la pubblicazione delle quattro tabelle delle liste; il servizio Realtime ospitato richiede ancora collaudo.
 
-Il percorso SQL Editor non aggiorna la cronologia migrazioni della CLI. Prima di passare a `db push`, confrontare lo schema e riconciliare le otto versioni applicate con `supabase migration repair --status applied VERSIONI`; non marcare applicate migrazioni non eseguite. Vedere la [documentazione ufficiale sulle migrazioni](https://supabase.com/docs/guides/deployment/database-migrations).
+Il percorso SQL Editor non aggiorna la cronologia migrazioni della CLI. Prima di passare a `db push`, confrontare lo schema e riconciliare le nove versioni applicate con `supabase migration repair --status applied VERSIONI`; non marcare applicate migrazioni non eseguite. Vedere la [documentazione ufficiale sulle migrazioni](https://supabase.com/docs/guides/deployment/database-migrations).
 
 Dopo la configurazione, `npm run check:backend` controlla Auth e la disponibilità delle 20 tabelle tramite richieste di sola lettura con `limit=0`. Il comando non registra account, non legge record familiari e non certifica RLS o sincronizzazione. Exit code: 0 se Auth risponde e tutte le tabelle risultano presenti o protette, 2 per schema incompleto/non verificato, 1 per configurazione o connessione fallita. Il file `.env` resta escluso da Git.
 
-Sul progetto corrente le otto migrazioni sono già applicate, registrate nella cronologia standard Supabase e confrontate con i file locali: **non rieseguire il bootstrap**. La migrazione 008 rimuove esplicitamente i grant anon e le operazioni dirette non necessarie assegnate dai default del servizio. Un rifiuto anon 401/42501 che nomina la tabella richiesta viene classificato PROTETTA dal check backend ed è atteso.
+Sul progetto corrente le nove migrazioni sono già applicate, registrate nella cronologia standard Supabase e confrontate con i file locali: **non rieseguire il bootstrap**. La migrazione 008 rimuove esplicitamente i grant anon e le operazioni dirette non necessarie assegnate dai default del servizio. Un rifiuto anon 401/42501 che nomina la tabella richiesta viene classificato PROTETTA dal check backend ed è atteso.
 
 Per i controlli amministrativi è disponibile `supabase/tests/online_rls.sql`: tre identità sintetiche, due famiglie, inviti, acquisti e accesso anon, dentro una transazione annullata. Non invia email né conserva fixture. È stato eseguito con successo sul progetto reale il 14 novembre 2026; non sostituisce il collaudo Auth/JWT e Realtime tramite app.
+
+## Rimozione dei dati
+
+- **Categorie:** Catalogo prodotti → Categorie della famiglia → Elimina categoria. Anche quelle già usate possono essere eliminate: i prodotti restano sotto Altri prodotti.
+- **Prodotti, punti vendita e ricette:** Elimina per i record senza vincoli; Archivia per nasconderli conservando collegamenti e storico. Mostra archiviati permette il Ripristina. I prodotti archiviati non compaiono nelle nuove selezioni; le liste esistenti conservano i riferimenti.
+- **Articoli delle liste:** Archivia è disponibile anche con acquisti registrati. Mostra articoli archiviati permette il ripristino. Le quantità archiviate non rientrano nei residui mostrati e nel confronto prezzi; acquisti e statistiche conservano lo storico. Una nuova conferma del piano o aggiunta da ricetta può ripristinare l'articolo corrispondente, come indicato nel modulo/anteprima. La duplicazione della lista esclude gli articoli archiviati.
+- **Piani settimanali:** Archivia nasconde il calendario, mantenendo le quantità già trasferite alle liste. Nella stessa settimana è disponibile Ripristina. Pasti e modelli hanno il comando di eliminazione.
+- **Ingredienti e sconti:** gli ingredienti già salvati e le regole sconto possono essere eliminati; nel modulo ricetta si può rimuovere l'ultimo ingrediente aggiunto. Le liste e le previsioni già salvate restano invariate.
+- **Previsioni:** Archivia/Ripristina nelle Statistiche; importi e dettagli rimangono immutabili. **Prezzi e acquisti:** Annulla conserva la traccia ed esclude il record dai calcoli. Le rilevazioni annullate sono consultabili con Mostra annullate. **Inviti:** Revoca invalida il codice.
 
 ## Flussi disponibili
 

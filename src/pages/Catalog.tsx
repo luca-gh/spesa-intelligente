@@ -1,8 +1,9 @@
+import { ArchiveButton, ArchiveFilter } from '../components/ArchiveButton'
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Plus, Tag, Store as StoreIcon } from 'lucide-react'
 import { useApp } from '../data/context'
-import { insert, removeCatalogProduct, rpc, update } from '../data/client'
+import { insert, remove, removeCatalogProduct, rpc, update } from '../data/client'
 import { convert, dateInZone, euro, quantity, validBarcode } from '../domain/math'
 import { estimate, rank } from '../domain/prices'
 import {
@@ -21,6 +22,7 @@ import {
 export function Catalog() {
   const { data, household, act } = useApp()
   const [search, setSearch] = useState('')
+  const [archived, setArchived] = useState(false)
   const [generic, setGeneric] = useState('')
   const [specific, setSpecific] = useState('')
   const editing = data.generic_products.find((g) => g.id === generic)
@@ -110,11 +112,13 @@ export function Catalog() {
               value={editingSpecific?.generic_product_id ?? ''}
             >
               <option value="">Non ancora classificato</option>
-              {data.generic_products.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.name}
-                </option>
-              ))}
+              {data.generic_products
+                .filter((g) => !g.archived_at || g.id === editingSpecific?.generic_product_id)
+                .map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
             </Select>
             <Field
               label="Contenuto netto per confezione"
@@ -140,8 +144,9 @@ export function Catalog() {
       <Panel title="Prodotti">
         <p className="muted">
           Puoi eliminare un prodotto che non è utilizzato. I prodotti collegati ad altri dati restano nel
-          catalogo per conservarne i riferimenti e lo storico.
+          storico. Puoi archiviarli per rimuoverli dalle viste attive e ripristinarli in seguito.
         </p>
+        <ArchiveFilter value={archived} onChange={setArchived} />
         <div className="table-wrap">
           <table>
             <thead>
@@ -154,6 +159,7 @@ export function Catalog() {
             </thead>
             <tbody>
               {data.generic_products
+                .filter((g) => !!g.archived_at === archived)
                 .filter((g) => g.name.toLowerCase().includes(search.toLowerCase()))
                 .map((g) => (
                   <tr key={g.id}>
@@ -164,6 +170,13 @@ export function Catalog() {
                       <button className="text-button" onClick={() => setGeneric(g.id)}>
                         Modifica
                       </button>
+                      <ArchiveButton
+                        table="generic_products"
+                        record={g}
+                        onDone={() => {
+                          if (generic === g.id) setGeneric('')
+                        }}
+                      />
                       <ConfirmButton
                         message={`Eliminare il prodotto generico «${g.name}» dal catalogo? L’operazione viene bloccata se è collegato ad altri dati.`}
                         success="Prodotto eliminato dal catalogo."
@@ -178,6 +191,7 @@ export function Catalog() {
                   </tr>
                 ))}
               {data.specific_products
+                .filter((s) => !!s.archived_at === archived)
                 .filter((s) =>
                   [s.name, s.brand, s.barcode].join(' ').toLowerCase().includes(search.toLowerCase()),
                 )
@@ -200,6 +214,13 @@ export function Catalog() {
                       <button className="text-button" onClick={() => setSpecific(s.id)}>
                         Modifica
                       </button>
+                      <ArchiveButton
+                        table="specific_products"
+                        record={s}
+                        onDone={() => {
+                          if (specific === s.id) setSpecific('')
+                        }}
+                      />
                       <ConfirmButton
                         message={`Eliminare il prodotto commerciale «${s.name}» dal catalogo? L’operazione viene bloccata se è collegato ad altri dati.`}
                         success="Prodotto eliminato dal catalogo."
@@ -236,16 +257,25 @@ export function Catalog() {
         </Form>
         <div className="inline wrap">
           {data.categories.map((c) => (
-            <button
-              className="pill"
-              key={c.id}
-              onClick={() => {
-                const name = prompt('Rinomina categoria', c.name)
-                if (name?.trim()) void act(() => update('categories', c.id, { name: name.trim() }))
-              }}
-            >
-              {c.name}
-            </button>
+            <span className="inline" key={c.id}>
+              <button
+                className="pill"
+                key={c.id}
+                onClick={() => {
+                  const name = prompt('Rinomina categoria', c.name)
+                  if (name?.trim()) void act(() => update('categories', c.id, { name: name.trim() }))
+                }}
+              >
+                {c.name}
+              </button>
+              <ConfirmButton
+                message={`Eliminare la categoria «${c.name}»? I prodotti resteranno nel catalogo, sotto Altri prodotti.`}
+                success="Categoria eliminata. I prodotti sono conservati in Altri prodotti."
+                onConfirm={() => rpc('delete_category', { p_id: c.id })}
+              >
+                Elimina categoria {c.name}
+              </ConfirmButton>
+            </span>
           ))}
         </div>
       </Panel>
@@ -253,8 +283,9 @@ export function Catalog() {
   )
 }
 export function Stores() {
-  const { data, household, act } = useApp()
+  const { data, household } = useApp()
   const [editing, setEditing] = useState('')
+  const [archived, setArchived] = useState(false)
   const store = data.stores.find((s) => s.id === editing)
   return (
     <>
@@ -287,34 +318,44 @@ export function Stores() {
         </p>
       </Panel>
       <div className="cards">
-        {data.stores.map((s) => (
-          <article className="panel" key={s.id}>
-            <StoreIcon className="green" />
-            <h2>{s.name}</h2>
-            <p>
-              {s.chain}
-              <br />
-              {s.address}, {s.city}
-            </p>
-            {s.archived_at && <span className="pill">Archiviato</span>}
-            <div className="inline">
-              <button className="text-button" onClick={() => setEditing(s.id)}>
-                Modifica
-              </button>
-              <button
-                className="text-button"
-                onClick={() =>
-                  void act(() =>
-                    update('stores', s.id, { archived_at: s.archived_at ? null : new Date().toISOString() }),
-                  )
-                }
-              >
-                {s.archived_at ? 'Ripristina' : 'Archivia'}
-              </button>
-            </div>
-          </article>
-        ))}
+        {data.stores
+          .filter((s) => !!s.archived_at === archived)
+          .map((s) => (
+            <article className="panel" key={s.id}>
+              <StoreIcon className="green" />
+              <h2>{s.name}</h2>
+              <p>
+                {s.chain}
+                <br />
+                {s.address}, {s.city}
+              </p>
+              {s.archived_at && <span className="pill">Archiviato</span>}
+              <div className="inline">
+                <button className="text-button" onClick={() => setEditing(s.id)}>
+                  Modifica
+                </button>
+                <ArchiveButton
+                  table="stores"
+                  record={s}
+                  onDone={() => {
+                    if (editing === s.id) setEditing('')
+                  }}
+                />
+                <ConfirmButton
+                  message={`Eliminare il punto vendita «${s.name}»? Se ha dati collegati, usa Archivia per conservare lo storico.`}
+                  success="Punto vendita eliminato."
+                  onConfirm={async () => {
+                    await remove('stores', s.id)
+                    if (editing === s.id) setEditing('')
+                  }}
+                >
+                  Elimina
+                </ConfirmButton>
+              </div>
+            </article>
+          ))}
       </div>
+      <ArchiveFilter value={archived} onChange={setArchived} />
       {!data.stores.length && (
         <Empty title="Dove fate la spesa?">Aggiungi il primo punto vendita per registrare i prezzi.</Empty>
       )}
@@ -327,9 +368,10 @@ export function Prices() {
   const [list, setList] = useState(params.get('lista') ?? '')
   const [date, setDate] = useState(dateInZone(new Date(), household!.timezone))
   const [ruleId, setRuleId] = useState('')
+  const [showVoided, setShowVoided] = useState(false)
   const rule = data.store_discount_rules.find((r) => r.id === ruleId)
   const requested = data.shopping_list_items
-    .filter((i) => i.list_id === list)
+    .filter((i) => i.list_id === list && !i.archived_at)
     .map((i) => ({ ...i, quantity: itemQuantity(i).remaining }))
   const estimates = rank(
     data.stores
@@ -338,7 +380,9 @@ export function Prices() {
         estimate(
           s.id,
           requested,
-          data.specific_products,
+          data.specific_products.filter(
+            (p) => !p.archived_at || requested.some((i) => i.specific_product_id === p.id),
+          ),
           data.price_observations,
           data.store_discount_rules,
           date,
@@ -355,11 +399,13 @@ export function Prices() {
             Lista
             <select value={list} onChange={(e) => setList(e.target.value)}>
               <option value="">Seleziona lista</option>
-              {data.shopping_lists.map((l) => (
-                <option value={l.id} key={l.id}>
-                  {l.title}
-                </option>
-              ))}
+              {data.shopping_lists
+                .filter((l) => l.status !== 'archived')
+                .map((l) => (
+                  <option value={l.id} key={l.id}>
+                    {l.title}
+                  </option>
+                ))}
             </select>
           </label>
           <label className="field">
@@ -475,11 +521,13 @@ export function Prices() {
           >
             <Select label="Prodotto commerciale" name="product">
               <option value="">Seleziona prodotto</option>
-              {data.specific_products.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} · {s.package_quantity} {s.package_unit}
-                </option>
-              ))}
+              {data.specific_products
+                .filter((s) => !s.archived_at)
+                .map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} · {s.package_quantity} {s.package_unit}
+                  </option>
+                ))}
             </Select>
             <Select label="Punto vendita" name="store">
               <option value="">Seleziona negozio</option>
@@ -638,6 +686,15 @@ export function Prices() {
             >
               {r.active ? 'Disattiva' : 'Attiva'}
             </button>
+            <ConfirmButton
+              message={`Eliminare la regola «${r.name}»? Le previsioni già salvate non cambieranno.`}
+              onConfirm={async () => {
+                await remove('store_discount_rules', r.id)
+                if (ruleId === r.id) setRuleId('')
+              }}
+            >
+              Elimina
+            </ConfirmButton>
           </div>
         ))}
         {!data.store_discount_rules.length && (
@@ -645,7 +702,12 @@ export function Prices() {
         )}
       </Panel>
       <Panel title="Storico prezzi">
+        <label className="checkbox">
+          <input type="checkbox" checked={showVoided} onChange={(e) => setShowVoided(e.target.checked)} />
+          Mostra annullate
+        </label>
         {[...data.price_observations]
+          .filter((p) => showVoided || !p.voided_at)
           .sort((a, b) => b.observed_at.localeCompare(a.observed_at))
           .map((p) => (
             <div className="data-row" key={p.id}>

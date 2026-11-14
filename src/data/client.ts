@@ -45,7 +45,8 @@ export function safeError(error: unknown): string {
   if (/Invalid login credentials/.test(message)) return 'Email o password non corrette.'
   if (/Email not confirmed/.test(message)) return 'Conferma il tuo indirizzo email prima di accedere.'
   if (/unique|duplicate/.test(message)) return 'Questo elemento esiste già. Controlla i duplicati.'
-  if (/foreign key/.test(message)) return 'L’elemento è collegato ad altri dati e non può essere eliminato.'
+  if (/foreign key/.test(message))
+    return 'L’elemento è collegato ad altri dati. Usa Archivia per rimuoverlo dalle viste attive e conservare lo storico.'
   return 'Operazione non riuscita. Controlla connessione, dati e autorizzazioni, poi riprova.'
 }
 export async function rpc(name: string, args: Record<string, unknown>) {
@@ -76,7 +77,7 @@ export async function removeCatalogProduct(table: 'generic_products' | 'specific
   } catch (error) {
     if (typeof error === 'object' && error && 'code' in error && error.code === '23503') {
       throw new Error(
-        'Prodotto in uso: è collegato a prodotti commerciali, liste, ricette, pasti, prezzi o acquisti. Puoi modificarlo; i dati collegati vengono conservati.',
+        'Prodotto in uso: è collegato a prodotti commerciali, liste, ricette, pasti, prezzi o acquisti. Puoi archiviarlo per rimuoverlo dalle viste attive, conservando i dati collegati.',
         { cause: error },
       )
     }

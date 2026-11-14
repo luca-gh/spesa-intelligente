@@ -18,10 +18,12 @@ export function Home() {
   const today = dateInZone(new Date(), household?.timezone)
   const active = data.shopping_lists.filter((l) => l.status === 'active')
   const activeIds = new Set(active.map((l) => l.id))
-  const items = data.shopping_list_items.filter((i) => activeIds.has(i.list_id))
+  const items = data.shopping_list_items.filter((i) => activeIds.has(i.list_id) && !i.archived_at)
   const pending = items.filter((i) => Number(itemQuantity(i).remaining) > 0)
   const spend = statistics(data.purchases, today.slice(0, 7) + '-01', today, household?.timezone)
-  const meals = data.meal_entries.filter((m) => m.meal_date === today)
+  const meals = data.meal_entries.filter(
+    (m) => m.meal_date === today && !data.meal_plans.find((p) => p.id === m.meal_plan_id)?.archived_at,
+  )
   return (
     <>
       <SectionTitle

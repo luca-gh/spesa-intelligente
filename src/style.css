@@ -647,6 +647,7 @@ small {
   display: none;
 }
 .notice {
+  pointer-events: none;
   position: fixed;
   bottom: 20px;
   left: 50%;

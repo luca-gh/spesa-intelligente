@@ -18,7 +18,8 @@ export function AddListItemForm({ listId }: { listId: string }) {
   const generic = data.generic_products.find((product) => product.id === productId)
   const specific = data.specific_products.find((product) => product.id === productId)
   const selected = generic ?? specific
-  const hasCatalog = data.generic_products.length + data.specific_products.length > 0
+  const hasCatalog =
+    data.generic_products.some((p) => !p.archived_at) || data.specific_products.some((p) => !p.archived_at)
   const baseUnit = generic?.canonical_unit ?? specific?.package_unit
   const availableUnits = baseUnit
     ? units.filter((candidate) => {
@@ -32,9 +33,11 @@ export function AddListItemForm({ listId }: { listId: string }) {
     : units
   const query = search.trim().toLocaleLowerCase('it')
   const generics = data.generic_products
+    .filter((p) => !p.archived_at)
     .filter((product) => product.name.toLocaleLowerCase('it').includes(query))
     .sort((a, b) => a.name.localeCompare(b.name, 'it'))
   const specifics = data.specific_products
+    .filter((p) => !p.archived_at)
     .filter((product) =>
       [
         product.name,

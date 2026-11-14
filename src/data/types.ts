@@ -12,12 +12,14 @@ export interface Category {
   sort_order: number
 }
 export interface Generic {
+  archived_at?: string | null
   id: string
   name: string
   category_id: string | null
   canonical_unit: Unit
 }
 export interface Specific extends Product {
+  archived_at?: string | null
   brand: string
   variant: string
   barcode: string | null
@@ -38,6 +40,7 @@ export interface List {
   created_at: string
 }
 export interface Item {
+  archived_at?: string | null
   id: string
   list_id: string
   name: string
@@ -69,6 +72,7 @@ export interface Purchase {
   voided_at: string | null
 }
 export interface Recipe {
+  archived_at?: string | null
   id: string
   title: string
   base_servings: number
@@ -85,6 +89,7 @@ export interface Ingredient {
   unit: Unit
 }
 export interface Plan {
+  archived_at?: string | null
   id: string
   week_start: string
   linked_list_id: string | null
@@ -107,6 +112,7 @@ export interface Template {
   entries_json: Omit<Meal, 'id' | 'meal_plan_id'>[]
 }
 export interface Snapshot {
+  archived_at?: string | null
   id: string
   list_id: string
   store_id: string
