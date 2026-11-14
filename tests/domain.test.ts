@@ -79,6 +79,19 @@ describe('Quantità e denaro', () => {
   it('presenta date nel fuso scelto', () =>
     expect(dateInZone(new Date('2026-11-17T23:30:00Z'))).toBe('2026-11-18'))
 })
+it('un formato non indicato resta escluso dalle stime anche quando il prezzo è noto', () => {
+  const result = estimate(
+    'store',
+    [item],
+    [{ ...products[0], package_quantity: null, package_unit: null }],
+    [regular('a', '1.20')],
+    [],
+    '2026-11-18',
+  )
+  expect(result.complete).toBe(false)
+  expect(result.known).toBe(0)
+  expect(result.lines[0].net).toBe(null)
+})
 describe('Prezzi, formati, copertura e regole ricorrenti', () => {
   it('sceglie confezioni compatibili meno costose per un generico', () => {
     const result = estimate(

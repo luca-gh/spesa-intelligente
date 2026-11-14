@@ -18,7 +18,7 @@ Aggiornamento: 14 novembre 2026. Implementazione progressiva: **consegna complet
 
 Il controllo del servizio ha rilevato grant automatici del proprietario non presenti nel PostgreSQL locale iniziale. Creata, testata e applicata la migrazione 008 explicit_privileges. I test locali ora emulano questi default Supabase.
 
-**Verifica finale: 20 tabelle con RLS, zero grant anon sulle tabelle e sulle RPC, 24 RPC abilitate per authenticated, quattro tabelle nella pubblicazione Realtime.** Nove versioni registrate nella struttura standard supabase_migrations.schema_migrations con SQL originale; checksum di tutte le versioni corrispondenti ai file locali.
+**Verifica finale: 20 tabelle con RLS, zero grant anon sulle tabelle e sulle RPC, 24 RPC abilitate per authenticated, quattro tabelle nella pubblicazione Realtime.** Dieci versioni registrate nella struttura standard supabase_migrations.schema_migrations con SQL originale; checksum di tutte le versioni corrispondenti ai file locali.
 
 **Test SQL sul servizio reale: PASS.** supabase/tests/online_rls.sql verifica due membri, invito, seconda famiglia, blocco letture/scritture/RPC cross-family, acquisto parziale senza prezzo e idempotente, uscita e anon. Fixture create in una transazione annullata: nessuna email e nessun dato di test conservato. Dopo rollback: zero famiglie, liste, acquisti e identità Auth di test residue.
 
@@ -100,3 +100,7 @@ Il messaggio Salvato ora scompare dopo 4 secondi. I messaggi più lunghi restano
 ## Ordinamento prodotti
 
 Catalogo ordinato per nome prodotto A–Z, con generici e commerciali intercalati alfabeticamente e selettore per Z–A. Ricerca e archiviati mantengono la direzione scelta. Confronto locale italiano, senza distinzione di maiuscole, con ordine numerico naturale e criterio stabile per gli omonimi. Test: 49 locali e 56 browser desktop/mobile PASS. Nessuna modifica del database.
+
+## Catalogo unico
+
+Su richiesta dell'utente, modulo unico con solo nome obbligatorio e categoria/marca/EAN/variante/formato facoltativi. Tolta la distinzione di inserimento generico/commerciale e il selettore A–Z/Z–A: ordinamento A–Z fisso. Le strutture interne conservano i riferimenti di liste, ricette e prezzi. Formati sconosciuti non generano stime. Migrazione 20261114221151 applicata, registrata e verificata; 54 test locali e 68 browser PASS, collaudo SQL reale transazionale PASS, zero fixture residue. Security Advisor: zero errori, avvisi preesistenti documentati.

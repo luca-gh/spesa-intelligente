@@ -12,11 +12,12 @@ export interface Category {
   sort_order: number
 }
 export interface Generic {
+  is_catalog_group?: boolean
   archived_at?: string | null
   id: string
   name: string
   category_id: string | null
-  canonical_unit: Unit
+  canonical_unit: Unit | null
 }
 export interface Specific extends Product {
   archived_at?: string | null

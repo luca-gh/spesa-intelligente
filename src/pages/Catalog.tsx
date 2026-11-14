@@ -1,11 +1,12 @@
 import { ArchiveButton, ArchiveFilter } from '../components/ArchiveButton'
-import { useId, useState } from 'react'
+import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Plus, Tag, Store as StoreIcon } from 'lucide-react'
 import { useApp } from '../data/context'
 import { insert, remove, removeCatalogProduct, rpc, update } from '../data/client'
-import { convert, dateInZone, euro, quantity, validBarcode } from '../domain/math'
+import { convert, dateInZone, euro, quantity, units, validBarcode } from '../domain/math'
 import { estimate, rank } from '../domain/prices'
+import { catalogProducts, productFormat } from '../data/catalog'
 import {
   ConfirmButton,
   Empty,
@@ -16,71 +17,79 @@ import {
   Select,
   Submit,
   text,
-  UnitSelect,
 } from '../components/ui'
-
-const productNames = new Intl.Collator('it', { sensitivity: 'base', numeric: true })
 
 export function Catalog() {
   const { data, household, act } = useApp()
   const [search, setSearch] = useState('')
   const [archived, setArchived] = useState(false)
-  const [order, setOrder] = useState<'asc' | 'desc'>('asc')
-  const orderId = useId()
-  const [generic, setGeneric] = useState('')
-  const [specific, setSpecific] = useState('')
-  const editing = data.generic_products.find((g) => g.id === generic)
-  const editingSpecific = data.specific_products.find((s) => s.id === specific)
+  const [selected, setSelected] = useState('')
+  const allProducts = catalogProducts(data)
+  const editing = allProducts.find((entry) => entry.kind + ':' + entry.product.id === selected)
+  const product = editing?.product
+  const details = editing?.kind === 'specific' ? editing.product : undefined
   const query = search.trim().toLocaleLowerCase('it')
-  const products = [
-    ...data.generic_products.map((product) => ({ kind: 'generic' as const, product })),
-    ...data.specific_products.map((product) => ({ kind: 'specific' as const, product })),
-  ]
-    .filter(({ product }) => !!product.archived_at === archived)
-    .filter((entry) =>
-      (entry.kind === 'generic'
-        ? entry.product.name
-        : [entry.product.name, entry.product.brand, entry.product.barcode].join(' ')
-      )
+  const products = allProducts.filter(
+    (entry) =>
+      !!entry.product.archived_at === archived &&
+      [
+        entry.product.name,
+        entry.kind === 'specific' ? entry.product.brand : '',
+        entry.kind === 'specific' ? entry.product.barcode : '',
+      ]
+        .join(' ')
         .toLocaleLowerCase('it')
         .includes(query),
-    )
-    .sort(
-      (a, b) =>
-        (order === 'asc' ? 1 : -1) * productNames.compare(a.product.name, b.product.name) ||
-        a.kind.localeCompare(b.kind) ||
-        a.product.id.localeCompare(b.product.id),
-    )
+  )
   return (
     <>
       <SectionTitle eyebrow="SAPERE COSA SCEGLIERE" title="Il vostro catalogo." />
       <label className="field search-field">
         Cerca prodotto, marca o barcode
-        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Es. latte intero…" />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Es. latte parzialmente scremato…"
+        />
       </label>
-      <div className="two-columns">
-        <Panel title={editing ? 'Modifica prodotto generico' : 'Nuovo prodotto generico'}>
-          <Form
-            key={generic}
-            onSave={async (f) => {
-              const values = {
-                name: text(f, 'name'),
-                canonical_unit: text(f, 'unit'),
-                category_id: text(f, 'category') || null,
-              }
-              if (editing) await update('generic_products', editing.id, values)
-              else await insert('generic_products', household!.id, values)
-              setGeneric('')
-            }}
-          >
+      <Panel title={editing ? 'Modifica prodotto' : 'Nuovo prodotto'}>
+        <p className="muted">
+          È obbligatorio solo il nome. Puoi aggiungere o completare gli altri dettagli in seguito.
+        </p>
+        <Form
+          key={selected}
+          onSave={async (f) => {
+            const barcode = text(f, 'barcode')
+            const size = text(f, 'size')
+            const unit = text(f, 'unit')
+            if (barcode && !validBarcode(barcode))
+              throw new Error('Quantità non valida: controlla il checksum del barcode EAN.')
+            if (!!size !== !!unit)
+              throw new Error(
+                'Quantità non valida: completa quantità e unità del formato, oppure lascia entrambi vuoti.',
+              )
+            await rpc('save_catalog_product', {
+              p_id: product?.id ?? null,
+              p_specific: editing?.kind === 'specific',
+              p_name: text(f, 'name'),
+              p_category: text(f, 'category') || null,
+              p_brand: text(f, 'brand'),
+              p_barcode: barcode || null,
+              p_variant: text(f, 'variant'),
+              p_quantity: size ? quantity(size).toString() : null,
+              p_unit: unit || null,
+            })
+            setSelected('')
+          }}
+        >
+          <div className="grid-form">
             <Field
-              label="Nome (definisce l’equivalenza)"
+              label="Nome prodotto"
               name="name"
-              value={editing?.name}
-              placeholder="Latte intero senza lattosio"
+              value={product?.name}
+              placeholder="Latte parzialmente scremato"
             />
-            <UnitSelect value={editing?.canonical_unit} />
-            <Select label="Categoria" name="category" value={editing?.category_id ?? ''} required={false}>
+            <Select label="Categoria" name="category" value={editing?.categoryId ?? ''} required={false}>
               <option value="">Altri prodotti</option>
               {data.categories.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -88,173 +97,116 @@ export function Catalog() {
                 </option>
               ))}
             </Select>
-            <Submit />
-            {editing && (
-              <button className="text-button" type="button" onClick={() => setGeneric('')}>
-                Annulla modifica
-              </button>
-            )}
-          </Form>
-          <p className="muted">
-            L’associazione tra commerciale e generico è esplicita. Collega solo prodotti con caratteristiche
-            compatibili.
-          </p>
-        </Panel>
-        <Panel title={editingSpecific ? 'Modifica prodotto commerciale' : 'Nuovo prodotto commerciale'}>
-          <Form
-            key={specific}
-            onSave={async (f) => {
-              const barcode = text(f, 'barcode')
-              if (barcode && !validBarcode(barcode))
-                throw new Error('Quantità non valida: controlla il checksum del barcode EAN.')
-              const values = {
-                name: text(f, 'name'),
-                brand: text(f, 'brand'),
-                variant: text(f, 'variant'),
-                generic_product_id: text(f, 'generic') || null,
-                package_quantity: quantity(text(f, 'size')).toString(),
-                package_unit: text(f, 'unit'),
-                barcode: barcode || null,
-              }
-              if (editingSpecific) await update('specific_products', editingSpecific.id, values)
-              else await insert('specific_products', household!.id, values)
-              setSpecific('')
-            }}
-          >
-            <Field label="Nome commerciale" name="name" value={editingSpecific?.name} />
-            <Field label="Marca" name="brand" required={false} value={editingSpecific?.brand} />
             <Field
-              label="Variante / caratteristiche"
-              name="variant"
+              label="Marca (facoltativa)"
+              name="brand"
+              value={details?.brand}
               required={false}
-              value={editingSpecific?.variant}
+              placeholder="Es. Abit"
             />
-            <Select
-              label="Equivalenza generica confermata"
-              name="generic"
-              required={false}
-              value={editingSpecific?.generic_product_id ?? ''}
-            >
-              <option value="">Non ancora classificato</option>
-              {data.generic_products
-                .filter((g) => !g.archived_at || g.id === editingSpecific?.generic_product_id)
-                .map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name}
-                  </option>
-                ))}
-            </Select>
             <Field
-              label="Contenuto netto per confezione"
-              name="size"
-              value={editingSpecific?.package_quantity ?? '1'}
-            />
-            <UnitSelect value={editingSpecific?.package_unit} />
-            <Field
-              label="EAN-8 / EAN-13"
+              label="EAN-8 / EAN-13 (facoltativo)"
               name="barcode"
+              value={details?.barcode ?? ''}
               required={false}
-              value={editingSpecific?.barcode ?? ''}
             />
-            <Submit />
-            {editingSpecific && (
-              <button className="text-button" type="button" onClick={() => setSpecific('')}>
+            <Field
+              label="Variante / note sul prodotto (facoltative)"
+              name="variant"
+              value={details?.variant}
+              required={false}
+            />
+          </div>
+          <details open={!!details?.package_quantity}>
+            <summary>Formato della confezione (facoltativo)</summary>
+            <p className="muted">
+              Indicalo quando lo conosci: serve per confrontare quantità e prezzi. Se manca, la stima segnala
+              il prezzo come non disponibile.
+            </p>
+            <div className="grid-form">
+              <Field
+                label="Quantità per confezione"
+                name="size"
+                value={details?.package_quantity ?? ''}
+                required={false}
+                placeholder="Es. 1 oppure 500"
+              />
+              <Select
+                label="Unità del formato"
+                name="unit"
+                value={details?.package_unit ?? ''}
+                required={false}
+              >
+                <option value="">Non indicata</option>
+                {units.map((unit) => (
+                  <option key={unit}>{unit}</option>
+                ))}
+              </Select>
+            </div>
+          </details>
+          <div className="inline">
+            <Submit>Salva prodotto</Submit>
+            {editing && (
+              <button className="text-button" type="button" onClick={() => setSelected('')}>
                 Annulla modifica
               </button>
             )}
-          </Form>
-        </Panel>
-      </div>
+          </div>
+        </Form>
+      </Panel>
       <Panel title="Prodotti">
         <p className="muted">
-          Puoi eliminare un prodotto che non è utilizzato. I prodotti collegati ad altri dati restano nel
-          storico. Puoi archiviarli per rimuoverli dalle viste attive e ripristinarli in seguito.
+          I prodotti sono sempre in ordine alfabetico per nome. Puoi eliminare quelli inutilizzati o
+          archiviarli conservando i dati collegati.
         </p>
         <ArchiveFilter value={archived} onChange={setArchived} />
-        <div className="field">
-          <label htmlFor={orderId}>Ordina prodotti</label>
-          <select id={orderId} value={order} onChange={(e) => setOrder(e.target.value as 'asc' | 'desc')}>
-            <option value="asc">Prodotto (A–Z)</option>
-            <option value="desc">Prodotto (Z–A)</option>
-          </select>
-        </div>
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th aria-sort={order === 'asc' ? 'ascending' : 'descending'}>Prodotto</th>
-                <th>Tipo / formato</th>
-                <th>Equivalenza</th>
+                <th aria-sort="ascending">Prodotto</th>
+                <th>Categoria</th>
+                <th>Marca</th>
+                <th>EAN</th>
+                <th>Formato</th>
                 <th>Azioni</th>
               </tr>
             </thead>
             <tbody>
               {products.map((entry) => {
-                if (entry.kind === 'generic') {
-                  const g = entry.product
-                  return (
-                    <tr key={`generic:${g.id}`}>
-                      <td>{g.name}</td>
-                      <td>Generico · {g.canonical_unit}</td>
-                      <td>{data.categories.find((c) => c.id === g.category_id)?.name ?? 'Altri prodotti'}</td>
-                      <td>
-                        <button className="text-button" onClick={() => setGeneric(g.id)}>
-                          Modifica
-                        </button>
-                        <ArchiveButton
-                          table="generic_products"
-                          record={g}
-                          onDone={() => {
-                            if (generic === g.id) setGeneric('')
-                          }}
-                        />
-                        <ConfirmButton
-                          message={`Eliminare il prodotto generico «${g.name}» dal catalogo? L’operazione viene bloccata se è collegato ad altri dati.`}
-                          success="Prodotto eliminato dal catalogo."
-                          onConfirm={async () => {
-                            await removeCatalogProduct('generic_products', g.id)
-                            if (generic === g.id) setGeneric('')
-                          }}
-                        >
-                          Elimina
-                        </ConfirmButton>
-                      </td>
-                    </tr>
-                  )
-                }
-                const s = entry.product
+                const p = entry.product
+                const specific = entry.kind === 'specific' ? entry.product : undefined
+                const table = entry.kind === 'specific' ? 'specific_products' : 'generic_products'
+                const key = entry.kind + ':' + p.id
                 return (
-                  <tr key={`specific:${s.id}`}>
+                  <tr key={key} data-product-id={p.id}>
                     <td>
-                      <strong>{s.name}</strong>
-                      <small>
-                        {s.brand} {s.variant} · {s.barcode}
-                      </small>
+                      <strong>{p.name}</strong>
+                      {specific?.variant && <small>{specific.variant}</small>}
                     </td>
                     <td>
-                      {s.package_quantity} {s.package_unit}
+                      {data.categories.find((c) => c.id === entry.categoryId)?.name ?? 'Altri prodotti'}
                     </td>
+                    <td>{specific?.brand || '—'}</td>
+                    <td>{specific?.barcode || '—'}</td>
+                    <td>{specific ? productFormat(specific) : 'Non indicato'}</td>
                     <td>
-                      {data.generic_products.find((g) => g.id === s.generic_product_id)?.name ??
-                        'Non classificato'}
-                    </td>
-                    <td>
-                      <button className="text-button" onClick={() => setSpecific(s.id)}>
+                      <button className="text-button" onClick={() => setSelected(key)}>
                         Modifica
                       </button>
                       <ArchiveButton
-                        table="specific_products"
-                        record={s}
+                        table={table}
+                        record={p}
                         onDone={() => {
-                          if (specific === s.id) setSpecific('')
+                          if (selected === key) setSelected('')
                         }}
                       />
                       <ConfirmButton
-                        message={`Eliminare il prodotto commerciale «${s.name}» dal catalogo? L’operazione viene bloccata se è collegato ad altri dati.`}
+                        message={`Eliminare il prodotto «${p.name}»? Se ha dati collegati, usa Archivia per conservarli.`}
                         success="Prodotto eliminato dal catalogo."
                         onConfirm={async () => {
-                          await removeCatalogProduct('specific_products', s.id)
-                          if (specific === s.id) setSpecific('')
+                          await removeCatalogProduct(table, p.id)
+                          if (selected === key) setSelected('')
                         }}
                       >
                         Elimina
@@ -266,9 +218,9 @@ export function Catalog() {
             </tbody>
           </table>
         </div>
-        {!data.generic_products.length && !data.specific_products.length && (
-          <Empty title="Un catalogo tutto vostro">
-            Aggiungi i prodotti che usate, senza dati precompilati.
+        {!products.length && (
+          <Empty title={archived ? 'Nessun prodotto archiviato' : 'Nessun prodotto in questa vista'}>
+            Aggiungi un prodotto oppure modifica la ricerca.
           </Empty>
         )}
       </Panel>
@@ -548,13 +500,14 @@ export function Prices() {
               })
             }
           >
-            <Select label="Prodotto commerciale" name="product">
+            <Select label="Prodotto" name="product">
               <option value="">Seleziona prodotto</option>
               {data.specific_products
                 .filter((s) => !s.archived_at)
                 .map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.name} · {s.package_quantity} {s.package_unit}
+                    {s.name}
+                    {s.brand ? ` · ${s.brand}` : ''} · {productFormat(s)}
                   </option>
                 ))}
             </Select>

@@ -4,7 +4,7 @@ Data: 14 novembre 2026, Europe/Rome. Ambiente locale Windows, Node.js 22 LTS por
 
 ## Verifica sul servizio reale dopo le migrazioni
 
-Migrazioni 001–009: PASS, applicate e registrate nella cronologia standard con SQL originale e checksum verificati. Il dashboard è stato usato dopo login interattivo, senza acquisire chiavi amministrative.
+Migrazioni 001–009 e 20261114221151: PASS, applicate e registrate nella cronologia standard con SQL originale e checksum verificati. Il dashboard è stato usato dopo login interattivo, senza acquisire chiavi amministrative.
 
 Security review reale: 20 RLS attive, 0 grant anon sulle tabelle e sulle RPC, 24 RPC per authenticated con search_path fissato, quattro tabelle nella pubblicazione Realtime. Migrazione 008 verificata anche con default grant Supabase emulati localmente.
 
@@ -12,7 +12,7 @@ supabase/tests/online_rls.sql: PASS sul progetto reale. Due membri, invito/accet
 
 Check backend reale: PASS, Auth HTTP 200; 20 tabelle PROTETTA (401/42501 riferito alla tabella richiesta). Non equivale al collaudo autenticato Auth/JWT/PostgREST o Realtime su due client, tuttora NOT RUN completo.
 
-Suite locale attuale: 49 PASS in 5 file, inclusi bootstrap completo, privilegi predefiniti e script SQL online con rollback. Controlli locali finali PASS: lint, typecheck, build, 49 test, 56 test browser e controllo segreti. CI del nuovo commit verificata separatamente dopo la pubblicazione.
+Suite locale attuale: 54 PASS in 6 file, inclusi bootstrap completo, privilegi predefiniti e script SQL online con rollback. Controlli locali finali PASS: lint, typecheck, build, 54 test, 68 test browser e controllo segreti. CI del nuovo commit verificata separatamente dopo la pubblicazione.
 
 | Area                            | Ambiente e verifica                                                                                                  | Stato                                                                 |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
@@ -98,3 +98,11 @@ PASS: 49 test locali, 52 prove browser desktop/mobile, lint, typecheck, build, c
 Prodotti generici e commerciali ordinati insieme per nome italiano, A–Z come impostazione iniziale, Z–A selezionabile. Ordinamento applicato ai risultati della ricerca e agli archiviati, senza modificare l'ordine degli array condivisi o i dati salvati. Il selettore ha un'etichetta esplicita e la colonna comunica la direzione tramite aria-sort.
 
 PASS: 49 test locali e 56 prove browser. Due nuovi scenari su desktop/mobile verificano l'ordine combinato dei tipi, cambio direzione, ricerca e archiviati. Nessuna migrazione o modifica di dati reali.
+
+## Catalogo unificato e dettagli facoltativi
+
+Migrazione 20261114221151 generata con CLI Supabase 3.1.0, testata e applicata al servizio reale. Dieci checksum verificati, venti tabelle RLS, nuova RPC save_catalog_product SECURITY INVOKER con search_path fissato, EXECUTE anon revocato e authenticated concesso. Salvataggio atomico soggetto alle RLS esistenti. Nessun identificativo precedente eliminato o sostituito nei riferimenti storici. Formato assente rappresentato da NULL, senza confezioni fittizie.
+
+PASS: 54 test in sei file e 68 prove browser desktop/mobile, lint, tipi, build e prova aggiornamento PWA. Nuovo test migrazione su dati preesistenti con acquisti: stessi identificativi, importi, riferimenti e archiviazioni. Test SQL: nome solo, aggiunta/rimozione dettagli, rollback di formato/EAN/categoria non validi, unicità EAN, accesso cross-family e anon negato. Test prezzi: formato ignoto escluso dalle stime. Browser: modulo unico, nome obbligatorio, categoria/marca/EAN facoltativi, formato aggiunto in seguito e cancellato, nessuna doppia scheda, elenco unico nelle liste, confronto senza marca, ordine A–Z senza selettore.
+
+Script online_rls.sql esteso ed eseguito sul progetto reale: PASS anche per catalogo con solo nome, modifica dettagli e accesso negato da altra famiglia/anon. Rollback integrale; zero identità sintetiche residue. Security Advisor rieseguito via dashboard autenticata: 0 errori, 25 avvisi preesistenti relativi alle RPC SECURITY DEFINER abilitate ai membri e alla protezione password compromesse disabilitata. La nuova RPC è invoker. CLI advisors non autenticata; non sono stati acquisiti token amministrativi né attivati piani a pagamento. Non si dichiara un audit senza avvisi.

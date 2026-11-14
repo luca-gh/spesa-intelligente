@@ -5,8 +5,8 @@ export interface Product {
   id: string
   generic_product_id: string | null
   name: string
-  package_quantity: string
-  package_unit: Unit
+  package_quantity: string | null
+  package_unit: Unit | null
 }
 export interface Observation {
   id: string
@@ -132,6 +132,7 @@ export function estimate(
       )
       const candidates: EstimateLine[] = []
       for (const product of options) {
+        if (!product.package_quantity || !product.package_unit) continue
         const price = resolvePrice(observations, product.id, storeId, date, zone)
         if (!price.selected) continue
         let count: number

@@ -30,6 +30,7 @@ beforeAll(async () => {
     '202611140007_barcode_validation.sql',
     '202611140008_explicit_privileges.sql',
     '202611140009_removal.sql',
+    '20261114221151_unified_catalog.sql',
   ])
     await db.exec(readFileSync(`supabase/migrations/${file}`, 'utf8'))
   await as(alice)
@@ -483,6 +484,111 @@ describe('RLS PostgreSQL reale e RPC', () => {
     await expect(db.query('delete from stores where id=$1', [used])).rejects.toMatchObject({ code: '23503' })
     await db.query("select set_record_archived('stores',$1,true)", [used])
     expect(await scalar('select archived_at is not null from stores where id=$1', [used])).toBe(true)
+  })
+  it('catalogo unificato: basta il nome, senza inventare marca, EAN o formato', async () => {
+    await as(alice)
+    const record = (await scalar("select save_catalog_product('Solo nome nuovo')")) as unknown as {
+      id: string
+      specific: boolean
+    }
+    expect(record.specific).toBe(true)
+    const row = (
+      await db.query<{
+        generic_product_id: string
+        brand: string
+        barcode: null
+        package_quantity: null
+        package_unit: null
+      }>(
+        'select generic_product_id,brand,barcode,package_quantity,package_unit from specific_products where id=$1',
+        [record.id],
+      )
+    ).rows[0]
+    expect(row).toMatchObject({ brand: '', barcode: null, package_quantity: null, package_unit: null })
+    expect(
+      await scalar('select canonical_unit from generic_products where id=$1', [row.generic_product_id]),
+    ).toBe(null)
+    expect(
+      await scalar('select is_catalog_group from generic_products where id=$1', [row.generic_product_id]),
+    ).toBe(true)
+    await expect(db.query("select save_catalog_product('Solo nome nuovo')")).rejects.toMatchObject({
+      code: '23505',
+    })
+    await as(eve)
+    await expect(
+      db.query("select save_catalog_product('Intrusione',p_id:=$1,p_specific:=true)", [record.id]),
+    ).rejects.toThrow('Accesso negato')
+  })
+  it('catalogo unificato: dettagli aggiunti e rimossi senza cambiare identità o storico', async () => {
+    await as(alice)
+    const record = (await scalar(
+      "select save_catalog_product('Latte test unificato',p_brand:='Abit',p_barcode:='96385074')",
+    )) as unknown as { id: string }
+    const listItem = await scalar("select add_list_item($1,'Latte test unificato',1,'pz',null,$2)", [
+      list,
+      record.id,
+    ])
+    const purchase = await scalar(
+      'select record_purchase(p_id:=gen_random_uuid(),p_item:=$1,p_quantity:=1,p_total:=3,p_specific:=$2)',
+      [listItem, record.id],
+    )
+    const before = (await db.query('select * from purchases where id=$1', [purchase])).rows
+    const saved = (await scalar(
+      "select save_catalog_product('Latte test unificato',p_brand:='Abit',p_barcode:='96385074',p_quantity:=1,p_unit:='L',p_id:=$1,p_specific:=true)",
+      [record.id],
+    )) as unknown as { id: string }
+    expect(saved.id).toBe(record.id)
+    expect(
+      Number(await scalar('select package_quantity from specific_products where id=$1', [record.id])),
+    ).toBe(1)
+    await db.query("select save_catalog_product('Latte test unificato',p_id:=$1,p_specific:=true)", [
+      record.id,
+    ])
+    expect(await scalar('select package_quantity from specific_products where id=$1', [record.id])).toBe(null)
+    expect((await db.query('select * from purchases where id=$1', [purchase])).rows).toEqual(before)
+    expect(await scalar('select specific_product_id from shopping_list_items where id=$1', [listItem])).toBe(
+      record.id,
+    )
+  })
+  it('catalogo unificato: errori atomici, categorie private e privilegi minimi', async () => {
+    await as(alice)
+    await expect(
+      db.query("select save_catalog_product('Errore formato nuovo',p_quantity:=1)"),
+    ).rejects.toThrow('completa quantità')
+    await expect(
+      db.query("select save_catalog_product('Errore EAN nuovo',p_barcode:='12345678')"),
+    ).rejects.toThrow('checksum')
+    expect(
+      Number(
+        await scalar(
+          "select count(*) from generic_products where name in ('Errore formato nuovo','Errore EAN nuovo')",
+        ),
+      ),
+    ).toBe(0)
+    const foreignCategory = await (async () => {
+      await as(eve)
+      return scalar('select id from categories where household_id=$1 limit 1', [other])
+    })()
+    await as(alice)
+    await expect(
+      db.query("select save_catalog_product('Errore categoria nuova',p_category:=$1)", [foreignCategory]),
+    ).rejects.toThrow('Accesso negato')
+    await expect(
+      db.query("select save_catalog_product('EAN duplicato nuovo',p_barcode:='8000500037560')"),
+    ).rejects.toMatchObject({ code: '23505' })
+    expect(
+      Number(await scalar("select count(*) from generic_products where name='EAN duplicato nuovo'")),
+    ).toBe(0)
+    await db.exec('reset role')
+    expect(
+      (
+        await db.query(
+          "select p.prosecdef,has_function_privilege('anon',p.oid,'EXECUTE') as anon from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='save_catalog_product'",
+        )
+      ).rows,
+    ).toEqual([{ prosecdef: false, anon: false }])
+    await db.exec('set role anon')
+    await expect(db.query("select save_catalog_product('Anon')")).rejects.toThrow()
   })
   it('eliminazione famiglia richiede conferma e non tocca altre famiglie', async () => {
     await as(eve)

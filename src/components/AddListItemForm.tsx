@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import { useApp } from '../data/context'
 import { rpc } from '../data/client'
+import { catalogProducts, productFormat } from '../data/catalog'
 import { convert, quantity, units, type Unit } from '../domain/math'
 import { Submit } from './ui'
 
@@ -18,8 +19,9 @@ export function AddListItemForm({ listId }: { listId: string }) {
   const generic = data.generic_products.find((product) => product.id === productId)
   const specific = data.specific_products.find((product) => product.id === productId)
   const selected = generic ?? specific
-  const hasCatalog =
-    data.generic_products.some((p) => !p.archived_at) || data.specific_products.some((p) => !p.archived_at)
+  const anyBrand = !!specific?.generic_product_id && !specific.brand && !specific.barcode && !specific.variant
+  const allChoices = catalogProducts(data)
+  const hasCatalog = allChoices.some(({ product }) => !product.archived_at)
   const baseUnit = generic?.canonical_unit ?? specific?.package_unit
   const availableUnits = baseUnit
     ? units.filter((candidate) => {
@@ -33,6 +35,7 @@ export function AddListItemForm({ listId }: { listId: string }) {
     : units
   const query = search.trim().toLocaleLowerCase('it')
   const generics = data.generic_products
+    .filter((p) => !p.is_catalog_group)
     .filter((p) => !p.archived_at)
     .filter((product) => product.name.toLocaleLowerCase('it').includes(query))
     .sort((a, b) => a.name.localeCompare(b.name, 'it'))
@@ -51,6 +54,8 @@ export function AddListItemForm({ listId }: { listId: string }) {
         .includes(query),
     )
     .sort((a, b) => a.name.localeCompare(b.name, 'it'))
+  const genericIds = new Set(generics.map((p) => p.id))
+  const specificIds = new Set(specifics.map((p) => p.id))
 
   function chooseProduct(id: string) {
     setProductId(id)
@@ -58,8 +63,13 @@ export function AddListItemForm({ listId }: { listId: string }) {
     setError('')
     const nextGeneric = data.generic_products.find((product) => product.id === id)
     const nextSpecific = data.specific_products.find((product) => product.id === id)
-    setUnit(nextGeneric?.canonical_unit ?? nextSpecific?.package_unit ?? 'pz')
-    setRequested(nextSpecific ? String(nextSpecific.package_quantity) : '1')
+    setUnit(
+      nextGeneric?.canonical_unit ??
+        nextSpecific?.package_unit ??
+        data.generic_products.find((g) => g.id === nextSpecific?.generic_product_id)?.canonical_unit ??
+        'pz',
+    )
+    setRequested(nextSpecific?.package_quantity ?? '1')
   }
 
   function changeUnit(next: Unit) {
@@ -97,8 +107,8 @@ export function AddListItemForm({ listId }: { listId: string }) {
         p_name: selected?.name ?? name.trim(),
         p_quantity: amount,
         p_unit: unit,
-        p_generic: generic?.id ?? null,
-        p_specific: specific?.id ?? null,
+        p_generic: generic?.id ?? (anyBrand ? specific!.generic_product_id : null),
+        p_specific: anyBrand ? null : (specific?.id ?? null),
       }),
     )
     if (saved) {
@@ -143,25 +153,21 @@ export function AddListItemForm({ listId }: { listId: string }) {
           onChange={(event) => chooseProduct(event.target.value)}
         >
           <option value="">Nessuno: scrivi un articolo libero</option>
-          {generics.length > 0 && (
-            <optgroup label="Prodotti generici">
-              {generics.map((product) => (
-                <option key={product.id} value={product.id}>
-                  {product.name}
-                </option>
-              ))}
-            </optgroup>
-          )}
-          {specifics.length > 0 && (
-            <optgroup label="Marche e formati">
-              {specifics.map((product) => (
-                <option key={product.id} value={product.id}>
-                  {[product.name, product.brand, product.variant].filter(Boolean).join(' · ')} ·{' '}
-                  {product.package_quantity} {product.package_unit}
-                </option>
-              ))}
-            </optgroup>
-          )}
+          {allChoices
+            .filter((entry) =>
+              entry.kind === 'generic' ? genericIds.has(entry.product.id) : specificIds.has(entry.product.id),
+            )
+            .map((entry) => (
+              <option key={entry.kind + entry.product.id} value={entry.product.id}>
+                {entry.product.name}
+                {entry.kind === 'specific'
+                  ? [entry.product.brand, entry.product.variant, productFormat(entry.product)]
+                      .filter(Boolean)
+                      .map((value) => ` · ${value}`)
+                      .join('')
+                  : ''}
+              </option>
+            ))}
         </select>
       </label>
       {!hasCatalog && (
@@ -175,15 +181,20 @@ export function AddListItemForm({ listId }: { listId: string }) {
           Nessun prodotto trovato. Puoi scrivere il nome qui sotto per aggiungere un articolo libero.
         </p>
       )}
-      {specific && (
+      {specific?.package_quantity && specific.package_unit ? (
         <p className="muted item-help">
           Formato selezionato: {specific.package_quantity} {specific.package_unit} per confezione. La quantità
           iniziale corrisponde a una confezione: puoi modificarla.
         </p>
-      )}
-      {generic && (
+      ) : specific ? (
         <p className="muted item-help">
-          Prodotto generico: il confronto userà i prodotti commerciali associati, senza vincolare una marca.
+          Formato non indicato: scegli quantità e unità per questa lista. Il confronto prezzi richiede il
+          formato della confezione nel catalogo.
+        </p>
+      ) : null}
+      {(generic || anyBrand) && (
+        <p className="muted item-help">
+          Non è indicata una marca: il confronto considera i formati disponibili per questo prodotto.
         </p>
       )}
       {!selected && (

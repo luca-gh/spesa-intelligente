@@ -1,4 +1,5 @@
 import { ArchiveButton, ArchiveFilter } from '../components/ArchiveButton'
+import { productFormat } from '../data/catalog'
 import { useEffect, useRef, useState } from 'react'
 import Decimal from 'decimal.js'
 import { Camera, Download, KeyRound, ScanLine } from 'lucide-react'
@@ -554,7 +555,7 @@ export function Scanner() {
                   </p>
                 )}
                 <p>
-                  {product.brand} · {product.package_quantity} {product.package_unit}
+                  {product.brand} · {productFormat(product)}
                 </p>
                 <a href="/prezzi">Registra un prezzo →</a>
               </div>

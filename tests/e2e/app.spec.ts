@@ -45,6 +45,7 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
     purchases,
     ...structuredClone(catalog),
   }
+  const catalogSaveRequests: Record<string, unknown>[] = []
   const itemRequests: Record<string, unknown>[] = []
   const catalogDeleteRequests: { table: string; id: string }[] = []
   await page.route('https://fixture.supabase.test/**', async (route) => {
@@ -52,7 +53,43 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
     const table = url.pathname.split('/').pop()!
     let result: unknown
     if (table === 'households') result = home
-    else if (table === 'add_list_item') {
+    else if (table === 'save_catalog_product') {
+      const body = route.request().postDataJSON()
+      catalogSaveRequests.push(body)
+      const generics = (collections.generic_products ??= []) as Record<string, unknown>[]
+      const specifics = (collections.specific_products ??= []) as Record<string, unknown>[]
+      let specific = body.p_specific ? specifics.find((p) => p.id === body.p_id) : undefined
+      let generic =
+        body.p_id && !body.p_specific
+          ? generics.find((p) => p.id === body.p_id)
+          : generics.find((p) => p.id === specific?.generic_product_id || p.name === body.p_name)
+      if (!generic) {
+        generic = {
+          id: 'new-group-' + generics.length,
+          name: body.p_name,
+          category_id: body.p_category,
+          canonical_unit: body.p_unit,
+          is_catalog_group: true,
+        }
+        generics.push(generic)
+      }
+      generic.is_catalog_group = true
+      generic.category_id = body.p_category
+      if (!specific) {
+        specific = { id: 'new-product-' + specifics.length }
+        specifics.push(specific)
+      }
+      Object.assign(specific, {
+        name: body.p_name,
+        generic_product_id: generic.id,
+        brand: body.p_brand,
+        barcode: body.p_barcode,
+        variant: body.p_variant,
+        package_quantity: body.p_quantity,
+        package_unit: body.p_unit,
+      })
+      result = { id: specific.id, specific: true }
+    } else if (table === 'add_list_item') {
       const body = route.request().postDataJSON()
       itemRequests.push(body)
       const id = `item-new-${items.length + 1}`
@@ -152,7 +189,7 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
       }),
     )
   })
-  return { itemRequests, catalogDeleteRequests }
+  return { itemRequests, catalogDeleteRequests, catalogSaveRequests }
 }
 
 const productCatalog = {
@@ -174,7 +211,171 @@ const productCatalog = {
   ],
 }
 
-test('catalogo: prodotti generici e commerciali ordinati insieme per nome A–Z e Z–A', async ({ page }) => {
+test('catalogo unico: salva con solo il nome, senza formato o campi obbligatori aggiuntivi', async ({
+  page,
+}) => {
+  const { catalogSaveRequests } = await login(page)
+  await page.goto('/catalogo')
+  await expect(page.getByRole('heading', { name: 'Nuovo prodotto', exact: true })).toBeVisible()
+  await expect(page.getByLabel('Marca (facoltativa)', { exact: true })).not.toHaveAttribute('required', '')
+  await page.getByLabel('Nome prodotto', { exact: true }).fill('Latte parzialmente scremato')
+  await page.getByRole('button', { name: 'Salva prodotto', exact: true }).click()
+  await expect(page.locator('tbody tr')).toHaveCount(1)
+  await expect(page.locator('tbody tr')).toContainText('Latte parzialmente scremato')
+  await expect(page.locator('tbody tr')).toContainText('Formato non indicato')
+  expect(catalogSaveRequests[0]).toMatchObject({
+    p_name: 'Latte parzialmente scremato',
+    p_brand: '',
+    p_barcode: null,
+    p_quantity: null,
+    p_unit: null,
+  })
+})
+
+test('catalogo unico: nome, categoria, marca ed EAN senza creare una seconda scheda', async ({ page }) => {
+  const { catalogSaveRequests } = await login(page, false, {
+    categories: [{ id: 'milk-category', name: 'Latticini', sort_order: 0 }],
+  })
+  await page.goto('/catalogo')
+  await page.getByLabel('Nome prodotto', { exact: true }).fill('Latte parzialmente scremato')
+  await page.getByRole('combobox', { name: 'Categoria', exact: true }).selectOption('milk-category')
+  await page.getByLabel('Marca (facoltativa)', { exact: true }).fill('Abit')
+  await page.getByLabel('EAN-8 / EAN-13 (facoltativo)', { exact: true }).fill('96385074')
+  await page.getByRole('button', { name: 'Salva prodotto', exact: true }).click()
+  await expect(page.locator('tbody tr')).toHaveCount(1)
+  await expect(page.locator('tbody tr')).toContainText('Abit')
+  await expect(page.locator('tbody tr')).toContainText('Latticini')
+  expect(catalogSaveRequests[0]).toMatchObject({
+    p_category: 'milk-category',
+    p_brand: 'Abit',
+    p_barcode: '96385074',
+    p_quantity: null,
+  })
+  await page.goto('/prezzi')
+  await expect(
+    page.getByRole('combobox', { name: 'Prodotto', exact: true }).locator('option[value="new-product-0"]'),
+  ).toHaveCount(1)
+})
+
+test('catalogo unico: aggiunta successiva del formato e rimozione dei dettagli facoltativi', async ({
+  page,
+}) => {
+  const { catalogSaveRequests } = await login(page, false, {
+    generic_products: [
+      { id: 'group', name: 'Latte', canonical_unit: null, is_catalog_group: true, category_id: null },
+    ],
+    specific_products: [
+      {
+        id: 'card',
+        name: 'Latte',
+        generic_product_id: 'group',
+        brand: 'Abit',
+        barcode: null,
+        variant: '',
+        package_quantity: null,
+        package_unit: null,
+      },
+    ],
+  })
+  await page.goto('/catalogo')
+  await page.locator('tbody tr').getByRole('button', { name: 'Modifica', exact: true }).click()
+  await page.getByText('Formato della confezione (facoltativo)', { exact: true }).click()
+  await page.getByLabel('Quantità per confezione', { exact: true }).fill('1')
+  await page.getByRole('combobox', { name: 'Unità del formato', exact: true }).selectOption('L')
+  await page.getByRole('button', { name: 'Salva prodotto', exact: true }).click()
+  await expect(page.locator('tbody tr')).toHaveCount(1)
+  await expect(page.locator('tbody tr')).toContainText('1 L')
+  await page.locator('tbody tr').getByRole('button', { name: 'Modifica', exact: true }).click()
+  await page.getByLabel('Marca (facoltativa)', { exact: true }).fill('')
+  await page.getByLabel('Quantità per confezione', { exact: true }).fill('')
+  await page.getByRole('combobox', { name: 'Unità del formato', exact: true }).selectOption('')
+  await page.getByRole('button', { name: 'Salva prodotto', exact: true }).click()
+  await expect(page.locator('tbody tr')).toHaveCount(1)
+  expect(catalogSaveRequests[1]).toMatchObject({
+    p_id: 'card',
+    p_specific: true,
+    p_brand: '',
+    p_quantity: null,
+    p_unit: null,
+  })
+})
+
+test('catalogo unico: EAN errato e formato incompleto non inviano salvataggi', async ({ page }) => {
+  const { catalogSaveRequests } = await login(page)
+  await page.goto('/catalogo')
+  await page.getByLabel('Nome prodotto', { exact: true }).fill('Latte')
+  await page.getByLabel('EAN-8 / EAN-13 (facoltativo)', { exact: true }).fill('12345678')
+  await page.getByRole('button', { name: 'Salva prodotto', exact: true }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'checksum' })).toBeVisible()
+  await page.getByLabel('EAN-8 / EAN-13 (facoltativo)', { exact: true }).fill('')
+  await page.getByText('Formato della confezione (facoltativo)', { exact: true }).click()
+  await page.getByLabel('Quantità per confezione', { exact: true }).fill('1')
+  await page.getByRole('button', { name: 'Salva prodotto', exact: true }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'completa quantità' })).toBeVisible()
+  expect(catalogSaveRequests).toHaveLength(0)
+})
+
+test('lista: un solo prodotto senza formato, con quantità modificabile e senza separazione dei tipi', async ({
+  page,
+}) => {
+  const { itemRequests } = await login(page, true, {
+    generic_products: [
+      { id: 'group', name: 'Latte', canonical_unit: null, is_catalog_group: true, category_id: null },
+    ],
+    specific_products: [
+      {
+        id: 'card',
+        name: 'Latte',
+        generic_product_id: 'group',
+        brand: 'Abit',
+        barcode: null,
+        variant: '',
+        package_quantity: null,
+        package_unit: null,
+      },
+    ],
+  })
+  await page.goto('/liste/20000000-0000-4000-8000-000000000001')
+  const select = page.getByRole('combobox', { name: /Prodotto.*facoltativo/ })
+  await expect(select.locator('option')).toHaveCount(2)
+  await expect(select.locator('optgroup')).toHaveCount(0)
+  await select.selectOption('card')
+  await expect(page.getByLabel('Quantità', { exact: true })).toHaveValue('1')
+  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
+  expect(itemRequests[0]).toMatchObject({ p_specific: 'card', p_quantity: '1', p_unit: 'pz' })
+})
+
+test('lista: il prodotto senza marca permette il confronto tra le marche disponibili', async ({ page }) => {
+  const { itemRequests } = await login(page, true, {
+    generic_products: [
+      { id: 'group', name: 'Latte', canonical_unit: null, is_catalog_group: true, category_id: null },
+    ],
+    specific_products: [
+      {
+        id: 'card',
+        name: 'Latte',
+        generic_product_id: 'group',
+        brand: '',
+        barcode: null,
+        variant: '',
+        package_quantity: null,
+        package_unit: null,
+      },
+    ],
+  })
+  await page.goto('/liste/20000000-0000-4000-8000-000000000001')
+  await page.getByRole('combobox', { name: /Prodotto.*facoltativo/ }).selectOption('card')
+  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
+  await expect(page.locator('.shopping-item').filter({ hasText: 'Latte' })).toHaveCount(2)
+  expect(itemRequests[0]).toMatchObject({
+    p_generic: 'group',
+    p_specific: null,
+    p_quantity: '1',
+    p_unit: 'pz',
+  })
+})
+
+test('catalogo: ordine alfabetico automatico senza selettore', async ({ page }) => {
   await login(page, false, productCatalog)
   await page.goto('/catalogo')
   const names = page.locator('tbody tr td:first-child')
@@ -183,14 +384,9 @@ test('catalogo: prodotti generici e commerciali ordinati insieme per nome A–Z 
     'aria-sort',
     'ascending',
   )
-  await page.getByLabel('Ordina prodotti', { exact: true }).selectOption('desc')
-  await expect(names).toHaveText(['Latte intero', /Farina fine/, 'Farina 00'])
-  await expect(page.getByRole('columnheader', { name: 'Prodotto', exact: true })).toHaveAttribute(
-    'aria-sort',
-    'descending',
-  )
+  await expect(page.getByLabel('Ordina prodotti', { exact: true })).toHaveCount(0)
   await page.getByLabel('Cerca prodotto, marca o barcode').fill('farina')
-  await expect(names).toHaveText([/Farina fine/, 'Farina 00'])
+  await expect(names).toHaveText(['Farina 00', /Farina fine/])
 })
 
 test('catalogo: ordinamento alfabetico anche per i prodotti archiviati', async ({ page }) => {
@@ -219,26 +415,25 @@ test('catalogo: ordinamento alfabetico anche per i prodotti archiviati', async (
   await page.getByLabel('Mostra archiviati', { exact: true }).check()
   const names = page.locator('tbody tr td:first-child')
   await expect(names).toHaveText([/Ananas/, 'zucchine'])
-  await page.getByLabel('Ordina prodotti', { exact: true }).selectOption('desc')
-  await expect(names).toHaveText(['zucchine', /Ananas/])
+  await expect(page.getByLabel('Ordina prodotti', { exact: true })).toHaveCount(0)
 })
 
 test('catalogo: elimina generico e commerciale inutilizzati e chiude la modifica', async ({ page }) => {
   const { catalogDeleteRequests } = await login(page, false, productCatalog)
   await page.goto('/catalogo')
   page.on('dialog', (dialog) => dialog.accept())
-  const generic = page.getByRole('row', { name: /^Latte intero Generico/ })
+  const generic = page.getByRole('row', { name: /^Latte intero/ })
   await generic.getByRole('button', { name: 'Modifica', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Modifica prodotto generico' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Modifica prodotto' })).toBeVisible()
   await generic.getByRole('button', { name: 'Elimina', exact: true }).click()
   await expect(generic).toHaveCount(0)
-  await expect(page.getByRole('heading', { name: 'Nuovo prodotto generico' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Nuovo prodotto' })).toBeVisible()
   const specific = page.getByRole('row', { name: /^Farina fine/ })
   await specific.getByRole('button', { name: 'Modifica', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Modifica prodotto commerciale' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Modifica prodotto' })).toBeVisible()
   await specific.getByRole('button', { name: 'Elimina', exact: true }).click()
   await expect(specific).toHaveCount(0)
-  await expect(page.getByRole('heading', { name: 'Nuovo prodotto commerciale' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Nuovo prodotto' })).toBeVisible()
   await expect(page.getByRole('status').filter({ hasText: 'Prodotto eliminato dal catalogo.' })).toBeVisible()
   expect(catalogDeleteRequests).toEqual([
     { table: 'generic_products', id: 'generic-milk' },
@@ -252,13 +447,13 @@ test('catalogo: annullare la conferma conserva il prodotto senza inviare DELETE'
     expect(dialog.message()).toContain('Latte intero')
     await dialog.dismiss()
   })
-  const row = page.getByRole('row', { name: /^Latte intero Generico/ })
+  const row = page.getByRole('row', { name: /^Latte intero/ })
   await row.getByRole('button', { name: 'Elimina', exact: true }).click()
   await expect(row).toBeVisible()
   expect(catalogDeleteRequests).toHaveLength(0)
 })
 for (const { table, rowName } of [
-  { table: 'generic_products', rowName: /^Farina 00 Generico/ },
+  { table: 'generic_products', rowName: /^Farina 00/ },
   { table: 'specific_products', rowName: /^Farina fine/ },
 ]) {
   test(`catalogo: ${table} in uso resta visibile con un messaggio comprensibile`, async ({ page }) => {

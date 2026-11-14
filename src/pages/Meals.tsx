@@ -4,6 +4,7 @@ import Decimal from 'decimal.js'
 import { CalendarDays, Star, Plus, ArrowLeft, ArrowRight } from 'lucide-react'
 import { useApp } from '../data/context'
 import { insert, remove, rpc, update } from '../data/client'
+import { ingredientProducts } from '../data/catalog'
 import { convert, dateInZone, quantity, scale, units, type Unit } from '../domain/math'
 import { previewDiff, type Contribution } from '../domain/planning'
 import {
@@ -237,18 +238,16 @@ export function Recipes() {
             <Field label="Porzioni di base" name="servings" type="number" value="2" min={1} max={100} />
           </div>
           <fieldset>
-            <legend>Ingredienti collegati al catalogo generico</legend>
+            <legend>Ingredienti del catalogo</legend>
             {Array.from({ length: ingredientCount }, (_, i) => (
               <div className="ingredient-form" key={i}>
                 <Select label={`Ingrediente ${i + 1}`} name={`product${i}`}>
                   <option value="">Scegli prodotto</option>
-                  {data.generic_products
-                    .filter((g) => !g.archived_at)
-                    .map((g) => (
-                      <option key={g.id} value={g.id}>
-                        {g.name}
-                      </option>
-                    ))}
+                  {ingredientProducts(data).map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                    </option>
+                  ))}
                 </Select>
                 <Field label="Quantità" name={`quantity${i}`} value="1" />
                 <Select label="Unità" name={`unit${i}`}>
@@ -338,7 +337,7 @@ export function Meals() {
           : []
       for (const p of parts) {
         const product = data.generic_products.find((g) => g.id === p.generic_product_id)!
-        const unit = product.canonical_unit
+        const unit = product.canonical_unit ?? p.unit
         const q = convert(p.quantity, p.unit, unit)
         const key = product.id + unit
         const old = amounts.get(key)
@@ -510,13 +509,11 @@ export function Meals() {
                     ))}
                 </optgroup>
                 <optgroup label="Alimenti">
-                  {data.generic_products
-                    .filter((g) => !g.archived_at)
-                    .map((g) => (
-                      <option key={g.id} value={g.id}>
-                        {g.name}
-                      </option>
-                    ))}
+                  {ingredientProducts(data).map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                    </option>
+                  ))}
                 </optgroup>
               </Select>
               <Field

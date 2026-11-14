@@ -15,6 +15,17 @@ insert into spesa_test_context select 'invite',public.create_invite((select valu
 with created as (insert into public.shopping_lists(household_id,title) values((select value::uuid from spesa_test_context where key='home_a'),'Lista temporanea RLS') returning id)
 insert into spesa_test_context select 'list',id::text from created;
 insert into spesa_test_context select 'item',public.add_list_item((select value::uuid from spesa_test_context where key='list'),'Articolo temporaneo',2,'pz')::text;
+insert into spesa_test_context select 'catalog_product',public.save_catalog_product('Prodotto temporaneo catalogo')->>'id';
+do $$
+declare product uuid:=(select value::uuid from spesa_test_context where key='catalog_product'); result jsonb;
+begin
+  if not exists(select 1 from public.specific_products where id=product and brand='' and barcode is null and package_quantity is null and package_unit is null) then raise exception 'Solo nome: dati facoltativi inventati'; end if;
+  result:=public.save_catalog_product('Prodotto temporaneo catalogo',p_brand:='Marca temporanea',p_barcode:='96385074',p_quantity:=1,p_unit:='L',p_id:=product,p_specific:=true);
+  if result->>'id'<>product::text then raise exception 'Identità prodotto modificata'; end if;
+  if not exists(select 1 from public.specific_products where id=product and package_quantity=1 and package_unit='L') then raise exception 'Formato non salvato'; end if;
+  perform public.save_catalog_product('Prodotto temporaneo catalogo',p_id:=product,p_specific:=true);
+  if not exists(select 1 from public.specific_products where id=product and barcode is null and package_quantity is null and package_unit is null) then raise exception 'Dettagli non rimossi'; end if;
+end $$;
 
 select set_config('request.jwt.claim.sub',(select value from spesa_test_context where key='bob'),true);
 select public.accept_invite((select value from spesa_test_context where key='invite'));
@@ -44,6 +55,12 @@ do $$ begin
   exception when raise_exception then
     if SQLERRM<>'Accesso negato' then raise; end if;
   end;
+  begin
+    perform public.save_catalog_product('Intrusione',p_id:=(select value::uuid from spesa_test_context where key='catalog_product'),p_specific:=true);
+    raise exception 'Catalogo cross-family consentito';
+  exception when raise_exception then
+    if SQLERRM<>'Accesso negato' then raise; end if;
+  end;
 end $$;
 
 select set_config('request.jwt.claim.sub',(select value from spesa_test_context where key='bob'),true);
@@ -54,6 +71,11 @@ end $$;
 reset role;
 set local role anon;
 do $$ begin
+  begin
+    perform public.save_catalog_product('Anon');
+    raise exception 'Catalogo anon consentito';
+  exception when insufficient_privilege then null;
+  end;
   begin
     perform public.create_household('Anon');
     raise exception 'RPC anon consentita';
