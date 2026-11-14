@@ -1,0 +1,615 @@
+import { useState } from 'react'
+import Decimal from 'decimal.js'
+import { CalendarDays, Star, Plus, ArrowLeft, ArrowRight } from 'lucide-react'
+import { useApp } from '../data/context'
+import { insert, remove, rpc, update } from '../data/client'
+import { convert, dateInZone, quantity, scale, units, type Unit } from '../domain/math'
+import { previewDiff, type Contribution } from '../domain/planning'
+import {
+  ConfirmButton,
+  Empty,
+  Field,
+  Form,
+  Panel,
+  SectionTitle,
+  Select,
+  Submit,
+  text,
+  UnitSelect,
+} from '../components/ui'
+
+export function Recipes() {
+  const { data, act } = useApp()
+  const [search, setSearch] = useState('')
+  const [favorites, setFavorites] = useState(false)
+  const [selected, setSelected] = useState('')
+  const [servings, setServings] = useState(2)
+  const [ingredientCount, setIngredientCount] = useState(1)
+  const recipe = data.recipes.find((r) => r.id === selected)
+  const ingredients = data.recipe_ingredients.filter((i) => i.recipe_id === selected)
+  return (
+    <>
+      <SectionTitle eyebrow="LE COSE BUONE DA PORTARE IN TAVOLA" title="Il vostro ricettario." />
+      <div className="inline">
+        <label className="field grow">
+          Cerca per titolo o ingrediente
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cosa cuciniamo?" />
+        </label>
+        <label className="checkbox">
+          <input type="checkbox" checked={favorites} onChange={(e) => setFavorites(e.target.checked)} /> Solo
+          preferite
+        </label>
+      </div>
+      {recipe && (
+        <Panel title={recipe.title}>
+          <div className="inline">
+            <label className="field">
+              Porzioni richieste
+              <input
+                type="number"
+                min="1"
+                max="100"
+                value={servings}
+                onChange={(e) => setServings(Math.max(1, Number(e.target.value)))}
+              />
+            </label>
+            <span className="muted">Ricetta base per {recipe.base_servings} persone</span>
+          </div>
+          <ul className="ingredients">
+            {ingredients.map((i) => (
+              <li key={i.id}>
+                <strong>
+                  {scale(i.quantity, recipe.base_servings, servings, i.unit === 'pz' || i.unit === 'conf')}{' '}
+                  {i.unit}
+                </strong>{' '}
+                {data.generic_products.find((p) => p.id === i.generic_product_id)?.name}
+              </li>
+            ))}
+          </ul>
+          <p className="pre-line">{recipe.instructions}</p>
+          {recipe.notes && <p>{recipe.notes}</p>}
+          {recipe.source_url && (
+            <a href={recipe.source_url} rel="noreferrer" target="_blank">
+              Fonte della ricetta ↗
+            </a>
+          )}
+          <p className="muted">
+            Pezzi e confezioni sono arrotondati per eccesso; le altre quantità a 3 decimali. La ricetta
+            originale non cambia.
+          </p>
+          <div className="inline">
+            <button
+              className="text-button"
+              onClick={() => {
+                const title = prompt('Titolo', recipe.title)
+                if (title?.trim()) void act(() => update('recipes', recipe.id, { title: title.trim() }))
+              }}
+            >
+              Rinomina
+            </button>
+            <button
+              className="text-button"
+              onClick={() => {
+                const instructions = prompt('Procedimento', recipe.instructions)
+                if (instructions !== null) void act(() => update('recipes', recipe.id, { instructions }))
+              }}
+            >
+              Modifica procedimento
+            </button>
+            <button
+              className="text-button"
+              onClick={() => void act(() => rpc('duplicate_recipe', { p_recipe: recipe.id }))}
+            >
+              Duplica ricetta
+            </button>
+            <ConfirmButton
+              message="Eliminare questa ricetta? I collegamenti ai pasti possono impedire l’eliminazione."
+              onConfirm={() => remove('recipes', recipe.id)}
+            >
+              Elimina
+            </ConfirmButton>
+          </div>
+          <Form
+            className="inline-form"
+            onSave={(f) =>
+              rpc('add_recipe_to_list', {
+                p_recipe: recipe.id,
+                p_list: text(f, 'list'),
+                p_servings: servings,
+                p_operation: crypto.randomUUID(),
+              })
+            }
+          >
+            <Select label="Aggiungi ingredienti alla lista" name="list">
+              <option value="">Scegli lista</option>
+              {data.shopping_lists
+                .filter((l) => l.status === 'active')
+                .map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.title}
+                  </option>
+                ))}
+            </Select>
+            <Submit>Aggiungi ingredienti</Submit>
+          </Form>
+        </Panel>
+      )}
+      <div className="cards">
+        {data.recipes
+          .filter(
+            (r) =>
+              (!favorites || r.is_favorite) &&
+              (r.title.toLowerCase().includes(search.toLowerCase()) ||
+                data.recipe_ingredients
+                  .filter((i) => i.recipe_id === r.id)
+                  .some((i) =>
+                    data.generic_products
+                      .find((p) => p.id === i.generic_product_id)
+                      ?.name.toLowerCase()
+                      .includes(search.toLowerCase()),
+                  )),
+          )
+          .map((r) => (
+            <article className="panel recipe-card" key={r.id}>
+              <div className="recipe-art" aria-hidden="true">
+                ♧
+              </div>
+              <div className="panel-heading">
+                <h2>
+                  <button
+                    className="text-button title-button"
+                    onClick={() => {
+                      setSelected(r.id)
+                      setServings(r.base_servings)
+                    }}
+                  >
+                    {r.title}
+                  </button>
+                </h2>
+                <button
+                  className="icon-button"
+                  aria-label={`${r.is_favorite ? 'Rimuovi' : 'Aggiungi'} preferita ${r.title}`}
+                  onClick={() => void act(() => update('recipes', r.id, { is_favorite: !r.is_favorite }))}
+                >
+                  <Star size={21} fill={r.is_favorite ? 'currentColor' : 'none'} />
+                </button>
+              </div>
+              <p>
+                {r.base_servings} porzioni ·{' '}
+                {data.recipe_ingredients.filter((i) => i.recipe_id === r.id).length} ingredienti
+              </p>
+              <button
+                className="text-button"
+                onClick={() => {
+                  setSelected(r.id)
+                  setServings(r.base_servings)
+                }}
+              >
+                Apri ricetta →
+              </button>
+            </article>
+          ))}
+      </div>
+      {!data.recipes.length && (
+        <Empty title="Le vostre ricette del cuore">Inizia con un piatto che amate preparare.</Empty>
+      )}
+      <Panel title="Scrivi una ricetta">
+        <Form
+          onSave={(f) =>
+            rpc('save_recipe', {
+              p_title: text(f, 'title'),
+              p_servings: Number(text(f, 'servings')),
+              p_instructions: text(f, 'instructions'),
+              p_source: text(f, 'source') || null,
+              p_ingredients: Array.from({ length: ingredientCount }, (_, i) => ({
+                product_id: text(f, `product${i}`),
+                quantity: quantity(text(f, `quantity${i}`)).toString(),
+                unit: text(f, `unit${i}`),
+              })),
+            })
+          }
+        >
+          <div className="grid-form">
+            <Field label="Titolo" name="title" />
+            <Field label="Porzioni di base" name="servings" type="number" value="2" min={1} max={100} />
+          </div>
+          <fieldset>
+            <legend>Ingredienti collegati al catalogo generico</legend>
+            {Array.from({ length: ingredientCount }, (_, i) => (
+              <div className="ingredient-form" key={i}>
+                <Select label={`Ingrediente ${i + 1}`} name={`product${i}`}>
+                  <option value="">Scegli prodotto</option>
+                  {data.generic_products.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                    </option>
+                  ))}
+                </Select>
+                <Field label="Quantità" name={`quantity${i}`} value="1" />
+                <Select label="Unità" name={`unit${i}`}>
+                  {units.map((u) => (
+                    <option key={u}>{u}</option>
+                  ))}
+                </Select>
+              </div>
+            ))}
+            <button
+              className="text-button"
+              type="button"
+              onClick={() => setIngredientCount(Math.min(50, ingredientCount + 1))}
+            >
+              <Plus size={16} /> Altro ingrediente
+            </button>
+          </fieldset>
+          <label className="field">
+            Procedimento
+            <textarea name="instructions" required rows={5} />
+          </label>
+          <Field label="URL fonte (facoltativo)" name="source" type="url" required={false} />
+          <Submit>Salva ricetta</Submit>
+        </Form>
+        <p className="muted">
+          Importazione da URL e OCR: da completare nella fase 5. Puoi inserire e revisionare manualmente gli
+          ingredienti.
+        </p>
+      </Panel>
+    </>
+  )
+}
+function monday(date: string) {
+  const d = new Date(date + 'T12:00:00Z')
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7))
+  return d.toISOString().slice(0, 10)
+}
+function addDays(date: string, days: number) {
+  const d = new Date(date + 'T12:00:00Z')
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().slice(0, 10)
+}
+export function Meals() {
+  const { data, household, act, itemQuantity } = useApp()
+  const [week, setWeek] = useState(monday(dateInZone(new Date(), household!.timezone)))
+  const plan = data.meal_plans.find((p) => p.week_start === week)
+  const entries = data.meal_entries.filter((e) => e.meal_plan_id === plan?.id)
+  const [listId, setListId] = useState('')
+  const [preview, setPreview] = useState<{
+    version: number
+    planVersion: number
+    rows: { product_id: string; quantity: string; unit: Unit }[]
+    changes: ReturnType<typeof previewDiff>
+    listId: string
+    planId: string
+  } | null>(null)
+  const days = Array.from({ length: 7 }, (_, i) => addDays(week, i))
+  const buildPreview = () => {
+    const list = data.shopping_lists.find((l) => l.id === (listId || plan?.linked_list_id))
+    if (!list || !plan) return
+    const amounts = new Map<string, { product_id: string; quantity: string; unit: Unit }>()
+    for (const entry of entries) {
+      const recipe = data.recipes.find((r) => r.id === entry.recipe_id)
+      const parts = recipe
+        ? data.recipe_ingredients
+            .filter((i) => i.recipe_id === recipe.id)
+            .map((i) => ({
+              ...i,
+              quantity: scale(
+                i.quantity,
+                recipe.base_servings,
+                entry.servings_override ?? household!.default_diners,
+                i.unit === 'pz' || i.unit === 'conf',
+              ),
+            }))
+        : entry.generic_product_id
+          ? [{ generic_product_id: entry.generic_product_id, quantity: entry.quantity!, unit: entry.unit! }]
+          : []
+      for (const p of parts) {
+        const product = data.generic_products.find((g) => g.id === p.generic_product_id)!
+        const unit = product.canonical_unit
+        const q = convert(p.quantity, p.unit, unit)
+        const key = product.id + unit
+        const old = amounts.get(key)
+        amounts.set(key, { product_id: product.id, unit, quantity: q.plus(old?.quantity ?? 0).toString() })
+      }
+    }
+    const items = data.shopping_list_items.filter((i) => i.list_id === list.id)
+    const current: Contribution[] = data.list_item_contributions
+      .filter((c) => items.some((i) => i.id === c.item_id))
+      .map((c) => ({
+        id: c.id,
+        itemId: c.item_id,
+        origin: c.origin_type,
+        originId: c.origin_id,
+        quantity: c.requested_quantity,
+      }))
+    const rows = [...amounts.values()]
+    const proposed: Contribution[] = rows.map((r) => ({
+      id: 'preview',
+      itemId:
+        items.find((i) => i.generic_product_id === r.product_id && i.unit === r.unit)?.id ??
+        `new:${r.product_id}`,
+      origin: 'plan',
+      originId: plan.id,
+      quantity: r.quantity,
+    }))
+    const purchased = Object.fromEntries(items.map((i) => [i.id, itemQuantity(i).bought]))
+    setPreview({
+      version: list.version,
+      planVersion: plan.version,
+      rows,
+      changes: previewDiff(current, proposed, plan.id, purchased),
+      listId: list.id,
+      planId: plan.id,
+    })
+  }
+  return (
+    <>
+      <SectionTitle eyebrow="UN’IDEA PER OGNI GIORNO" title="La settimana a tavola." />
+      <div className="week-toolbar">
+        <button
+          className="icon-button"
+          aria-label="Settimana precedente"
+          onClick={() => {
+            setWeek(addDays(week, -7))
+            setPreview(null)
+          }}
+        >
+          <ArrowLeft />
+        </button>
+        <strong>
+          {new Date(week + 'T12:00:00').toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })} —{' '}
+          {new Date(addDays(week, 6) + 'T12:00:00').toLocaleDateString('it-IT', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+          })}
+        </strong>
+        <button
+          className="icon-button"
+          aria-label="Settimana successiva"
+          onClick={() => {
+            setWeek(addDays(week, 7))
+            setPreview(null)
+          }}
+        >
+          <ArrowRight />
+        </button>
+      </div>
+      {!plan ? (
+        <Panel title="Una settimana da organizzare">
+          <p>Crea il piano e aggiungi ricette e alimenti nei vari momenti della giornata.</p>
+          <button
+            className="button"
+            onClick={() => void act(() => insert('meal_plans', household!.id, { week_start: week }))}
+          >
+            <CalendarDays size={18} /> Crea piano settimanale
+          </button>
+        </Panel>
+      ) : (
+        <>
+          <div className="week-grid">
+            {days.map((day) => (
+              <section className="day-card" key={day}>
+                <h2>
+                  {new Date(day + 'T12:00:00').toLocaleDateString('it-IT', {
+                    weekday: 'short',
+                    day: 'numeric',
+                  })}
+                </h2>
+                {['colazione', 'pranzo', 'cena', 'spuntino'].map((slot) => (
+                  <div className="meal-slot" key={slot}>
+                    <h3>{slot}</h3>
+                    {entries
+                      .filter((e) => e.meal_date === day && e.meal_slot === slot)
+                      .map((e) => (
+                        <div className="meal-chip" key={e.id}>
+                          <span>
+                            {data.recipes.find((r) => r.id === e.recipe_id)?.title ??
+                              data.generic_products.find((g) => g.id === e.generic_product_id)?.name}
+                            <small>
+                              {e.recipe_id
+                                ? `${e.servings_override ?? household!.default_diners} persone`
+                                : `${e.quantity} ${e.unit}`}
+                            </small>
+                          </span>
+                          <ConfirmButton
+                            message="Rimuovere questo pasto? La lista cambierà solo dopo anteprima e conferma."
+                            onConfirm={() => remove('meal_entries', e.id)}
+                          >
+                            ×
+                          </ConfirmButton>
+                        </div>
+                      ))}
+                    {!entries.some((e) => e.meal_date === day && e.meal_slot === slot) && (
+                      <span className="slot-empty">Da decidere</span>
+                    )}
+                  </div>
+                ))}
+              </section>
+            ))}
+          </div>
+          <Panel title="Aggiungi al calendario">
+            <Form
+              className="grid-form"
+              onSave={(f) => {
+                const ref = text(f, 'component')
+                const isRecipe = data.recipes.some((r) => r.id === ref)
+                return insert('meal_entries', household!.id, {
+                  meal_plan_id: plan.id,
+                  meal_date: text(f, 'day'),
+                  meal_slot: text(f, 'slot'),
+                  recipe_id: isRecipe ? ref : null,
+                  generic_product_id: isRecipe ? null : ref,
+                  servings_override: text(f, 'servings') ? Number(text(f, 'servings')) : null,
+                  quantity: isRecipe ? null : quantity(text(f, 'quantity')).toString(),
+                  unit: isRecipe ? null : text(f, 'unit'),
+                })
+              }}
+            >
+              <Select label="Giorno" name="day">
+                {days.map((d) => (
+                  <option key={d}>{d}</option>
+                ))}
+              </Select>
+              <Select label="Pasto" name="slot">
+                {['colazione', 'pranzo', 'cena', 'spuntino'].map((s) => (
+                  <option key={s}>{s}</option>
+                ))}
+              </Select>
+              <Select label="Ricetta o alimento" name="component">
+                <option value="">Scegli</option>
+                <optgroup label="Ricette">
+                  {data.recipes.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.title}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Alimenti">
+                  {data.generic_products.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                    </option>
+                  ))}
+                </optgroup>
+              </Select>
+              <Field
+                label={`Persone (default ${household!.default_diners})`}
+                name="servings"
+                type="number"
+                min={1}
+                max={100}
+                required={false}
+              />
+              <Field label="Quantità per alimento semplice" name="quantity" value="1" />
+              <UnitSelect />
+              <Submit>Aggiungi pasto</Submit>
+            </Form>
+          </Panel>
+          <Panel title="Ingredienti nella lista">
+            <label className="field">
+              Lista da collegare
+              <select
+                value={listId || plan.linked_list_id || ''}
+                onChange={(e) => {
+                  setListId(e.target.value)
+                  setPreview(null)
+                }}
+              >
+                <option value="">Scegli lista</option>
+                {data.shopping_lists
+                  .filter((l) => l.status === 'active')
+                  .map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.title}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <button
+              className="button"
+              disabled={!(listId || plan.linked_list_id)}
+              onClick={() =>
+                void act(async () => {
+                  buildPreview()
+                }, 'Anteprima pronta. La lista non è stata modificata.')
+              }
+            >
+              Calcola anteprima delle differenze
+            </button>
+            <p className="muted">
+              Solo i contributi di questa settimana verranno aggiornati. Quelli manuali e gli acquisti sono
+              protetti. La versione viene ricontrollata alla conferma.
+            </p>
+            {preview && (
+              <div className="diff">
+                <h3>Anteprima · versione lista {preview.version}</h3>
+                {preview.changes.length ? (
+                  preview.changes.map((c) => (
+                    <p key={c.itemId}>
+                      {data.shopping_list_items.find((i) => i.id === c.itemId)?.name ??
+                        data.generic_products.find((g) => c.itemId === `new:${g.id}`)?.name}
+                      : {c.before} → {c.after} ({new Decimal(c.delta).gt(0) ? '+' : ''}
+                      {c.delta}) {c.conflict && '⚠ Quantità già acquistata superiore alla proposta'}
+                    </p>
+                  ))
+                ) : (
+                  <p>Nessuna differenza nelle quantità.</p>
+                )}
+                <div className="inline">
+                  <button
+                    className="button"
+                    disabled={preview.changes.some((c) => c.conflict)}
+                    onClick={() =>
+                      void act(async () => {
+                        await rpc('apply_plan_diff', {
+                          p_list: preview.listId,
+                          p_plan: preview.planId,
+                          p_version: preview.version,
+                          p_rows: preview.rows,
+                          p_plan_version: preview.planVersion,
+                        })
+                        setPreview(null)
+                      })
+                    }
+                  >
+                    Conferma modifiche alla lista
+                  </button>
+                  <button className="text-button" onClick={() => setPreview(null)}>
+                    Rifiuta anteprima
+                  </button>
+                </div>
+              </div>
+            )}
+          </Panel>
+          <Panel title="Riutilizza il menu">
+            <div className="inline">
+              <button
+                className="button secondary"
+                onClick={() => {
+                  const name = prompt('Nome del modello')
+                  if (name?.trim())
+                    void act(() =>
+                      insert('meal_templates', household!.id, {
+                        name: name.trim(),
+                        entries_json: entries.map(({ id: _id, meal_plan_id: _plan, ...rest }) => ({
+                          ...rest,
+                          day_offset: days.indexOf(rest.meal_date),
+                        })),
+                      }),
+                    )
+                }}
+              >
+                Salva come modello
+              </button>
+              <button
+                className="button secondary"
+                onClick={() =>
+                  void act(() => rpc('duplicate_week', { p_plan: plan.id, p_week: addDays(week, 7) }))
+                }
+              >
+                Duplica nella prossima settimana
+              </button>
+            </div>
+            {data.meal_templates.map((t) => (
+              <div className="data-row" key={t.id}>
+                <strong>{t.name}</strong>
+                <ConfirmButton
+                  message="Aggiungere questo modello alla settimana? Gli ingredienti richiederanno una nuova anteprima prima di aggiornare la lista."
+                  onConfirm={() => rpc('apply_template', { p_template: t.id, p_plan: plan.id })}
+                >
+                  Applica modello
+                </ConfirmButton>
+                <ConfirmButton
+                  message="Eliminare il modello?"
+                  onConfirm={() => remove('meal_templates', t.id)}
+                >
+                  Elimina
+                </ConfirmButton>
+              </div>
+            ))}
+          </Panel>
+        </>
+      )}
+    </>
+  )
+}

@@ -1,0 +1,3 @@
+-- Intentionally empty: no simulated records in the application or hosted project.
+-- Synthetic fixtures for two households, invitations, products and purchases live in
+-- tests/database.test.ts and tests/e2e/app.spec.ts and run only in isolated tests.

@@ -1,0 +1,30 @@
+# Rapporto test
+
+Data: 14 novembre 2026, Europe/Rome. Ambiente locale Windows, Node.js 22 LTS portatile, npm, PGlite/PostgreSQL, Playwright Chromium. Versioni esatte nel lockfile. Verifiche locali concluse; CI registrata separatamente dopo pubblicazione.
+
+| Area                            | Ambiente e verifica                                                                                                  | Stato                                                                 |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Dominio e RLS                   | `npm test`: 38 test, 3 file                                                                                          | PASS                                                                  |
+| Arrotondamenti e unità          | HALF_UP, virgola, 750g/500g, conversioni incompatibili, residuo/surplus, porzioni e discreti                         | PASS                                                                  |
+| Prezzi e promozioni             | Ordinario vecchio, promo scaduta/senza scadenza, generico/specifico, ignoti, copertura, pareggi e negozi separati    | PASS                                                                  |
+| Sconti personali                | Martedì/mercoledì/giovedì, non cumulo, conferma, altro negozio, incertezza, ranking al cambio data, storico immutato | PASS                                                                  |
+| Isolamento dati                 | Ruoli authenticated/anon reali su PostgreSQL con Auth fixture, due membri e due famiglie, FK composte, RPC protette  | PASS                                                                  |
+| Inviti                          | Monouso, scaduto, revocato, uscita con perdita accesso                                                               | PASS                                                                  |
+| Acquisti                        | Idempotenza, payload diverso respinto, senza prezzo, completamento prezzo, annullamento senza cancellazione          | PASS                                                                  |
+| Piano-lista                     | Contributi manuali protetti, rollback sotto acquistato, versione lista/piano obsoleta                                | PASS                                                                  |
+| Workflow SQL                    | Ricetta atomica, scaling discreto/addizione idempotente, duplicazioni, snapshot immutabile, cancellazione protetta   | PASS                                                                  |
+| Segreti in configurazione       | Build rifiuta JWT service_role e nuove secret key; chiavi pubbliche ammesse                                          | PASS                                                                  |
+| Browser base                    | 10 casi Chromium desktop/mobile, HTTP Supabase fixture                                                               | PASS, esecuzione iniziale                                             |
+| Browser ampliato                | Accessibilità WCAG A/AA automatica e camera negata, 14 casi totali                                                   | PASS                                                                  |
+| Lint/typecheck/build            | `npm run check` completo prima dell'ampliamento, ulteriori verifiche finali in corso                                 | PASS                                                                  |
+| Audit runtime                   | `npm audit --omit=dev`                                                                                               | PASS: 0 vulnerabilità segnalate                                       |
+| Audit tooling                   | `npm audit`                                                                                                          | 4 LOW residui PWA/workbox/resolve/deepmerge, 0 moderate/high/critical |
+| Auth/PostgREST/Realtime online  | Due account e un esterno, reconnessione, sessione, concorrenza distribuita                                           | NOT RUN: progetto Supabase assente                                    |
+| Migrazione publication Realtime | DDL Supabase della migrazione 003                                                                                    | NOT RUN su servizio reale                                             |
+| Storage privato                 | Nessun upload o bucket attivo                                                                                        | NOT RUN; funzionalità rinviata                                        |
+| Importazioni                    | OCR ricette/scontrini, URL/SSRF, revisione e deduplica                                                               | NOT RUN: funzionalità non implementata                                |
+| Android/iOS fisici              | Installazione PWA, camera e sessione su dispositivi                                                                  | NOT RUN: dispositivi non collegati                                    |
+| CI GitHub                       | Workflow predisposto                                                                                                 | NOT RUN al momento della stesura                                      |
+| Hosting HTTPS                   | Deployment e smoke test                                                                                              | NOT RUN: non pubblicato                                               |
+
+I test browser non sostituiscono RLS né il servizio Realtime; l'emulazione mobile Chromium non è Safari iOS. Le migrazioni di dominio vengono applicate a un PostgreSQL vuoto ad ogni esecuzione dei test. Non è stato effettuato un ripristino su Supabase ospitato né un benchmark con grandi volumi. Gli strumenti di accessibilità automatici non equivalgono a una verifica con lettore schermo reale.
