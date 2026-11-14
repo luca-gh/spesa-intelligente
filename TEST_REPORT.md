@@ -12,11 +12,11 @@ supabase/tests/online_rls.sql: PASS sul progetto reale. Due membri, invito/accet
 
 Check backend reale: PASS, Auth HTTP 200; 20 tabelle PROTETTA (401/42501 riferito alla tabella richiesta). Non equivale al collaudo autenticato Auth/JWT/PostgREST o Realtime su due client, tuttora NOT RUN completo.
 
-Suite locale attuale: 42 PASS in 5 file, inclusi bootstrap completo, privilegi predefiniti e script SQL online con rollback. Controlli locali finali PASS: lint, typecheck, build, 42 test, 14 test browser e controllo segreti. CI del nuovo commit verificata separatamente dopo la pubblicazione.
+Suite locale attuale: 44 PASS in 5 file, inclusi bootstrap completo, privilegi predefiniti e script SQL online con rollback. Controlli locali finali PASS: lint, typecheck, build, 44 test, 32 test browser e controllo segreti. CI del nuovo commit verificata separatamente dopo la pubblicazione.
 
 | Area                            | Ambiente e verifica                                                                                                  | Stato                                                                 |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Dominio e RLS                   | `npm test`: 42 test, 5 file                                                                                          | PASS                                                                  |
+| Dominio e RLS                   | `npm test`: 44 test, 5 file                                                                                          | PASS                                                                  |
 | Arrotondamenti e unità          | HALF_UP, virgola, 750g/500g, conversioni incompatibili, residuo/surplus, porzioni e discreti                         | PASS                                                                  |
 | Prezzi e promozioni             | Ordinario vecchio, promo scaduta/senza scadenza, generico/specifico, ignoti, copertura, pareggi e negozi separati    | PASS                                                                  |
 | Sconti personali                | Martedì/mercoledì/giovedì, non cumulo, conferma, altro negozio, incertezza, ranking al cambio data, storico immutato | PASS                                                                  |
@@ -27,7 +27,7 @@ Suite locale attuale: 42 PASS in 5 file, inclusi bootstrap completo, privilegi p
 | Workflow SQL                    | Ricetta atomica, scaling discreto/addizione idempotente, duplicazioni, snapshot immutabile, cancellazione protetta   | PASS                                                                  |
 | Segreti in configurazione       | Build rifiuta JWT service_role e nuove secret key; chiavi pubbliche ammesse                                          | PASS                                                                  |
 | Browser base                    | 10 casi Chromium desktop/mobile, HTTP Supabase fixture                                                               | PASS, esecuzione iniziale                                             |
-| Browser ampliato                | Accessibilità WCAG A/AA automatica e camera negata, 14 casi totali                                                   | PASS                                                                  |
+| Browser ampliato                | Accessibilità WCAG A/AA automatica e camera negata, 32 casi totali                                                   | PASS                                                                  |
 | Lint/typecheck/build            | `npm run check` completo, verificato localmente e in CI                                                              | PASS                                                                  |
 | Audit runtime                   | `npm audit --omit=dev`                                                                                               | PASS: 0 vulnerabilità segnalate                                       |
 | Audit tooling                   | `npm audit`                                                                                                          | 4 LOW residui PWA/workbox/resolve/deepmerge, 0 moderate/high/critical |
@@ -62,6 +62,10 @@ Prima della correzione riprodotti errori nei nuovi test. Verifica reale di sola 
 URL e publishable key ricevuti e salvati esclusivamente in .env, ignorato da Git. Check in sola lettura: Auth HTTP 200, email/password attiva, conferma email richiesta; 20 tabelle non esposte nella Data API (HTTP 404/PGRST205). Migrazioni remote non eseguite e nessun utente creato. Il gate online rimane BLOCKED.
 
 Nuovi test bootstrap: sette migrazioni applicate in un'unica transazione su PGlite vuoto, 20 tabelle con RLS, quattro tabelle nella pubblicazione; seconda esecuzione respinta senza alterare lo schema. Totale npm test: 40 PASS. Build con configurazione reale PASS, con avviso bundle iniziale oltre 500 kB.
+
+## Eliminazione di prodotti dal catalogo
+
+**PASS locale: 44 test dominio/SQL e 32 test browser.** Due nuovi test PostgreSQL verificano eliminazione dei prodotti inutilizzati con RLS, rifiuto cross-family e blocco FK senza perdita di lista o prezzi. Quattro scenari browser su desktop/mobile verificano rimozione di generico e commerciale, uscita dalla modifica, annullamento senza richiesta DELETE e messaggio sicuro per entrambi i tipi di prodotto in uso. Lint, typecheck, build e controllo segreti PASS. Nessuna cancellazione sul database reale e nessuna modifica dello schema. CI verificata separatamente dopo pubblicazione.
 
 ## Storico dopo installazione, prima della sessione web
 

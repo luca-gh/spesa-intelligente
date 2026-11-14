@@ -39,6 +39,7 @@ export function safeError(error: unknown): string {
     'Chiave già usata',
     'Articolo con storico',
     'Limite inviti',
+    'Prodotto in uso:',
   ]
   if (known.some((prefix) => message.startsWith(prefix))) return message
   if (/Invalid login credentials/.test(message)) return 'Email o password non corrette.'
@@ -68,4 +69,17 @@ export async function update(table: string, id: string, values: Record<string, u
 export async function remove(table: string, id: string) {
   const { error } = await requireClient().from(table).delete().eq('id', id).select('id').single()
   if (error) throw error
+}
+export async function removeCatalogProduct(table: 'generic_products' | 'specific_products', id: string) {
+  try {
+    await remove(table, id)
+  } catch (error) {
+    if (typeof error === 'object' && error && 'code' in error && error.code === '23503') {
+      throw new Error(
+        'Prodotto in uso: è collegato a prodotti commerciali, liste, ricette, pasti, prezzi o acquisti. Puoi modificarlo; i dati collegati vengono conservati.',
+        { cause: error },
+      )
+    }
+    throw error
+  }
 }

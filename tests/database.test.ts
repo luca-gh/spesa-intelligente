@@ -284,6 +284,63 @@ describe('RLS PostgreSQL reale e RPC', () => {
       ),
     ).rejects.toThrow()
   })
+  it('elimina prodotti inutilizzati solo per i membri della famiglia corretta', async () => {
+    await as(alice)
+    const generic = await scalar(
+      "insert into generic_products(household_id,name,canonical_unit) values($1,'Generico da eliminare','pz') returning id",
+      [home],
+    )
+    const specific = await scalar(
+      "insert into specific_products(household_id,name,package_quantity,package_unit) values($1,'Commerciale da eliminare',1,'pz') returning id",
+      [home],
+    )
+    await as(eve)
+    expect(
+      (await db.query('delete from generic_products where id=$1 returning id', [generic])).rows,
+    ).toHaveLength(0)
+    expect(
+      (await db.query('delete from specific_products where id=$1 returning id', [specific])).rows,
+    ).toHaveLength(0)
+    await as(alice)
+    expect((await db.query('delete from generic_products where id=$1 returning id', [generic])).rows).toEqual(
+      [{ id: generic }],
+    )
+    expect(
+      (await db.query('delete from specific_products where id=$1 returning id', [specific])).rows,
+    ).toEqual([{ id: specific }])
+  })
+  it('blocca eliminazione di prodotti collegati senza cancellare liste o storico prezzi', async () => {
+    await as(alice)
+    const generic = await scalar(
+      "insert into generic_products(household_id,name,canonical_unit) values($1,'Generico collegato','pz') returning id",
+      [home],
+    )
+    const specific = await scalar(
+      "insert into specific_products(household_id,generic_product_id,name,package_quantity,package_unit) values($1,$2,'Commerciale con storico',1,'pz') returning id",
+      [home, generic],
+    )
+    const store = await scalar(
+      "insert into stores(household_id,name) values($1,'Negozio protezione catalogo') returning id",
+      [home],
+    )
+    const price = await scalar("select add_price($1,$2,2.50,'regular',now())", [specific, store])
+    await expect(db.query('delete from generic_products where id=$1', [generic])).rejects.toMatchObject({
+      code: '23503',
+    })
+    await expect(db.query('delete from specific_products where id=$1', [specific])).rejects.toMatchObject({
+      code: '23503',
+    })
+    expect((await db.query('select id from price_observations where id=$1', [price])).rows).toHaveLength(1)
+    const listProduct = await scalar(
+      "insert into generic_products(household_id,name,canonical_unit) values($1,'Generico in lista','pz') returning id",
+      [home],
+    )
+    const item = await scalar("select add_list_item($1,'Generico in lista',1,'pz',$2)", [list, listProduct])
+    await expect(db.query('delete from generic_products where id=$1', [listProduct])).rejects.toMatchObject({
+      code: '23503',
+    })
+    expect((await db.query('select id from shopping_list_items where id=$1', [item])).rows).toHaveLength(1)
+  })
   it('eliminazione famiglia richiede conferma e non tocca altre famiglie', async () => {
     await as(eve)
     await expect(db.query("select delete_household($1,'Sbagliato')", [other])).rejects.toThrow()

@@ -2,15 +2,15 @@
 
 Aggiornamento: 14 novembre 2026. Implementazione progressiva: **consegna completa non verificata**. I gate online non vengono considerati superati in base alle fixture locali.
 
-| Fase                            | Stato del gate | Lavoro presente e blocchi                                                                                                                                                                                                                                |
-| ------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0 — Fondazioni                  | PASS           | Repository pubblico, tooling, CI verde, migrazioni, RLS, test PostgreSQL, manifest/service worker e documentazione. Build, lint, typecheck, test e controllo segreti verificati localmente e in CI.                                                      |
-| 1 — Account, famiglia, liste    | IN PROGRESS    | Schema e RLS/RPC verificati; primo account reale, email confermata, login, famiglia e lista verificati manualmente con riscontro DB. Persistenza articolo dopo refresh confermata. Secondo account rinviato; restano account esterno e sincronizzazione/riconnessione su due client.      |
-| 2 — Catalogo, prezzi, confronto | BLOCKED        | Moduli indipendenti implementati e testati: formati, promozioni, ranking, sconti personali per negozio, date e copertura. Gate complessivo dipende dalla fase 1 online. Condizioni sconto per intero scontrino ed esclusioni di categoria da completare. |
-| 3 — Ricette e calendario        | BLOCKED        | Moduli indipendenti: creazione atomica, scaling, preferiti/ricerca, settimane/modelli, preview e conferma transazionale con versioni. Editing completo ingredienti, import e collaudo del percorso completo ancora da completare.                        |
-| 4 — Spesa e statistiche         | BLOCKED        | Acquisti e annullamenti, pagato opzionale, snapshot, statistiche e export implementati; test locali su residui e contabilità. Rilevazioni da acquisto con scelta esplicita e dettaglio analitico differenze previsto/effettivo ancora da completare.     |
-| 5 — Barcode e importazioni      | TODO           | Solo scanner/fallback manuale, checksum e gestione permesso camera negato implementati indipendentemente. OCR, URL ricette, foto, ricevute revisionabili e deduplica transazionale NON implementati.                                                     |
-| 6 — Consegna e deploy           | BLOCKED        | Documentazione e automazione predisposte; mancano backend reale, gate precedenti, collaudi Android/iOS fisici e destinazione di deploy. Nessun sito pubblicato.                                                                                          |
+| Fase                            | Stato del gate | Lavoro presente e blocchi                                                                                                                                                                                                                                                            |
+| ------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 0 — Fondazioni                  | PASS           | Repository pubblico, tooling, CI verde, migrazioni, RLS, test PostgreSQL, manifest/service worker e documentazione. Build, lint, typecheck, test e controllo segreti verificati localmente e in CI.                                                                                  |
+| 1 — Account, famiglia, liste    | IN PROGRESS    | Schema e RLS/RPC verificati; primo account reale, email confermata, login, famiglia e lista verificati manualmente con riscontro DB. Persistenza articolo dopo refresh confermata. Secondo account rinviato; restano account esterno e sincronizzazione/riconnessione su due client. |
+| 2 — Catalogo, prezzi, confronto | BLOCKED        | Moduli indipendenti implementati e testati: formati, promozioni, ranking, sconti personali per negozio, date e copertura. Gate complessivo dipende dalla fase 1 online. Condizioni sconto per intero scontrino ed esclusioni di categoria da completare.                             |
+| 3 — Ricette e calendario        | BLOCKED        | Moduli indipendenti: creazione atomica, scaling, preferiti/ricerca, settimane/modelli, preview e conferma transazionale con versioni. Editing completo ingredienti, import e collaudo del percorso completo ancora da completare.                                                    |
+| 4 — Spesa e statistiche         | BLOCKED        | Acquisti e annullamenti, pagato opzionale, snapshot, statistiche e export implementati; test locali su residui e contabilità. Rilevazioni da acquisto con scelta esplicita e dettaglio analitico differenze previsto/effettivo ancora da completare.                                 |
+| 5 — Barcode e importazioni      | TODO           | Solo scanner/fallback manuale, checksum e gestione permesso camera negato implementati indipendentemente. OCR, URL ricette, foto, ricevute revisionabili e deduplica transazionale NON implementati.                                                                                 |
+| 6 — Consegna e deploy           | BLOCKED        | Documentazione e automazione predisposte; mancano backend reale, gate precedenti, collaudi Android/iOS fisici e destinazione di deploy. Nessun sito pubblicato.                                                                                                                      |
 
 ## Stato corrente: migrazioni reali applicate
 
@@ -24,14 +24,14 @@ Il controllo del servizio ha rilevato grant automatici del proprietario non pres
 
 Il test SQL usa auth.uid() e i ruoli del servizio, ma non certifica login Auth/JWT tramite API o WebSocket Realtime. Il gate completo della fase 1 resta da superare. I blocchi descritti sotto sono lo storico precedente all’applicazione delle migrazioni.
 
-Ultima suite locale: 42 test PASS in 5 file. Check backend PASS: Auth HTTP 200, tutte le 20 tabelle riconosciute come PROTETTA tramite rifiuto anon 401/42501 riferito alla tabella richiesta. Build/lint/typecheck/browser e CI finali verificati separatamente prima della consegna.
+Ultima suite locale: 44 test PASS in 5 file. Check backend PASS: Auth HTTP 200, tutte le 20 tabelle riconosciute come PROTETTA tramite rifiuto anon 401/42501 riferito alla tabella richiesta. Build/lint/typecheck/browser e CI finali verificati separatamente prima della consegna.
 
 ## Comandi e risultati effettivi
 
 - Installato Node.js 22 LTS ufficiale in `.tools`, verificando SHA-256 prima di estrarre. Dipendenze npm installate con lockfile.
 - `npm run check`: PASS (lint, typecheck, test e build PWA); confermato anche dalla CI GitHub.
-- `npm test`: ultima esecuzione 42 test PASS (dominio, configurazione segreti e PostgreSQL/RLS).
-- `npm run test:e2e`: PASS, 14 casi desktop/mobile inclusi accessibilità dashboard e camera negata. Corretti e rieseguiti i test dei contrasti.
+- `npm test`: ultima esecuzione 44 test PASS (dominio, configurazione segreti e PostgreSQL/RLS).
+- `npm run test:e2e`: PASS, 32 casi desktop/mobile inclusi accessibilità dashboard e camera negata. Corretti e rieseguiti i test dei contrasti.
 - `npm audit --omit=dev`: 0 vulnerabilità alla verifica online del 14 novembre 2026.
 - `npm audit`: 4 avvisi low nella catena di tooling PWA/deepmerge, nessun moderate/high/critical dopo override compatibili e build verificata. Non vengono trattati come eliminati.
 - Account `luca-gh` verificato con GitHub CLI, senza stampare token o cambiare l'account globale. Repository pubblico creato e codice pubblicato: https://github.com/luca-gh/spesa-intelligente.
@@ -71,6 +71,12 @@ Verifiche locali PASS: lint/typecheck/build, 42 test di dominio/SQL, 24 test bro
 3. Completare importazioni revisionabili e sicurezza upload/URL, cancellazione account self-service, test transazionali ricevute.
 4. Collaudare PWA installata e fotocamera su Android Chrome e iOS Safari reali; poi deploy HTTPS.
 
-## Ripresa dopo il collegamento Supabase
+## Eliminazione dal catalogo
+
+Comando Elimina aggiunto alle righe dei prodotti generici e commerciali, con conferma nominativa e feedback. Il servizio riutilizza i vincoli FK e le RLS già presenti: prodotti inutilizzati eliminabili dai membri della propria famiglia; prodotti collegati conservati con messaggio comprensibile, senza dettagli interni. Annullare la conferma non invia DELETE. Chiusa l'eventuale modifica del prodotto eliminato; i pulsanti di conferma hanno type=button e non inviano il form che li contiene.
+
+Verifiche locali PASS: lint/typecheck/build, 44 test dominio/SQL, 32 test browser desktop/mobile e controllo segreti. Casi aggiunti per generico/commerciale, annullamento, errore FK, isolamento familiare e protezione di lista/storico prezzi. Nessun prodotto reale cancellato durante lo sviluppo; nessuna migrazione necessaria. CI del commit verificata dopo pubblicazione.
+
+## Storico della ripresa dopo il collegamento Supabase
 
 Installazione verificata nella directory delle integrazioni; gli strumenti SQL/progetti/migrazioni non compaiono tra le capacità disponibili della sessione corrente. Nuova verifica in sola lettura: Auth HTTP 200, tutte le 20 tabelle ancora non esposte (404/PGRST205). Nessuna migrazione remota eseguita. Richiesta attivazione esplicita di Supabase dal compositore della chat; non è richiesta una nuova installazione né l'invio di credenziali.

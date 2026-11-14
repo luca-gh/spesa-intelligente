@@ -43,9 +43,10 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
     shopping_list_items: items,
     list_item_contributions: contributions,
     purchases,
-    ...catalog,
+    ...structuredClone(catalog),
   }
   const itemRequests: Record<string, unknown>[] = []
+  const catalogDeleteRequests: { table: string; id: string }[] = []
   await page.route('https://fixture.supabase.test/**', async (route) => {
     const url = new URL(route.request().url())
     const table = url.pathname.split('/').pop()!
@@ -92,6 +93,15 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
       const next = { ...list, title: body.title }
       collections.shopping_lists.push(next)
       result = next
+    } else if (
+      ['generic_products', 'specific_products'].includes(table) &&
+      route.request().method() === 'DELETE'
+    ) {
+      const id = url.searchParams.get('id')?.replace(/^eq\./, '') ?? ''
+      catalogDeleteRequests.push({ table, id })
+      const records = collections[table] as { id: string }[]
+      const index = records.findIndex((record) => record.id === id)
+      result = index >= 0 ? records.splice(index, 1)[0] : null
     } else result = collections[table] ?? []
     await route.fulfill({ json: result, headers: { 'access-control-allow-origin': '*' } })
   })
@@ -122,7 +132,7 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
       }),
     )
   })
-  return { itemRequests }
+  return { itemRequests, catalogDeleteRequests }
 }
 
 const productCatalog = {
@@ -142,6 +152,64 @@ const productCatalog = {
       barcode: '8000500037560',
     },
   ],
+}
+
+test('catalogo: elimina generico e commerciale inutilizzati e chiude la modifica', async ({ page }) => {
+  const { catalogDeleteRequests } = await login(page, false, productCatalog)
+  await page.goto('/catalogo')
+  page.on('dialog', (dialog) => dialog.accept())
+  const generic = page.getByRole('row', { name: /^Latte intero Generico/ })
+  await generic.getByRole('button', { name: 'Modifica', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Modifica prodotto generico' })).toBeVisible()
+  await generic.getByRole('button', { name: 'Elimina', exact: true }).click()
+  await expect(generic).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Nuovo prodotto generico' })).toBeVisible()
+  const specific = page.getByRole('row', { name: /^Farina fine/ })
+  await specific.getByRole('button', { name: 'Modifica', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Modifica prodotto commerciale' })).toBeVisible()
+  await specific.getByRole('button', { name: 'Elimina', exact: true }).click()
+  await expect(specific).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Nuovo prodotto commerciale' })).toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: 'Prodotto eliminato dal catalogo.' })).toBeVisible()
+  expect(catalogDeleteRequests).toEqual([
+    { table: 'generic_products', id: 'generic-milk' },
+    { table: 'specific_products', id: 'specific-flour' },
+  ])
+})
+test('catalogo: annullare la conferma conserva il prodotto senza inviare DELETE', async ({ page }) => {
+  const { catalogDeleteRequests } = await login(page, false, productCatalog)
+  await page.goto('/catalogo')
+  page.once('dialog', async (dialog) => {
+    expect(dialog.message()).toContain('Latte intero')
+    await dialog.dismiss()
+  })
+  const row = page.getByRole('row', { name: /^Latte intero Generico/ })
+  await row.getByRole('button', { name: 'Elimina', exact: true }).click()
+  await expect(row).toBeVisible()
+  expect(catalogDeleteRequests).toHaveLength(0)
+})
+for (const { table, rowName } of [
+  { table: 'generic_products', rowName: /^Farina 00 Generico/ },
+  { table: 'specific_products', rowName: /^Farina fine/ },
+]) {
+  test(`catalogo: ${table} in uso resta visibile con un messaggio comprensibile`, async ({ page }) => {
+    await login(page, false, productCatalog)
+    await page.route(`**/rest/v1/${table}?*`, async (route) => {
+      if (route.request().method() === 'DELETE')
+        await route.fulfill({
+          status: 409,
+          json: { code: '23503', message: 'foreign key constraint fixture_private_detail' },
+        })
+      else await route.fallback()
+    })
+    await page.goto('/catalogo')
+    page.once('dialog', (dialog) => dialog.accept())
+    const row = page.getByRole('row', { name: rowName })
+    await row.getByRole('button', { name: 'Elimina', exact: true }).click()
+    await expect(page.getByRole('status').filter({ hasText: 'Prodotto in uso:' })).toBeVisible()
+    await expect(row).toBeVisible()
+    await expect(page.getByText('fixture_private_detail', { exact: false })).toHaveCount(0)
+  })
 }
 
 test('catalogo vuoto esplicito e articolo libero obbligatorio', async ({ page }) => {

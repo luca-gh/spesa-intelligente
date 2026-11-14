@@ -145,18 +145,21 @@ export function ConfirmButton({
   children,
   onConfirm,
   message,
+  success = 'Salvato.',
 }: {
   children: ReactNode
   onConfirm: () => Promise<unknown>
   message: string
+  success?: string
 }) {
   const { act, busy, online } = useApp()
   return (
     <button
+      type="button"
       className="text-button"
       disabled={busy || !online}
       onClick={() => {
-        if (window.confirm(message)) void act(onConfirm)
+        if (window.confirm(message)) void act(onConfirm, success)
       }}
     >
       {children}

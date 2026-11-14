@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Plus, Tag, Store as StoreIcon } from 'lucide-react'
 import { useApp } from '../data/context'
-import { insert, rpc, update } from '../data/client'
+import { insert, removeCatalogProduct, rpc, update } from '../data/client'
 import { convert, dateInZone, euro, quantity, validBarcode } from '../domain/math'
 import { estimate, rank } from '../domain/prices'
 import {
@@ -138,6 +138,10 @@ export function Catalog() {
         </Panel>
       </div>
       <Panel title="Prodotti">
+        <p className="muted">
+          Puoi eliminare un prodotto che non è utilizzato. I prodotti collegati ad altri dati restano nel
+          catalogo per conservarne i riferimenti e lo storico.
+        </p>
         <div className="table-wrap">
           <table>
             <thead>
@@ -160,6 +164,16 @@ export function Catalog() {
                       <button className="text-button" onClick={() => setGeneric(g.id)}>
                         Modifica
                       </button>
+                      <ConfirmButton
+                        message={`Eliminare il prodotto generico «${g.name}» dal catalogo? L’operazione viene bloccata se è collegato ad altri dati.`}
+                        success="Prodotto eliminato dal catalogo."
+                        onConfirm={async () => {
+                          await removeCatalogProduct('generic_products', g.id)
+                          if (generic === g.id) setGeneric('')
+                        }}
+                      >
+                        Elimina
+                      </ConfirmButton>
                     </td>
                   </tr>
                 ))}
@@ -186,6 +200,16 @@ export function Catalog() {
                       <button className="text-button" onClick={() => setSpecific(s.id)}>
                         Modifica
                       </button>
+                      <ConfirmButton
+                        message={`Eliminare il prodotto commerciale «${s.name}» dal catalogo? L’operazione viene bloccata se è collegato ad altri dati.`}
+                        success="Prodotto eliminato dal catalogo."
+                        onConfirm={async () => {
+                          await removeCatalogProduct('specific_products', s.id)
+                          if (specific === s.id) setSpecific('')
+                        }}
+                      >
+                        Elimina
+                      </ConfirmButton>
                     </td>
                   </tr>
                 ))}
