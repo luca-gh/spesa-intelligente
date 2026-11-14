@@ -14,13 +14,15 @@ beforeAll(async () => {
     create role anon nologin;
     create table auth.users(id uuid primary key);
     create function auth.uid() returns uuid language sql stable as $$ select null::uuid $$;
+    alter default privileges in schema public grant all on tables to anon, authenticated;
+    alter default privileges in schema public grant all on functions to anon, authenticated;
     create publication supabase_realtime;
   `)
 }, 60000)
 afterAll(async () => {
   await db.close()
 })
-it('bootstrap completo: sette migrazioni, venti tabelle con RLS e quattro tabelle pubblicate', async () => {
+it('bootstrap completo: otto migrazioni, venti tabelle con RLS e quattro tabelle pubblicate', async () => {
   await db.exec(sql)
   const tables = await db.query<{ name: string; rls: boolean }>(
     `select c.relname as name,c.relrowsecurity as rls from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r'`,

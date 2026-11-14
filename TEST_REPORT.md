@@ -2,9 +2,21 @@
 
 Data: 14 novembre 2026, Europe/Rome. Ambiente locale Windows, Node.js 22 LTS portatile, npm, PGlite/PostgreSQL, Playwright Chromium. Versioni esatte nel lockfile. Verifiche locali concluse e confermate in CI su Linux/Node 22.
 
+## Verifica sul servizio reale dopo le migrazioni
+
+Migrazioni 001–008: PASS, applicate e registrate nella cronologia standard con SQL originale e checksum verificati. Il dashboard è stato usato dopo login interattivo, senza acquisire chiavi amministrative.
+
+Security review reale: 20 RLS attive, 0 grant anon sulle tabelle e sulle RPC, 22 RPC per authenticated con search_path fissato, quattro tabelle nella pubblicazione Realtime. Migrazione 008 verificata anche con default grant Supabase emulati localmente.
+
+supabase/tests/online_rls.sql: PASS sul progetto reale. Due membri, invito/accettazione, seconda famiglia, isolamento di letture/scritture/RPC, acquisto parziale senza prezzo idempotente, uscita e accesso anon negato. La transazione viene annullata: dopo rollback zero famiglie, liste, acquisti e identità sintetiche residue. Nessuna email inviata.
+
+Check backend reale: PASS, Auth HTTP 200; 20 tabelle PROTETTA (401/42501 riferito alla tabella richiesta). Non equivale al collaudo autenticato Auth/JWT/PostgREST o Realtime su due client, tuttora NOT RUN completo.
+
+Suite locale attuale: 42 PASS in 5 file, inclusi bootstrap completo, privilegi predefiniti e script SQL online con rollback. Controlli locali finali PASS: lint, typecheck, build, 42 test, 14 test browser e controllo segreti. CI del nuovo commit verificata separatamente dopo la pubblicazione.
+
 | Area                            | Ambiente e verifica                                                                                                  | Stato                                                                 |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Dominio e RLS                   | `npm test`: 40 test, 4 file                                                                                          | PASS                                                                  |
+| Dominio e RLS                   | `npm test`: 42 test, 5 file                                                                                          | PASS                                                                  |
 | Arrotondamenti e unità          | HALF_UP, virgola, 750g/500g, conversioni incompatibili, residuo/surplus, porzioni e discreti                         | PASS                                                                  |
 | Prezzi e promozioni             | Ordinario vecchio, promo scaduta/senza scadenza, generico/specifico, ignoti, copertura, pareggi e negozi separati    | PASS                                                                  |
 | Sconti personali                | Martedì/mercoledì/giovedì, non cumulo, conferma, altro negozio, incertezza, ranking al cambio data, storico immutato | PASS                                                                  |
@@ -19,8 +31,8 @@ Data: 14 novembre 2026, Europe/Rome. Ambiente locale Windows, Node.js 22 LTS por
 | Lint/typecheck/build            | `npm run check` completo, verificato localmente e in CI                                                              | PASS                                                                  |
 | Audit runtime                   | `npm audit --omit=dev`                                                                                               | PASS: 0 vulnerabilità segnalate                                       |
 | Audit tooling                   | `npm audit`                                                                                                          | 4 LOW residui PWA/workbox/resolve/deepmerge, 0 moderate/high/critical |
-| Auth/PostgREST/Realtime online  | Due account e un esterno, reconnessione, sessione, concorrenza distribuita                                           | BLOCKED: Auth raggiungibile, schema API non disponibile               |
-| Migrazione publication Realtime | DDL Supabase della migrazione 003                                                                                    | DDL locale PASS; servizio reale NOT RUN                               |
+| Auth/PostgREST/Realtime online  | Due account e un esterno, reconnessione, sessione, concorrenza distribuita                                           | NOT RUN completo: flussi Auth/JWT e WebSocket; SQL RLS reale PASS     |
+| Migrazione publication Realtime | DDL Supabase della migrazione 003                                                                                    | PASS: DDL e pubblicazione sul servizio reale; WebSocket NOT RUN       |
 | Storage privato                 | Nessun upload o bucket attivo                                                                                        | NOT RUN; funzionalità rinviata                                        |
 | Importazioni                    | OCR ricette/scontrini, URL/SSRF, revisione e deduplica                                                               | NOT RUN: funzionalità non implementata                                |
 | Android/iOS fisici              | Installazione PWA, camera e sessione su dispositivi                                                                  | NOT RUN: dispositivi non collegati                                    |
@@ -31,8 +43,12 @@ I test browser non sostituiscono RLS né il servizio Realtime; l'emulazione mobi
 
 CI verificata: [esecuzione 43617987975](https://github.com/luca-gh/spesa-intelligente/actions/runs/43617987975), conclusa con successo il 14 novembre 2026 alle 17:53 Europe/Rome. Verificato anche il rifiuto effettivo di una build con chiave privilegiata fittizia. Nessun segreto reale utilizzato per questa prova.
 
-## Collegamento al progetto reale
+## Storico del collegamento prima delle migrazioni
 
 URL e publishable key ricevuti e salvati esclusivamente in .env, ignorato da Git. Check in sola lettura: Auth HTTP 200, email/password attiva, conferma email richiesta; 20 tabelle non esposte nella Data API (HTTP 404/PGRST205). Migrazioni remote non eseguite e nessun utente creato. Il gate online rimane BLOCKED.
 
 Nuovi test bootstrap: sette migrazioni applicate in un'unica transazione su PGlite vuoto, 20 tabelle con RLS, quattro tabelle nella pubblicazione; seconda esecuzione respinta senza alterare lo schema. Totale npm test: 40 PASS. Build con configurazione reale PASS, con avviso bundle iniziale oltre 500 kB.
+
+## Storico dopo installazione, prima della sessione web
+
+Supabase risulta installato. La sessione corrente non espone metodi amministrativi del servizio: esecuzione SQL e migrazioni remote NOT RUN. Nuovo check backend in sola lettura conferma Auth HTTP 200 e 20 tabelle non esposte (404/PGRST205, exit code 2). Gli esiti locali e CI precedenti restano distinti dal gate online, tuttora BLOCKED.

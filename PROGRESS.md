@@ -2,21 +2,35 @@
 
 Aggiornamento: 14 novembre 2026. Implementazione progressiva: **consegna completa non verificata**. I gate online non vengono considerati superati in base alle fixture locali.
 
-| Fase                            | Stato del gate | Lavoro presente e blocchi                                                                                                                                                                                                                                                                                                                       |
-| ------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0 — Fondazioni                  | PASS           | Repository pubblico, tooling, CI verde, migrazioni, RLS, test PostgreSQL, manifest/service worker e documentazione. Build, lint, typecheck, test e controllo segreti verificati localmente e in CI.                                                                                                                                             |
-| 1 — Account, famiglia, liste    | BLOCKED        | UI e RPC implementate, inviti, acquisti parziali, refresh Realtime, dashboard, responsive. Progetto configurato localmente e raggiungibile; schema non disponibile nella Data API, migrazioni da applicare prima del gate con due utenti reali e riconnessione. Raggruppamento visivo per categoria e frequenti da acquisti reali implementati. |
-| 2 — Catalogo, prezzi, confronto | BLOCKED        | Moduli indipendenti implementati e testati: formati, promozioni, ranking, sconti personali per negozio, date e copertura. Gate complessivo dipende dalla fase 1 online. Condizioni sconto per intero scontrino ed esclusioni di categoria da completare.                                                                                        |
-| 3 — Ricette e calendario        | BLOCKED        | Moduli indipendenti: creazione atomica, scaling, preferiti/ricerca, settimane/modelli, preview e conferma transazionale con versioni. Editing completo ingredienti, import e collaudo del percorso completo ancora da completare.                                                                                                               |
-| 4 — Spesa e statistiche         | BLOCKED        | Acquisti e annullamenti, pagato opzionale, snapshot, statistiche e export implementati; test locali su residui e contabilità. Rilevazioni da acquisto con scelta esplicita e dettaglio analitico differenze previsto/effettivo ancora da completare.                                                                                            |
-| 5 — Barcode e importazioni      | TODO           | Solo scanner/fallback manuale, checksum e gestione permesso camera negato implementati indipendentemente. OCR, URL ricette, foto, ricevute revisionabili e deduplica transazionale NON implementati.                                                                                                                                            |
-| 6 — Consegna e deploy           | BLOCKED        | Documentazione e automazione predisposte; mancano backend reale, gate precedenti, collaudi Android/iOS fisici e destinazione di deploy. Nessun sito pubblicato.                                                                                                                                                                                 |
+| Fase                            | Stato del gate | Lavoro presente e blocchi                                                                                                                                                                                                                                |
+| ------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0 — Fondazioni                  | PASS           | Repository pubblico, tooling, CI verde, migrazioni, RLS, test PostgreSQL, manifest/service worker e documentazione. Build, lint, typecheck, test e controllo segreti verificati localmente e in CI.                                                      |
+| 1 — Account, famiglia, liste    | IN PROGRESS    | Otto migrazioni applicate sul servizio reale; RLS/RPC verificate con due membri e una famiglia esterna. Restano collaudo Auth/JWT/PostgREST, WebSocket Realtime e riconnessione su due client.                                                           |
+| 2 — Catalogo, prezzi, confronto | BLOCKED        | Moduli indipendenti implementati e testati: formati, promozioni, ranking, sconti personali per negozio, date e copertura. Gate complessivo dipende dalla fase 1 online. Condizioni sconto per intero scontrino ed esclusioni di categoria da completare. |
+| 3 — Ricette e calendario        | BLOCKED        | Moduli indipendenti: creazione atomica, scaling, preferiti/ricerca, settimane/modelli, preview e conferma transazionale con versioni. Editing completo ingredienti, import e collaudo del percorso completo ancora da completare.                        |
+| 4 — Spesa e statistiche         | BLOCKED        | Acquisti e annullamenti, pagato opzionale, snapshot, statistiche e export implementati; test locali su residui e contabilità. Rilevazioni da acquisto con scelta esplicita e dettaglio analitico differenze previsto/effettivo ancora da completare.     |
+| 5 — Barcode e importazioni      | TODO           | Solo scanner/fallback manuale, checksum e gestione permesso camera negato implementati indipendentemente. OCR, URL ricette, foto, ricevute revisionabili e deduplica transazionale NON implementati.                                                     |
+| 6 — Consegna e deploy           | BLOCKED        | Documentazione e automazione predisposte; mancano backend reale, gate precedenti, collaudi Android/iOS fisici e destinazione di deploy. Nessun sito pubblicato.                                                                                          |
+
+## Stato corrente: migrazioni reali applicate
+
+14 novembre 2026: bootstrap 001–007 applicato tramite SQL Editor ufficiale dopo il login interattivo dell’utente; controllo preliminare con zero tabelle pubbliche. Plugin installato, strumenti SQL non esposti nella sessione: usato un browser dedicato. Nessuna chiave amministrativa acquisita.
+
+Il controllo del servizio ha rilevato grant automatici del proprietario non presenti nel PostgreSQL locale iniziale. Creata, testata e applicata la migrazione 008 explicit_privileges. I test locali ora emulano questi default Supabase.
+
+**Verifica finale: 20 tabelle con RLS, zero grant anon sulle tabelle e sulle RPC, 22 RPC abilitate per authenticated, quattro tabelle nella pubblicazione Realtime.** Otto versioni registrate nella struttura standard supabase_migrations.schema_migrations con SQL originale; checksum di tutte le versioni corrispondenti ai file locali.
+
+**Test SQL sul servizio reale: PASS.** supabase/tests/online_rls.sql verifica due membri, invito, seconda famiglia, blocco letture/scritture/RPC cross-family, acquisto parziale senza prezzo e idempotente, uscita e anon. Fixture create in una transazione annullata: nessuna email e nessun dato di test conservato. Dopo rollback: zero famiglie, liste, acquisti e identità Auth di test residue.
+
+Il test SQL usa auth.uid() e i ruoli del servizio, ma non certifica login Auth/JWT tramite API o WebSocket Realtime. Il gate completo della fase 1 resta da superare. I blocchi descritti sotto sono lo storico precedente all’applicazione delle migrazioni.
+
+Ultima suite locale: 42 test PASS in 5 file. Check backend PASS: Auth HTTP 200, tutte le 20 tabelle riconosciute come PROTETTA tramite rifiuto anon 401/42501 riferito alla tabella richiesta. Build/lint/typecheck/browser e CI finali verificati separatamente prima della consegna.
 
 ## Comandi e risultati effettivi
 
 - Installato Node.js 22 LTS ufficiale in `.tools`, verificando SHA-256 prima di estrarre. Dipendenze npm installate con lockfile.
 - `npm run check`: PASS (lint, typecheck, test e build PWA); confermato anche dalla CI GitHub.
-- `npm test`: ultima esecuzione 38 test PASS (dominio, configurazione segreti e PostgreSQL/RLS).
+- `npm test`: ultima esecuzione 42 test PASS (dominio, configurazione segreti e PostgreSQL/RLS).
 - `npm run test:e2e`: PASS, 14 casi desktop/mobile inclusi accessibilità dashboard e camera negata. Corretti e rieseguiti i test dei contrasti.
 - `npm audit --omit=dev`: 0 vulnerabilità alla verifica online del 14 novembre 2026.
 - `npm audit`: 4 avvisi low nella catena di tooling PWA/deepmerge, nessun moderate/high/critical dopo override compatibili e build verificata. Non vengono trattati come eliminati.
@@ -25,16 +39,16 @@ Aggiornamento: 14 novembre 2026. Implementazione progressiva: **consegna complet
 - CI GitHub: PASS sul commit 566e874, esecuzione https://github.com/luca-gh/spesa-intelligente/actions/runs/43617987975, completata alle 17:53 Europe/Rome. Include npm ci, check, controllo segreti, audit runtime e 14 test browser su Linux.
 - Verificata anche l’effettiva interruzione di una build Vite con una chiave privilegiata fittizia, prima della compilazione.
 
-## Blocco esterno preciso
+## Storico del blocco prima delle migrazioni
 
 URL e chiave pubblica forniti dall'utente sono ora salvati in `.env`, escluso da Git. Verifica reale del 14 novembre 2026: Auth risponde HTTP 200, accesso email/password abilitato, conferma email richiesta; tutte le 20 tabelle dell'app rispondono HTTP 404/PGRST205, quindi lo schema non risulta disponibile nella Data API. Nessun account creato e nessun dato remoto modificato.
 
-Rimane da applicare lo schema con un accesso amministrativo autorizzato. La sola publishable key non permette SQL o migrazioni. Nessuna sessione amministrativa locale disponibile; integrazione Supabase individuata ma non ancora collegata. In alternativa è pronto `.tools/supabase-bootstrap.sql`, generato dalle sette migrazioni e testato su PostgreSQL locale, da eseguire in SQL Editor sul progetto vuoto. Dopo l'applicazione verificare Auth/Realtime con due utenti e un account esterno. Docker e PostgreSQL di sistema non sono installati; i test SQL locali usano PGlite.
+Rimane da applicare lo schema con un accesso amministrativo autorizzato. La sola publishable key non permette SQL o migrazioni. Nessuna sessione amministrativa locale disponibile; Supabase risulta ora installato e l'utente conferma il collegamento, ma gli strumenti amministrativi non sono ancora esposti in questa sessione. In alternativa è pronto `.tools/supabase-bootstrap.sql`, generato dalle sette migrazioni e testato su PostgreSQL locale, da eseguire in SQL Editor sul progetto vuoto. Dopo l'applicazione verificare Auth/Realtime con due utenti e un account esterno. Docker e PostgreSQL di sistema non sono installati; i test SQL locali usano PGlite.
 
 ## Verifiche dopo la configurazione ricevuta
 
 - `npm run check`: PASS con la configurazione reale locale (lint, typecheck, 38 test iniziali e build).
-- `npm test`: PASS, ora 40 test in 4 file, inclusi bootstrap delle sette migrazioni con DDL publication e rifiuto della seconda esecuzione.
+- `npm test`: PASS, ora 42 test in 5 file, inclusi bootstrap delle sette migrazioni con DDL publication e rifiuto della seconda esecuzione.
 - `npm run check:backend`: Auth PASS; schema BLOCKED, 20 tabelle non disponibili nella Data API. Verifica in sola lettura, senza chiavi privilegiate.
 - Build con backend configurato: riuscita, avviso non bloccante per il bundle iniziale oltre 500 kB; nessuna credenziale amministrativa inclusa.
 
@@ -44,3 +58,7 @@ Rimane da applicare lo schema con un accesso amministrativo autorizzato. La sola
 2. Completare i requisiti residui di ogni fase prima di considerare il rispettivo gate PASS; non saltare il gate per la sola presenza del codice.
 3. Completare importazioni revisionabili e sicurezza upload/URL, cancellazione account self-service, test transazionali ricevute.
 4. Collaudare PWA installata e fotocamera su Android Chrome e iOS Safari reali; poi deploy HTTPS.
+
+## Ripresa dopo il collegamento Supabase
+
+Installazione verificata nella directory delle integrazioni; gli strumenti SQL/progetti/migrazioni non compaiono tra le capacità disponibili della sessione corrente. Nuova verifica in sola lettura: Auth HTTP 200, tutte le 20 tabelle ancora non esposte (404/PGRST205). Nessuna migrazione remota eseguita. Richiesta attivazione esplicita di Supabase dal compositore della chat; non è richiesta una nuova installazione né l'invio di credenziali.

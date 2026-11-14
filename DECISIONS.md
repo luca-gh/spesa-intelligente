@@ -19,3 +19,7 @@ Data: 14 novembre 2026.
 15. Foto/OCR/importazioni da URL rinviate: nessun uploader o proxy incompleto esposto, nessun bucket pubblico. Il futuro import URL dovrà bloccare reti private/loopback/link-local anche dopo DNS e redirect, limitare risposta/tempo, validare contenuti e generare una bozza revisionabile. Non è sicuro aggiungere un fetch server arbitrario.
 16. Il PDF e le specifiche originali restano locali e ignorati da Git per evitare di pubblicare dettagli personali presenti nei materiali di partenza. La documentazione tecnica pubblica descrive i requisiti senza dati reali.
 17. Override di minimatch e glob per gli avvisi di sicurezza segnalati dal registro npm; nessun downgrade automatico dell'intero plugin PWA con `--force`. Gli avvisi residui low nel tooling sono documentati, separatamente dal bundle di produzione.
+
+18. La verifica sul servizio reale ha evidenziato grant automatici del proprietario anche dopo REVOKE da PUBLIC. La migrazione 008 revoca esplicitamente i grant anon/authenticated e concede solo operazioni necessarie; le 22 RPC sono riservate ad authenticated. Test locali con default Supabase emulati.
+19. Migrazioni eseguite tramite SQL Editor dopo login interattivo, con cronologia standard registrata e checksum verificati. Profilo browser e risultati in .tools, esclusa da Git; nessuna chiave amministrativa acquisita.
+20. Verifica SQL online con fixture transazionali annullate, senza email o dati di test persistenti. Auth/JWT/PostgREST e WebSocket richiedono ancora test applicativi distinti.

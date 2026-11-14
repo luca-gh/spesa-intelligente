@@ -52,11 +52,13 @@ const results = await Promise.all(
     const status =
       result.status === 200
         ? 'PRESENTE'
-        : result.body?.code === 'PGRST205'
-          ? 'NON ESPOSTA'
-          : result.body?.code === '42501'
-            ? 'ACCESSO NEGATO'
-            : 'NON VERIFICATA'
+        : result.body?.code === '42501' && result.body?.message === `permission denied for table ${table}`
+          ? 'PROTETTA'
+          : result.body?.code === 'PGRST205'
+            ? 'NON ESPOSTA'
+            : result.body?.code === '42501'
+              ? 'ACCESSO NEGATO'
+              : 'NON VERIFICATA'
     return { table, status, http: result.status, code: result.body?.code }
   }),
 )
@@ -65,4 +67,4 @@ for (const result of results)
     `${result.table}: ${result.status} (HTTP ${result.http}${result.code ? `, ${result.code}` : ''})`,
   )
 console.log('Questa verifica non certifica RLS, colonne, RPC, Realtime o sessioni autenticate.')
-process.exitCode = results.every((r) => r.status === 'PRESENTE') ? 0 : 2
+process.exitCode = results.every((r) => r.status === 'PRESENTE' || r.status === 'PROTETTA') ? 0 : 2

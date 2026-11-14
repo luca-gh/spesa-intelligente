@@ -18,6 +18,8 @@ beforeAll(async () => {
   await db.exec(`create schema auth; create role authenticated nologin; create role anon nologin;
     create table auth.users(id uuid primary key); grant usage on schema auth to authenticated;
     create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
+    alter default privileges in schema public grant all on tables to anon, authenticated;
+    alter default privileges in schema public grant all on functions to anon, authenticated;
     insert into auth.users values('${alice}'),('${bob}'),('${eve}');`)
   for (const file of [
     '202611140001_foundations.sql',
@@ -26,6 +28,7 @@ beforeAll(async () => {
     '202611140005_retention.sql',
     '202611140006_plan_versions.sql',
     '202611140007_barcode_validation.sql',
+    '202611140008_explicit_privileges.sql',
   ])
     await db.exec(readFileSync(`supabase/migrations/${file}`, 'utf8'))
   await as(alice)
@@ -252,6 +255,21 @@ describe('RLS PostgreSQL reale e RPC', () => {
     await db.exec('reset role;set role anon')
     await expect(db.query('select * from shopping_lists')).rejects.toThrow()
     await expect(db.query("select create_household('Anon')")).rejects.toThrow()
+  })
+  it('rimuove i grant impliciti Supabase e limita le scritture protette alle RPC', async () => {
+    await db.exec('reset role')
+    const tables = await db.query<{ anon_read: boolean; authenticated_truncate: boolean }>(
+      "select has_table_privilege('anon',c.oid,'SELECT') as anon_read,has_table_privilege('authenticated',c.oid,'TRUNCATE') as authenticated_truncate from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r'",
+    )
+    expect(tables.rows.every((t) => !t.anon_read && !t.authenticated_truncate)).toBe(true)
+    const functions = await db.query<{ anon_execute: boolean; authenticated_execute: boolean }>(
+      "select has_function_privilege('anon',p.oid,'EXECUTE') as anon_execute,has_function_privilege('authenticated',p.oid,'EXECUTE') as authenticated_execute from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.prosecdef",
+    )
+    expect(functions.rows).toHaveLength(22)
+    expect(functions.rows.every((f) => !f.anon_execute && f.authenticated_execute)).toBe(true)
+    expect(
+      await scalar("select has_table_privilege('authenticated','public.purchases','INSERT')::text"),
+    ).toBe('false')
   })
   it('checksum EAN verificato anche dal database', async () => {
     await as(alice)
