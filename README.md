@@ -30,13 +30,19 @@ VITE_SUPABASE_PUBLISHABLE_KEY=LA-CHIAVE-PUBBLICA
 ## Configurare Supabase
 
 1. Creare un progetto **Free**, senza attivare piani a pagamento. Verificare condizioni e quote nella [pagina prezzi ufficiale](https://supabase.com/pricing): controllata il 14 novembre 2026, con piano Free disponibile. Quote e sospensione per inattività possono cambiare; nessun limite numerico è un requisito del codice.
-2. Applicare **in ordine di nome** tutti i file in `supabase/migrations/` tramite SQL Editor. In alternativa, con Supabase CLI installata: `supabase login`, `supabase link --project-ref REF`, `supabase db push`. Il login CLI è locale e non deve essere salvato nel repository.
+2. Applicare **in ordine di nome** tutti i file in `supabase/migrations/`, preferibilmente tramite integrazione Supabase collegata o CLI: `supabase login`, `supabase link --project-ref REF`, `supabase db push`. Il login CLI è locale e non deve essere salvato nel repository. La chiave pubblica dell'app non autorizza le migrazioni.
 3. Le migrazioni sono versionate e si applicano una sola volta. Per verificare un reset usare un database di sviluppo vuoto. Non rieseguire manualmente tutto lo schema su un progetto già popolato.
 4. In Auth abilitare email/password, conferma email e password di almeno 12 caratteri. Impostare Site URL e redirect consentiti per origine locale e dominio definitivo, compreso `/impostazioni` per il recupero password. Non usare redirect wildcard in produzione.
 5. Verificare che la pubblicazione `supabase_realtime` contenga le quattro tabelle delle liste indicate nella migrazione `003`. Il servizio Realtime completo non è emulato dai test PostgreSQL locali.
 6. Copiare URL e chiave pubblica in `.env`, riavviare Vite. Registrare il primo account, creare una famiglia, generare il codice da Impostazioni. Registrare il secondo account e accettare il codice. Il codice è monouso, scade in 48 ore ed è revocabile; non viene spedito automaticamente.
 
 Non vengono creati bucket di immagini. Non c'è un percorso di upload attivo, quindi nessuna foto privata viene pubblicata. Non creare bucket pubblici per aggirare questa limitazione.
+
+Se il progetto è nuovo e non hai accesso alla CLI o all'integrazione, `node scripts/prepare-bootstrap.mjs` prepara `.tools/supabase-bootstrap.sql`: contiene le sette migrazioni in un'unica transazione, senza credenziali o dati dimostrativi. Aprilo in SQL Editor ed eseguilo **una sola volta sul progetto vuoto**. Il controllo iniziale interrompe l'esecuzione se rileva lo schema dell'app. Lo script è testato su PostgreSQL locale, compresa la pubblicazione delle quattro tabelle delle liste; il servizio Realtime ospitato richiede ancora collaudo.
+
+Il percorso SQL Editor non aggiorna la cronologia migrazioni della CLI. Prima di passare a `db push`, confrontare lo schema e riconciliare le sette versioni applicate con `supabase migration repair --status applied VERSIONI`; non marcare applicate migrazioni non eseguite. Vedere la [documentazione ufficiale sulle migrazioni](https://supabase.com/docs/guides/deployment/database-migrations).
+
+Dopo la configurazione, `npm run check:backend` controlla Auth e la disponibilità delle 20 tabelle tramite richieste di sola lettura con `limit=0`. Il comando non registra account, non legge record familiari e non certifica RLS o sincronizzazione. Exit code: 0 se Auth e tabelle sono raggiungibili, 2 per schema incompleto/non verificato, 1 per configurazione o connessione fallita. Il file `.env` resta escluso da Git.
 
 ## Flussi disponibili
 

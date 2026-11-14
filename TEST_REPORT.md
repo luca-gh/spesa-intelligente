@@ -4,7 +4,7 @@ Data: 14 novembre 2026, Europe/Rome. Ambiente locale Windows, Node.js 22 LTS por
 
 | Area                            | Ambiente e verifica                                                                                                  | Stato                                                                 |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Dominio e RLS                   | `npm test`: 38 test, 3 file                                                                                          | PASS                                                                  |
+| Dominio e RLS                   | `npm test`: 40 test, 4 file                                                                                          | PASS                                                                  |
 | Arrotondamenti e unità          | HALF_UP, virgola, 750g/500g, conversioni incompatibili, residuo/surplus, porzioni e discreti                         | PASS                                                                  |
 | Prezzi e promozioni             | Ordinario vecchio, promo scaduta/senza scadenza, generico/specifico, ignoti, copertura, pareggi e negozi separati    | PASS                                                                  |
 | Sconti personali                | Martedì/mercoledì/giovedì, non cumulo, conferma, altro negozio, incertezza, ranking al cambio data, storico immutato | PASS                                                                  |
@@ -19,8 +19,8 @@ Data: 14 novembre 2026, Europe/Rome. Ambiente locale Windows, Node.js 22 LTS por
 | Lint/typecheck/build            | `npm run check` completo, verificato localmente e in CI                                                              | PASS                                                                  |
 | Audit runtime                   | `npm audit --omit=dev`                                                                                               | PASS: 0 vulnerabilità segnalate                                       |
 | Audit tooling                   | `npm audit`                                                                                                          | 4 LOW residui PWA/workbox/resolve/deepmerge, 0 moderate/high/critical |
-| Auth/PostgREST/Realtime online  | Due account e un esterno, reconnessione, sessione, concorrenza distribuita                                           | NOT RUN: progetto Supabase assente                                    |
-| Migrazione publication Realtime | DDL Supabase della migrazione 003                                                                                    | NOT RUN su servizio reale                                             |
+| Auth/PostgREST/Realtime online  | Due account e un esterno, reconnessione, sessione, concorrenza distribuita                                           | BLOCKED: Auth raggiungibile, schema API non disponibile               |
+| Migrazione publication Realtime | DDL Supabase della migrazione 003                                                                                    | DDL locale PASS; servizio reale NOT RUN                               |
 | Storage privato                 | Nessun upload o bucket attivo                                                                                        | NOT RUN; funzionalità rinviata                                        |
 | Importazioni                    | OCR ricette/scontrini, URL/SSRF, revisione e deduplica                                                               | NOT RUN: funzionalità non implementata                                |
 | Android/iOS fisici              | Installazione PWA, camera e sessione su dispositivi                                                                  | NOT RUN: dispositivi non collegati                                    |
@@ -30,3 +30,9 @@ Data: 14 novembre 2026, Europe/Rome. Ambiente locale Windows, Node.js 22 LTS por
 I test browser non sostituiscono RLS né il servizio Realtime; l'emulazione mobile Chromium non è Safari iOS. Le migrazioni di dominio vengono applicate a un PostgreSQL vuoto ad ogni esecuzione dei test. Non è stato effettuato un ripristino su Supabase ospitato né un benchmark con grandi volumi. Gli strumenti di accessibilità automatici non equivalgono a una verifica con lettore schermo reale.
 
 CI verificata: [esecuzione 43617987975](https://github.com/luca-gh/spesa-intelligente/actions/runs/43617987975), conclusa con successo il 14 novembre 2026 alle 17:53 Europe/Rome. Verificato anche il rifiuto effettivo di una build con chiave privilegiata fittizia. Nessun segreto reale utilizzato per questa prova.
+
+## Collegamento al progetto reale
+
+URL e publishable key ricevuti e salvati esclusivamente in .env, ignorato da Git. Check in sola lettura: Auth HTTP 200, email/password attiva, conferma email richiesta; 20 tabelle non esposte nella Data API (HTTP 404/PGRST205). Migrazioni remote non eseguite e nessun utente creato. Il gate online rimane BLOCKED.
+
+Nuovi test bootstrap: sette migrazioni applicate in un'unica transazione su PGlite vuoto, 20 tabelle con RLS, quattro tabelle nella pubblicazione; seconda esecuzione respinta senza alterare lo schema. Totale npm test: 40 PASS. Build con configurazione reale PASS, con avviso bundle iniziale oltre 500 kB.
