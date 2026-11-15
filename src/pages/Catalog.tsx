@@ -273,14 +273,14 @@ export function Catalog() {
                         }}
                       />
                       <ConfirmButton
-                        message={`Eliminare il prodotto «${p.name}»? Se ha dati collegati, usa Archivia per conservarli.`}
-                        success="Prodotto eliminato dal catalogo."
+                        message={`Rimuovere il prodotto «${p.name}» dal catalogo? Se ha dati collegati, usa Archivia per conservarli.`}
+                        success="Prodotto rimosso dal catalogo."
                         onConfirm={async () => {
                           await removeCatalogProduct(table, p.id)
                           if (selected === key) selectProduct('')
                         }}
                       >
-                        Elimina
+                        Rimuovi dal catalogo
                       </ConfirmButton>
                     </td>
                   </tr>

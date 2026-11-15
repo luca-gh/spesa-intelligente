@@ -892,6 +892,9 @@ small {
   align-items: center;
   gap: 15px;
 }
+.item-actions {
+  margin-top: 8px;
+}
 .item-text {
   flex: 1;
   min-width: 0;

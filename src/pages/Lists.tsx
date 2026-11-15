@@ -1,4 +1,3 @@
-import { ArchiveButton } from '../components/ArchiveButton'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, Check, ShoppingBasket } from 'lucide-react'
@@ -112,14 +111,24 @@ function ListDetail({ id }: { id: string }) {
               {item.note && ` · ${item.note}`}
             </small>
           </div>
-          <ArchiveButton
-            table="shopping_list_items"
-            record={{ ...item, version: listVersion }}
-            onDone={() => {
+        </div>
+        <div className="inline wrap item-actions">
+          <ConfirmButton
+            message={`Rimuovere «${item.name}» dalla lista della spesa? Lo storico degli acquisti e il catalogo saranno conservati.`}
+            success="Articolo rimosso dalla lista. Storico acquisti e catalogo conservati."
+            onConfirm={async () => {
+              await rpc('set_record_archived', {
+                p_type: 'shopping_list_items',
+                p_id: item.id,
+                p_archived: true,
+                p_version: listVersion,
+              })
               setBuy(null)
               setEdit(null)
             }}
-          />
+          >
+            Rimuovi dalla lista
+          </ConfirmButton>
           <button className="text-button" onClick={() => setEdit(edit === item.id ? null : item.id)}>
             Modifica
           </button>
@@ -149,12 +158,6 @@ function ListDetail({ id }: { id: string }) {
             />
             <Field label="Note" name="note" value={item.note} required={false} />
             <Submit />
-            <ConfirmButton
-              message="Eliminare l’articolo e i suoi contributi? Lo storico degli acquisti impedisce l’eliminazione."
-              onConfirm={() => rpc('remove_list_item', { p_item: item.id, p_version: listVersion })}
-            >
-              Elimina articolo
-            </ConfirmButton>
           </Form>
         )}
         {buy === item.id && (
@@ -368,16 +371,29 @@ function ListDetail({ id }: { id: string }) {
       </section>
       <label className="checkbox">
         <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
-        Mostra articoli archiviati
+        Mostra articoli rimossi
       </label>
       {showArchived && (
-        <Panel title="Articoli archiviati">
+        <Panel title="Articoli rimossi dalla lista">
           {data.shopping_list_items
             .filter((i) => i.list_id === id && i.archived_at)
             .map((i) => (
               <div className="data-row" key={i.id}>
                 <span>{i.name}</span>
-                <ArchiveButton table="shopping_list_items" record={{ ...i, version: listVersion }} />
+                <ConfirmButton
+                  message={`Rimettere «${i.name}» nella lista della spesa?`}
+                  success="Articolo rimesso nella lista della spesa."
+                  onConfirm={() =>
+                    rpc('set_record_archived', {
+                      p_type: 'shopping_list_items',
+                      p_id: i.id,
+                      p_archived: false,
+                      p_version: listVersion,
+                    })
+                  }
+                >
+                  Rimetti nella lista
+                </ConfirmButton>
               </div>
             ))}
         </Panel>

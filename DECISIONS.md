@@ -1,5 +1,7 @@
 # Decisioni tecniche
 
+Rimuovi dalla lista opera soltanto su shopping_list_items tramite l’archiviazione esistente, preservando acquisti e contributi. Comando diretto per ogni articolo, rimozione definitiva tolta dal modulo Modifica. Mostra articoli rimossi/Rimetti nella lista per recuperare. Rimuovi dal catalogo rimane esclusivamente nella tabella Prodotti del Catalogo, con i vincoli già presenti. Nessuna cancellazione del catalogo o dello storico dal flusso della spesa.
+
 Ordine categorie: Pointer Events con cattura sul contenitore stabile per mouse e touch, maniglia con touch-action:none, comandi freccia e tastiera alternativi. Anteprima locale durante il gesto, scrittura unica al rilascio, annullamento senza scrittura. RPC SECURITY INVOKER con RLS e confronto della mappa ID/posizione letta, senza sovrascrittura silenziosa di modifiche concorrenti; nessuna nuova dipendenza. Categories pubblicata in Realtime e stessa funzione di ordinamento per catalogo, selezione categoria e gruppi della spesa.
 
 La richiesta del 15 novembre 2026 sostituisce il requisito originario di liste multiple: una lista persistente per famiglia. UNIQUE su household_id impedisce liste aggiuntive concorrenti; inizializzazione idempotente SECURITY INVOKER con RLS. Duplicazione revocata e stato sempre attivo. Migrazione conservativa: dati e identificativi mantenuti, abort prima delle modifiche in presenza di liste multiple. Catalogo nella barra primaria/mobile; selezione della lista automatica per ricette, piani e confronto prezzi.

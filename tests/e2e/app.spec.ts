@@ -806,16 +806,16 @@ test('catalogo: elimina generico e commerciale inutilizzati e chiude la modifica
   const generic = page.getByRole('row', { name: /^Latte intero/ })
   await generic.getByRole('button', { name: 'Modifica', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Modifica prodotto' })).toBeVisible()
-  await generic.getByRole('button', { name: 'Elimina', exact: true }).click()
+  await generic.getByRole('button', { name: 'Rimuovi dal catalogo', exact: true }).click()
   await expect(generic).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Nuovo prodotto' })).toBeVisible()
   const specific = page.getByRole('row', { name: /^Farina fine/ })
   await specific.getByRole('button', { name: 'Modifica', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Modifica prodotto' })).toBeVisible()
-  await specific.getByRole('button', { name: 'Elimina', exact: true }).click()
+  await specific.getByRole('button', { name: 'Rimuovi dal catalogo', exact: true }).click()
   await expect(specific).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Nuovo prodotto' })).toBeVisible()
-  await expect(page.getByRole('status').filter({ hasText: 'Prodotto eliminato dal catalogo.' })).toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: 'Prodotto rimosso dal catalogo.' })).toBeVisible()
   expect(catalogDeleteRequests).toEqual([
     { table: 'generic_products', id: 'generic-milk' },
     { table: 'specific_products', id: 'specific-flour' },
@@ -829,7 +829,7 @@ test('catalogo: annullare la conferma conserva il prodotto senza inviare DELETE'
     await dialog.dismiss()
   })
   const row = page.getByRole('row', { name: /^Latte intero/ })
-  await row.getByRole('button', { name: 'Elimina', exact: true }).click()
+  await row.getByRole('button', { name: 'Rimuovi dal catalogo', exact: true }).click()
   await expect(row).toBeVisible()
   expect(catalogDeleteRequests).toHaveLength(0)
 })
@@ -850,7 +850,7 @@ for (const { table, rowName } of [
     await page.goto('/catalogo')
     page.once('dialog', (dialog) => dialog.accept())
     const row = page.getByRole('row', { name: rowName })
-    await row.getByRole('button', { name: 'Elimina', exact: true }).click()
+    await row.getByRole('button', { name: 'Rimuovi dal catalogo', exact: true }).click()
     await expect(page.getByRole('status').filter({ hasText: 'Prodotto in uso:' })).toBeVisible()
     await expect(row).toBeVisible()
     await expect(page.getByText('fixture_private_detail', { exact: false })).toHaveCount(0)
@@ -1154,15 +1154,54 @@ test('punti vendita: eliminazione definitiva, archiviazione e ripristino', async
   await expect(page.getByRole('heading', { name: 'Negozio Test', exact: true })).toHaveCount(0)
 })
 
-test('articolo con storico: archiviazione dalla lista e ripristino', async ({ page }) => {
-  await login(page, true)
-  await page.goto('/liste/20000000-0000-4000-8000-000000000001')
+test('rimuovi dalla lista: accesso diretto, storico e catalogo conservati, ripristino', async ({ page }) => {
+  const deletions: string[] = []
+  await login(page, true, productCatalog)
+  page.on('request', (request) => {
+    if (request.method() === 'DELETE') deletions.push(request.url())
+  })
+  await page.goto('/liste')
   page.on('dialog', (dialog) => dialog.accept())
-  await page.getByRole('button', { name: 'Archivia', exact: true }).click()
+  await page.getByRole('button', { name: 'Registra acquisto Latte' }).click()
+  await page.getByLabel('Quantità effettiva (L)', { exact: true }).fill('0,5')
+  await page.getByLabel('Totale pagato (€), facoltativo', { exact: true }).fill('2,50')
+  await page.getByRole('button', { name: 'Conferma acquisto' }).click()
+  await expect(page.locator('.shopping-item')).toContainText('0.5/2 acquistati')
+  await expect(page.getByLabel('Quantità manuale', { exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Rimuovi dal catalogo', exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Rimuovi dalla lista', exact: true }).click()
   await expect(page.locator('.shopping-item')).toHaveCount(0)
-  await page.getByLabel('Mostra articoli archiviati').check()
-  await page.getByRole('button', { name: 'Ripristina', exact: true }).click()
+  await page.reload()
+  await expect(page.locator('.shopping-item')).toHaveCount(0)
+  await page.getByLabel('Mostra articoli rimossi', { exact: true }).check()
+  await page.getByRole('button', { name: 'Rimetti nella lista', exact: true }).click()
   await expect(page.locator('.shopping-item')).toContainText('Latte')
+  await expect(page.locator('.shopping-item')).toContainText('0.5/2 acquistati')
+  await page.getByRole('button', { name: 'Modifica', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Elimina articolo', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Rimuovi dalla lista', exact: true })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await page.goto('/catalogo')
+  await expect(page.getByRole('row', { name: /^Latte intero/ })).toBeVisible()
+  await expect(
+    page
+      .getByRole('row', { name: /^Latte intero/ })
+      .getByRole('button', { name: 'Rimuovi dal catalogo', exact: true }),
+  ).toBeVisible()
+  expect(deletions).toHaveLength(0)
+})
+
+test('rimuovi dalla lista: annullare la conferma mantiene articolo senza scritture', async ({ page }) => {
+  await login(page, true)
+  let writes = 0
+  page.on('request', (request) => {
+    if (request.url().includes('/rpc/set_record_archived') && request.method() === 'POST') writes++
+  })
+  await page.goto('/liste')
+  page.once('dialog', (dialog) => dialog.dismiss())
+  await page.getByRole('button', { name: 'Rimuovi dalla lista', exact: true }).click()
+  await expect(page.locator('.shopping-item')).toContainText('Latte')
+  expect(writes).toBe(0)
 })
 
 test('previsioni salvate: archiviazione ripristinabile mantiene importi', async ({ page }) => {

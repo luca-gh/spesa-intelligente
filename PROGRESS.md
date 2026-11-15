@@ -1,5 +1,9 @@
 # Avanzamento
 
+## Rimozione dalla lista distinta dal catalogo — 15 novembre 2026
+
+Pulsante **Rimuovi dalla lista** direttamente su ogni articolo, senza passare da Modifica; sostituisce Archivia nella lista e rimuove la cancellazione definitiva dal modulo di modifica. Riutilizza l’archiviazione protetta esistente: acquisti, contributi e catalogo conservati anche con storico. Recupero tramite Mostra articoli rimossi e Rimetti nella lista. Nel Catalogo l’azione è esplicitamente Rimuovi dal catalogo. Nessuna nuova migrazione o modifica ai dati reali. Dodici test browser mirati desktop/mobile PASS, compresi acquisto parziale conservato dopo rimozione/refresh/ripristino, nessuna DELETE e annullamento conferma senza scritture. Suite completa corrente: 94 casi, verificata in CI alla pubblicazione.
+
 ## Ordine delle categorie — 15 novembre 2026
 
 Trascinamento mouse/tocco, frecce e tastiera nelle Categorie della famiglia; ordine salvato automaticamente e condiviso con selettore categoria e gruppi della lista della spesa. Nuove categorie in fondo. RPC `reorder_categories` SECURITY INVOKER, RLS, salvataggio atomico e verifica della sequenza attesa per respingere bozze obsolete; lock coerenti per famiglia. `categories` aggiunta a Realtime: cinque tabelle pubblicate. Migrazione `20261115122000_category_order.sql` applicata tramite Supabase, categorie esistenti invariate. Collaudo SQL reale transazionale PASS con rollback; zero fixture residue. 72 test locali in 9 file e 92 test browser desktop/mobile PASS, inclusi tocco simulato, annullamento, persistenza, ordine nella spesa, errori e offline. Prova su iPad fisico ancora da eseguire.

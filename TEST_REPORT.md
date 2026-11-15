@@ -1,5 +1,9 @@
 # Rapporto test
 
+## Rimozione immediata dalla lista — 15 novembre 2026
+
+12 test browser mirati desktop/mobile PASS: pulsante visibile senza Modifica, rimozione dopo acquisto parziale, persistenza dopo refresh, ripristino con quantità acquistata intatta, prodotto ancora nel catalogo, assenza di DELETE, nessuna rimozione dal catalogo nella lista e annullamento senza RPC. Aggiornati i test della rimozione dal catalogo al testo esplicito. Nessuna nuova migrazione o scrittura nel database reale. Suite browser corrente 94 casi; controlli completi eseguiti dalla CI alla pubblicazione.
+
 ## Ordinamento categorie — 15 novembre 2026
 
 72 test locali in 9 file e 92 test browser desktop/mobile PASS; lint, tipi, build, aggiornamento PWA e controllo segreti PASS. Nuovi test PostgreSQL: ordine completo atomico, identità/nomi conservati, payload incompleti/duplicati/estranei/null e snapshot obsoleti respinti senza modifiche parziali, RLS/anon negato e SECURITY INVOKER. Cinque tabelle Realtime nel bootstrap, inclusa categories. Script SQL online esteso e verificato sul database reale in transazione annullata: salvataggio ordine e conflitto obsoleto PASS; zero utenti sintetici residui, categorie reali invariate prima/dopo la migrazione.
@@ -28,7 +32,7 @@ supabase/tests/online_rls.sql: PASS sul progetto reale. Due membri, invito/accet
 
 Check backend reale: PASS, Auth HTTP 200; 20 tabelle PROTETTA (401/42501 riferito alla tabella richiesta). Non equivale al collaudo autenticato Auth/JWT/PostgREST o Realtime su due client, tuttora NOT RUN completo.
 
-Suite locale attuale: 72 PASS in 9 file, inclusi bootstrap completo, privilegi predefiniti, script SQL online con rollback, ricerca barcode, lista unica e ordine categorie. Suite browser corrente: 92 casi desktop/mobile. CI e pubblicazione del nuovo commit vengono verificate separatamente dai test locali.
+Suite locale attuale: 72 PASS in 9 file, inclusi bootstrap completo, privilegi predefiniti, script SQL online con rollback, ricerca barcode, lista unica e ordine categorie. Suite browser corrente: 94 casi desktop/mobile. CI e pubblicazione del nuovo commit vengono verificate separatamente dai test locali.
 
 | Area                            | Ambiente e verifica                                                                                                  | Stato                                                                 |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
