@@ -1,5 +1,11 @@
 # Rapporto test
 
+## Autocompletamento prodotti nella lista — 15 novembre 2026
+
+Nuovo test locale: ricerca per barcode e più parole nome/marca; ordine per nome separato dai dettagli della confezione. Nuovo scenario browser desktop/mobile: lista alfabetica, prodotti archiviati esclusi, CAFFE trova Caffè, selezione da tastiera e tocco simulato, ricerca olio oliva, quantità/unità coerenti, ritorno esplicito all’articolo libero, nessun risultato ed Escape, salvataggio libero anche con testo di ricerca non selezionato. Aggiornati i test precedenti alla selezione tramite suggerimenti: marca/EAN, nessun identificativo obsoleto, conversioni, accessibilità axe e assenza overflow, errore e nuovo tentativo, reset, barcode camera/manuale e ritorno dal Catalogo. Fixture browser isolate, nessuna scrittura su dati reali. I test touch simulati non equivalgono a collaudo iPad fisico.
+
+Suite completa locale PASS: 85 test in 11 file e 122 prove browser desktop/mobile, incluse le regressioni su ricette e pasti. Lint, tipi, build, prova aggiornamento PWA e controllo segreti PASS. CI del commit e sito HTTPS verificati alla pubblicazione.
+
 ## Cancellazione completa prodotti — 15 novembre 2026
 
 Due nuovi test PostgreSQL: script SQL riutilizzabile con fixture temporanee e rollback forzato tramite errore prima della cancellazione finale. Verificati prodotto archiviato/attivo, generico legacy, scheda senza gruppo, ultima marca e gruppo condiviso con marca archiviata; rimozione di articoli attivi/rimossi, contributi, acquisti, prezzi annullati/attivi, ingredienti, pasti, JSON dei modelli, esclusioni dagli sconti e previsioni annidate. Conservati altri prodotti, acquisti, prezzi, ricette, modelli, categorie e negozi; incremento versioni lista/piani, anteprima obsoleta respinta. Due membri sintetici, famiglia estranea, accesso privato diretto, anon e grant sulle tabelle contabili verificati.
@@ -58,7 +64,7 @@ supabase/tests/online_rls.sql: PASS sul progetto reale. Due membri, invito/accet
 
 Check backend reale: PASS, Auth HTTP 200; 20 tabelle PROTETTA (401/42501 riferito alla tabella richiesta). Non equivale al collaudo autenticato Auth/JWT/PostgREST o Realtime su due client, tuttora NOT RUN completo.
 
-Suite locale corrente: 84 casi in 11 file, inclusi bootstrap completo, privilegi predefiniti, script SQL online con rollback, ricerca barcode su tre fonti, lista unica, ordine categorie, autocompletamento e cancellazione completa prodotti. Suite browser corrente: 120 casi desktop/mobile. CI e pubblicazione del nuovo commit vengono verificate separatamente dai test locali.
+Suite locale corrente: 85 casi in 11 file, inclusi bootstrap completo, privilegi predefiniti, script SQL online con rollback, ricerca barcode su tre fonti, lista unica, ordine categorie, autocompletamento anche nella lista e cancellazione completa prodotti. Suite browser corrente: 122 casi desktop/mobile. CI e pubblicazione del nuovo commit vengono verificate separatamente dai test locali.
 
 | Area                            | Ambiente e verifica                                                                                                  | Stato                                                                 |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |

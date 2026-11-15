@@ -867,7 +867,7 @@ small {
 .item-form > .item-help,
 .item-form > .item-name,
 .item-form > .button,
-.item-form.empty-catalog > .catalog-product {
+.item-form > .catalog-product {
   grid-column: 1 / -1;
 }
 .item-form > .item-help {
@@ -1695,10 +1695,6 @@ details p {
   .item-form {
     grid-template-columns: 1fr 1fr;
     gap: 14px;
-  }
-  .item-form > .catalog-search,
-  .item-form > .catalog-product {
-    grid-column: 1/-1;
   }
   .item-form > .button {
     grid-column: 1/-1;

@@ -1,5 +1,11 @@
 # Avanzamento
 
+## Autocompletamento nella lista della spesa — 15 novembre 2026
+
+Prodotto dal catalogo ora è un unico campo con suggerimenti, condiviso con ingredienti e calendario. Ricerca mentre si scrive per nome, marca, variante e barcode, senza accenti/maiuscole e per più parole parziali; risultati alfabetici per il nome, con marca e formato visibili. Selezione con tastiera, mouse o tocco, invalidazione dell’ID quando cambia il testo, ritorno esplicito all’articolo libero. Conservati formato iniziale, conversioni compatibili, errore con bozza conservata, reset solo dopo successo, barcode e ritorno dal Catalogo. Prodotti archiviati o rimossi non restano selezionabili dopo refresh. Nessuna migrazione, nuova dipendenza o modifica al database reale.
+
+Verifiche locali PASS: 85 test in 11 file, 122 prove browser desktop/mobile, lint, tipi, build, aggiornamento PWA e segreti. Test di accessibilità axe sul modulo PASS. CI e disponibilità HTTPS controllate alla pubblicazione.
+
 ## Cancellazione completa dal Catalogo — 15 novembre 2026
 
 Rimuovi dal catalogo ora cancella definitivamente anche prodotti con collegamenti, dopo conferma nominativa con elenco delle conseguenze. Un’unica transazione rimuove articoli e contributi, acquisti, prezzi anche annullati, previsioni che citano dati eliminati ed esclusioni dagli sconti. All’ultima scheda di un alimento, elimina anche il raggruppamento interno e i suoi riferimenti negli ingredienti delle ricette, nei pasti e nei modelli, conservando ricette/modelli e le altre voci. Altre marche, anche archiviate, restano con i collegamenti generici condivisi. Archivia continua a conservare lo storico; la rimozione dalla lista resta distinta.

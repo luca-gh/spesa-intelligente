@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import { useApp } from '../data/context'
@@ -7,6 +7,7 @@ import { catalogProducts, productFormat } from '../data/catalog'
 import { convert, quantity, units, type Unit } from '../domain/math'
 import { Submit } from './ui'
 import { ListBarcodePicker } from './ListBarcodePicker'
+import { SearchSelect } from './SearchSelect'
 
 export function AddListItemForm({ listId }: { listId: string }) {
   const { data, act, busy, online } = useApp()
@@ -17,15 +18,15 @@ export function AddListItemForm({ listId }: { listId: string }) {
   const [unit, setUnit] = useState<Unit>('pz')
   const [error, setError] = useState('')
   const [scanRevision, setScanRevision] = useState(0)
-  const helpId = useId()
   const [params, setParams] = useSearchParams()
   const incomingProduct = params.get('prodotto')
-  const generic = data.generic_products.find((product) => product.id === productId)
-  const specific = data.specific_products.find((product) => product.id === productId)
+  const allChoices = catalogProducts(data).filter(({ product }) => !product.archived_at)
+  const currentChoice = allChoices.find(({ product }) => product.id === productId)
+  const generic = currentChoice?.kind === 'generic' ? currentChoice.product : undefined
+  const specific = currentChoice?.kind === 'specific' ? currentChoice.product : undefined
   const selected = generic ?? specific
   const anyBrand = !!specific?.generic_product_id && !specific.brand && !specific.barcode && !specific.variant
-  const allChoices = catalogProducts(data)
-  const hasCatalog = allChoices.some(({ product }) => !product.archived_at)
+  const hasCatalog = allChoices.length > 0
   const baseUnit = generic?.canonical_unit ?? specific?.package_unit
   const availableUnits = baseUnit
     ? units.filter((candidate) => {
@@ -37,29 +38,25 @@ export function AddListItemForm({ listId }: { listId: string }) {
         }
       })
     : units
-  const query = search.trim().toLocaleLowerCase('it')
-  const generics = data.generic_products
-    .filter((p) => !p.is_catalog_group)
-    .filter((p) => !p.archived_at)
-    .filter((product) => product.name.toLocaleLowerCase('it').includes(query))
-    .sort((a, b) => a.name.localeCompare(b.name, 'it'))
-  const specifics = data.specific_products
-    .filter((p) => !p.archived_at)
-    .filter((product) =>
-      [
-        product.name,
-        product.brand,
-        product.variant,
-        product.barcode,
-        data.generic_products.find((g) => g.id === product.generic_product_id)?.name,
-      ]
-        .join(' ')
-        .toLocaleLowerCase('it')
-        .includes(query),
-    )
-    .sort((a, b) => a.name.localeCompare(b.name, 'it'))
-  const genericIds = new Set(generics.map((p) => p.id))
-  const specificIds = new Set(specifics.map((p) => p.id))
+  const choices = allChoices.map((entry) => ({
+    value: entry.product.id,
+    sortLabel: entry.product.name,
+    label:
+      entry.kind === 'specific'
+        ? [entry.product.name, entry.product.brand, entry.product.variant, productFormat(entry.product)]
+            .filter(Boolean)
+            .join(' · ')
+        : entry.product.name,
+    searchText:
+      entry.kind === 'specific'
+        ? [
+            entry.product.barcode,
+            data.generic_products.find((g) => g.id === entry.product.generic_product_id)?.name,
+          ]
+            .filter(Boolean)
+            .join(' ')
+        : '',
+  }))
 
   const chooseProduct = useCallback(
     (id: string) => {
@@ -157,69 +154,45 @@ export function AddListItemForm({ listId }: { listId: string }) {
           chooseProduct(id)
         }}
       />
-      <form
-        className={`form item-form ${hasCatalog ? '' : 'empty-catalog'}`}
-        aria-label="Aggiungi un articolo alla lista"
-        onSubmit={save}
-      >
-        <p className="muted item-help" id={helpId}>
+      <form className="form item-form" aria-label="Aggiungi un articolo alla lista" onSubmit={save}>
+        <p className="muted item-help">
           Scegli un prodotto già presente nel catalogo per collegare categoria, formato e confronto prezzi.
           Puoi anche scrivere un articolo libero, che resta solo nella lista.
         </p>
-        {hasCatalog && (
-          <label className="field catalog-search">
-            <span>Cerca nel catalogo</span>
-            <input
-              value={search}
-              maxLength={200}
-              disabled={busy || !online}
-              placeholder="Nome, marca o barcode…"
-              onChange={(event) => {
-                setSearch(event.target.value)
-                if (productId) chooseProduct('')
-              }}
-            />
-          </label>
-        )}
-        <label className="field catalog-product">
-          <span>Prodotto dal catalogo (facoltativo)</span>
-          <select
-            name="product"
-            aria-label="Prodotto dal catalogo (facoltativo)"
-            value={selected?.id ?? ''}
-            disabled={!hasCatalog || busy || !online}
-            aria-describedby={helpId}
-            onChange={(event) => chooseProduct(event.target.value)}
+        <SearchSelect
+          className="catalog-product"
+          label="Prodotto dal catalogo (facoltativo)"
+          name="product"
+          choices={choices}
+          value={selected?.id ?? ''}
+          query={search}
+          onQueryChange={setSearch}
+          onSelect={(id) => {
+            if (id || productId) chooseProduct(id)
+          }}
+          required={false}
+          disabled={!hasCatalog}
+          placeholder="Scrivi nome, marca o barcode…"
+          helpText="Scrivi per cercare e seleziona un risultato, oppure inserisci un articolo libero qui sotto."
+          emptyText="Nessun prodotto trovato. Puoi scrivere il nome qui sotto per aggiungere un articolo libero."
+        />
+        {selected && (
+          <button
+            type="button"
+            className="text-button item-help"
+            disabled={busy || !online}
+            onClick={() => {
+              setSearch('')
+              chooseProduct('')
+            }}
           >
-            <option value="">Nessuno: scrivi un articolo libero</option>
-            {allChoices
-              .filter((entry) =>
-                entry.kind === 'generic'
-                  ? genericIds.has(entry.product.id)
-                  : specificIds.has(entry.product.id),
-              )
-              .map((entry) => (
-                <option key={entry.kind + entry.product.id} value={entry.product.id}>
-                  {entry.product.name}
-                  {entry.kind === 'specific'
-                    ? [entry.product.brand, entry.product.variant, productFormat(entry.product)]
-                        .filter(Boolean)
-                        .map((value) => ` · ${value}`)
-                        .join('')
-                    : ''}
-                </option>
-              ))}
-          </select>
-        </label>
+            Scrivi un articolo libero
+          </button>
+        )}
         {!hasCatalog && (
           <p className="muted item-help">
             Il catalogo è vuoto. Scrivi il nome dell’articolo qui sotto oppure aggiungi prima un prodotto nel{' '}
             <Link to="/catalogo">Catalogo prodotti</Link>.
-          </p>
-        )}
-        {hasCatalog && generics.length + specifics.length === 0 && (
-          <p className="muted item-help" role="status">
-            Nessun prodotto trovato. Puoi scrivere il nome qui sotto per aggiungere un articolo libero.
           </p>
         )}
         {specific?.package_quantity && specific.package_unit ? (

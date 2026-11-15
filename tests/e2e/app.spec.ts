@@ -301,6 +301,15 @@ const productCatalog = {
   ],
 }
 
+async function chooseListProduct(page: Page, name: string | RegExp, query = '') {
+  const input = page.getByRole('combobox', { name: /Prodotto.*facoltativo/ })
+  await input.fill(query)
+  await input.click()
+  const option = page.getByRole('listbox').getByRole('option', { name, exact: typeof name === 'string' })
+  if (test.info().project.name === 'mobile') await option.tap()
+  else await option.click()
+}
+
 const autocompleteCatalog = {
   generic_products: [
     { id: 'zucchini', name: 'Zucchine', canonical_unit: 'g', category_id: null },
@@ -676,7 +685,7 @@ for (const example of [
     expect(catalogSaveRequests).toHaveLength(0)
     expect(itemRequests).toHaveLength(0)
     await page.getByRole('button', { name: 'Salva prodotto', exact: true }).click()
-    await expect(page.getByRole('combobox', { name: /Prodotto dal catalogo/ })).toHaveValue('new-product-0')
+    await expect(page.locator('input[name="product"]')).toHaveValue('new-product-0')
     await expect(page.getByLabel('Quantità', { exact: true })).toHaveValue(example.size)
     await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
     await expect(page.locator('.shopping-item')).toContainText(example.name)
@@ -696,12 +705,12 @@ test('barcode nella lista: seleziona dal catalogo e aggiunge solo dopo conferma'
     return route.fulfill({ json: { product: null } })
   })
   await page.goto('/liste')
-  await page.getByLabel('Cerca nel catalogo', { exact: true }).fill('latte')
+  await page.getByRole('combobox', { name: /Prodotto.*facoltativo/ }).fill('latte')
   await page.getByText('Inserisci il barcode manualmente', { exact: true }).click()
   await page.getByLabel('Barcode per la lista', { exact: true }).fill('8000500037560')
   await page.getByRole('button', { name: 'Cerca barcode', exact: true }).click()
-  await expect(page.getByRole('combobox', { name: /Prodotto dal catalogo/ })).toHaveValue('specific-flour')
-  await expect(page.getByLabel('Cerca nel catalogo', { exact: true })).toHaveValue('')
+  await expect(page.locator('input[name="product"]')).toHaveValue('specific-flour')
+  await expect(page.getByRole('combobox', { name: /Prodotto dal catalogo/ })).toHaveValue(/Farina fine/)
   await expect(page.getByLabel('Quantità', { exact: true })).toHaveValue('500')
   await expect(page.getByRole('combobox', { name: 'Unità', exact: true })).toHaveValue('g')
   expect(lookups).toBe(0)
@@ -726,7 +735,7 @@ test('barcode nella lista: nuovo prodotto, compilazione e ritorno con selezione'
   expect(itemRequests).toHaveLength(0)
   await page.getByRole('button', { name: 'Salva prodotto', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'La lista della spesa.' })).toBeVisible()
-  await expect(page.getByRole('combobox', { name: /Prodotto dal catalogo/ })).toHaveValue('new-product-0')
+  await expect(page.locator('input[name="product"]')).toHaveValue('new-product-0')
   await expect(page.getByLabel('Quantità', { exact: true })).toHaveValue('1')
   await expect(page.getByRole('combobox', { name: 'Unità', exact: true })).toHaveValue('L')
   expect(catalogSaveRequests).toHaveLength(1)
@@ -814,7 +823,7 @@ test('barcode nella lista: fotocamera seleziona il prodotto senza salvataggi imp
   })
   await page.goto('/liste')
   await page.getByRole('button', { name: 'Scansiona barcode', exact: true }).click()
-  await expect(page.getByRole('combobox', { name: /Prodotto dal catalogo/ })).toHaveValue('specific-flour')
+  await expect(page.locator('input[name="product"]')).toHaveValue('specific-flour')
   await expect(page.getByRole('button', { name: 'Ferma fotocamera' })).toHaveCount(0)
   expect(itemRequests).toHaveLength(0)
 })
@@ -1145,9 +1154,9 @@ test('lista: un solo prodotto senza formato, con quantità modificabile e senza 
   })
   await page.goto('/liste/20000000-0000-4000-8000-000000000001')
   const select = page.getByRole('combobox', { name: /Prodotto.*facoltativo/ })
-  await expect(select.locator('option')).toHaveCount(2)
-  await expect(select.locator('optgroup')).toHaveCount(0)
-  await select.selectOption('card')
+  await select.click()
+  await expect(page.getByRole('listbox').getByRole('option')).toHaveCount(1)
+  await chooseListProduct(page, /^Latte/)
   await expect(page.getByLabel('Quantità', { exact: true })).toHaveValue('1')
   await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
   expect(itemRequests[0]).toMatchObject({ p_specific: 'card', p_quantity: '1', p_unit: 'pz' })
@@ -1172,7 +1181,7 @@ test('lista: il prodotto senza marca permette il confronto tra le marche disponi
     ],
   })
   await page.goto('/liste/20000000-0000-4000-8000-000000000001')
-  await page.getByRole('combobox', { name: /Prodotto.*facoltativo/ }).selectOption('card')
+  await chooseListProduct(page, /^Latte/)
   await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
   await expect(page.locator('.shopping-item').filter({ hasText: 'Latte' })).toHaveCount(2)
   expect(itemRequests[0]).toMatchObject({
@@ -1491,7 +1500,7 @@ test('prodotto commerciale: quantità del formato, unità e riferimento corretti
   const { itemRequests } = await login(page, true, productCatalog)
   await page.goto('/liste/20000000-0000-4000-8000-000000000001')
   const product = page.getByRole('combobox', { name: /Prodotto.*facoltativo/ })
-  await product.selectOption('specific-flour')
+  await chooseListProduct(page, /^Farina fine/)
   await expect(page.getByLabel('Unità', { exact: true })).toHaveValue('g')
   await expect(page.getByLabel('Quantità', { exact: true })).toHaveValue('500')
   await expect(page.getByLabel('Nome per articolo libero')).toHaveCount(0)
@@ -1527,7 +1536,7 @@ test('prodotto commerciale: quantità del formato, unità e riferimento corretti
 test('generico: unità coerenti e conversione della quantità prima del salvataggio', async ({ page }) => {
   const { itemRequests } = await login(page, true, productCatalog)
   await page.goto('/liste/20000000-0000-4000-8000-000000000001')
-  await page.getByRole('combobox', { name: /Prodotto.*facoltativo/ }).selectOption('generic-milk')
+  await chooseListProduct(page, 'Latte intero')
   const unit = page.getByLabel('Unità', { exact: true })
   await expect(unit).toHaveValue('L')
   await expect(unit.getByRole('option', { name: 'g', exact: true })).toHaveCount(0)
@@ -1545,19 +1554,61 @@ test('generico: unità coerenti e conversione della quantità prima del salvatag
     p_quantity: '1000',
   })
 })
+test('lista autocomplete: ordine alfabetico, accenti, tastiera, tocco e articolo libero', async ({
+  page,
+}) => {
+  const { itemRequests } = await login(page, false, autocompleteCatalog)
+  await page.goto('/liste')
+  const product = page.getByRole('combobox', { name: /Prodotto.*facoltativo/ })
+  await product.click()
+  await expect(page.getByRole('listbox').locator('li > span')).toHaveText([
+    'Albicocche',
+    'Caffè',
+    'Olio extra vergine di oliva',
+    'Zucchine',
+  ])
+  await product.fill('CAFFE')
+  await expect(page.getByRole('listbox').getByRole('option')).toHaveCount(1)
+  await product.press('ArrowDown')
+  await product.press('Enter')
+  await expect(page.locator('input[name="product"]')).toHaveValue('coffee')
+  await expect(page.getByLabel('Unità', { exact: true })).toHaveValue('g')
+  expect(itemRequests).toHaveLength(0)
+  await chooseListProduct(page, 'Olio extra vergine di oliva', 'olio oliva')
+  await expect(page.locator('input[name="product"]')).toHaveValue('oil')
+  await expect(page.getByLabel('Unità', { exact: true })).toHaveValue('ml')
+  await page.getByRole('button', { name: 'Scrivi un articolo libero', exact: true }).click()
+  await expect(product).toHaveValue('')
+  await expect(page.getByLabel('Quantità', { exact: true })).toHaveValue('1')
+  await product.fill('nessun prodotto')
+  await expect(page.getByText('Nessun prodotto trovato.', { exact: false })).toBeVisible()
+  await product.press('Escape')
+  await expect(page.getByRole('listbox')).toHaveCount(0)
+  await page.getByLabel('Nome per articolo libero').fill('Pane fresco')
+  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
+  await expect(page.locator('.shopping-item')).toContainText('Pane fresco')
+  expect(itemRequests[0]).toMatchObject({
+    p_name: 'Pane fresco',
+    p_generic: null,
+    p_specific: null,
+    p_quantity: '1',
+    p_unit: 'pz',
+  })
+  await expect(product).toHaveValue('')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+})
+
 test('ricerca per marca e codice, nessuna selezione nascosta quando il filtro cambia', async ({ page }) => {
   await login(page, true, productCatalog)
   await page.goto('/liste/20000000-0000-4000-8000-000000000001')
   const product = page.getByRole('combobox', { name: /Prodotto.*facoltativo/ })
-  const search = page.getByLabel('Cerca nel catalogo')
-  await product.selectOption('generic-milk')
-  await search.fill('Molino')
-  await expect(product).toHaveValue('')
-  await expect(product.getByRole('option', { name: /Farina fine/ })).toHaveCount(1)
-  await search.fill('8000500037560')
-  await product.selectOption('specific-flour')
-  await search.fill('senza corrispondenze')
-  await expect(product).toHaveValue('')
+  await chooseListProduct(page, 'Latte intero')
+  await product.fill('Molino')
+  await expect(page.locator('input[name="product"]')).toHaveValue('')
+  await expect(page.getByRole('listbox').getByRole('option', { name: /Farina fine/ })).toHaveCount(1)
+  await chooseListProduct(page, /^Farina fine/, '8000500037560')
+  await product.fill('senza corrispondenze')
+  await expect(page.locator('input[name="product"]')).toHaveValue('')
   await expect(page.getByText('Nessun prodotto trovato.', { exact: false })).toBeVisible()
   await expect(page.getByLabel('Nome per articolo libero')).toHaveAttribute('required', '')
 })
@@ -1574,18 +1625,17 @@ test('errore di salvataggio conserva prodotto, quantità e ricerca per riprovare
     } else await route.fallback()
   })
   await page.goto('/liste/20000000-0000-4000-8000-000000000001')
-  await page.getByLabel('Cerca nel catalogo').fill('Molino')
   const product = page.getByRole('combobox', { name: /Prodotto.*facoltativo/ })
-  await product.selectOption('specific-flour')
+  await chooseListProduct(page, /^Farina fine/, 'Molino')
   await page.getByLabel('Quantità', { exact: true }).fill('750')
   await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
   await expect(page.getByRole('status').filter({ hasText: 'Operazione non riuscita' })).toBeVisible()
-  await expect(product).toHaveValue('specific-flour')
+  await expect(page.locator('input[name="product"]')).toHaveValue('specific-flour')
   await expect(page.getByLabel('Quantità', { exact: true })).toHaveValue('750')
-  await expect(page.getByLabel('Cerca nel catalogo')).toHaveValue('Molino')
+  await expect(product).toHaveValue(/Farina fine/)
   await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
   await expect(page.getByText('Farina fine', { exact: true })).toBeVisible()
-  await expect(page.getByLabel('Cerca nel catalogo')).toHaveValue('')
+  await expect(product).toHaveValue('')
 })
 test('accesso senza sessione e layout responsive', async ({ page }) => {
   await page.goto('/')
@@ -1738,8 +1788,9 @@ test('prodotti archiviati: scompaiono dalle scelte e possono essere ripristinati
     .click()
   await expect(page.getByRole('row').filter({ hasText: 'Latte intero' })).toHaveCount(0)
   await page.goto('/liste/20000000-0000-4000-8000-000000000001')
+  await page.getByRole('combobox', { name: /Prodotto.*facoltativo/ }).fill('Latte')
   await expect(
-    page.getByRole('combobox', { name: /Prodotto.*facoltativo/ }).locator('option[value="generic-milk"]'),
+    page.getByRole('listbox').getByRole('option', { name: 'Latte intero', exact: true }),
   ).toHaveCount(0)
   await page.goto('/catalogo')
   await page.getByLabel('Mostra archiviati', { exact: true }).check()

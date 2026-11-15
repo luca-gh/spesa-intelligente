@@ -6,43 +6,67 @@ export function SearchSelect({
   label,
   name,
   choices,
+  value: controlledValue,
+  query: controlledQuery,
+  onSelect,
+  onQueryChange,
+  required = true,
+  disabled: externallyDisabled = false,
+  className = '',
+  helpText = 'Scrivi il nome e seleziona un risultato.',
+  placeholder = 'Scrivi per cercare…',
+  emptyText,
 }: {
   label: string
   name: string
   choices: SearchChoice[]
+  value?: string
+  query?: string
+  onSelect?: (value: string) => void
+  onQueryChange?: (query: string) => void
+  required?: boolean
+  disabled?: boolean
+  className?: string
+  helpText?: string
+  placeholder?: string
+  emptyText?: string
 }) {
   const { busy, online } = useApp()
   const id = useId()
   const input = useRef<HTMLInputElement>(null)
   const root = useRef<HTMLDivElement>(null)
-  const [query, setQuery] = useState('')
-  const [value, setValue] = useState('')
+  const [internalQuery, setInternalQuery] = useState('')
+  const [internalValue, setInternalValue] = useState('')
+  const query = controlledQuery ?? internalQuery
+  const value = controlledValue ?? internalValue
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)
   const selected = choices.find((choice) => choice.value === value)
   const results = matchingChoices(choices, selected ? '' : query)
-  const disabled = busy || !online
+  const disabled = externallyDisabled || busy || !online
   const expanded = open && !disabled
   const activeIndex = Math.min(active, results.length - 1)
   const optionId = (index: number) => `${id}-option-${index}`
 
   useEffect(() => {
     input.current?.setCustomValidity(
-      !selected && query ? 'Seleziona una voce tra i risultati suggeriti.' : '',
+      required && !selected && query ? 'Seleziona una voce tra i risultati suggeriti.' : '',
     )
-  }, [selected, query])
+  }, [selected, query, required])
   useEffect(() => {
     const form = input.current?.form
     const reset = () => {
-      setQuery('')
-      setValue('')
+      setInternalQuery('')
+      setInternalValue('')
+      onQueryChange?.('')
+      onSelect?.('')
       setOpen(false)
       setActive(-1)
       input.current?.setCustomValidity('')
     }
     form?.addEventListener('reset', reset)
     return () => form?.removeEventListener('reset', reset)
-  }, [])
+  }, [onQueryChange, onSelect])
   useEffect(() => {
     const outside = (event: PointerEvent) => {
       if (!root.current?.contains(event.target as Node)) setOpen(false)
@@ -56,15 +80,17 @@ export function SearchSelect({
   }, [expanded, activeIndex, id, query])
 
   function choose(choice: SearchChoice) {
-    setValue(choice.value)
-    setQuery(choice.label)
+    setInternalValue(choice.value)
+    setInternalQuery(choice.label)
+    onSelect?.(choice.value)
+    onQueryChange?.(choice.label)
     setOpen(false)
     setActive(-1)
     input.current?.setCustomValidity('')
     input.current?.focus({ preventScroll: true })
   }
   return (
-    <div className="field search-select" ref={root}>
+    <div className={`field search-select ${className}`} ref={root}>
       <label htmlFor={id}>{label}</label>
       <input type="hidden" name={name} value={selected?.value ?? ''} disabled={disabled} />
       <input
@@ -77,12 +103,12 @@ export function SearchSelect({
         aria-activedescendant={expanded && activeIndex >= 0 ? optionId(activeIndex) : undefined}
         aria-describedby={`${id}-help`}
         value={selected?.label ?? query}
-        required
+        required={required}
         disabled={disabled}
         autoComplete="off"
         spellCheck={false}
         maxLength={200}
-        placeholder="Scrivi per cercare…"
+        placeholder={placeholder}
         onFocus={() => setOpen(true)}
         onClick={() => setOpen(true)}
         onBlur={() => {
@@ -90,12 +116,14 @@ export function SearchSelect({
           setActive(-1)
         }}
         onChange={(event) => {
-          setQuery(event.target.value)
-          setValue('')
+          setInternalQuery(event.target.value)
+          setInternalValue('')
+          onQueryChange?.(event.target.value)
+          onSelect?.('')
           setActive(-1)
           setOpen(true)
           event.currentTarget.setCustomValidity(
-            event.target.value ? 'Seleziona una voce tra i risultati suggeriti.' : '',
+            required && event.target.value ? 'Seleziona una voce tra i risultati suggeriti.' : '',
           )
         }}
         onKeyDown={(event) => {
@@ -123,7 +151,7 @@ export function SearchSelect({
         }}
       />
       <small className="muted" id={`${id}-help`}>
-        Scrivi il nome e seleziona un risultato.
+        {helpText}
       </small>
       {expanded && (
         <div className="search-select-popup">
@@ -145,9 +173,10 @@ export function SearchSelect({
           </ul>
           {!results.length && (
             <p role="status">
-              {choices.length
-                ? 'Nessun risultato. Prova un altro nome.'
-                : 'Nessuna voce disponibile. Aggiungi un prodotto al Catalogo o una ricetta.'}
+              {emptyText ??
+                (choices.length
+                  ? 'Nessun risultato. Prova un altro nome.'
+                  : 'Nessuna voce disponibile. Aggiungi un prodotto al Catalogo o una ricetta.')}
             </p>
           )}
         </div>

@@ -2,6 +2,8 @@ export interface SearchChoice {
   value: string
   label: string
   kind?: string
+  searchText?: string
+  sortLabel?: string
 }
 const normalized = (text: string) =>
   text
@@ -14,10 +16,13 @@ export function matchingChoices(choices: SearchChoice[], query: string) {
   const terms = normalized(query).split(/\s+/).filter(Boolean)
   return choices
     .filter((choice) =>
-      terms.every((term) => normalized(`${choice.label} ${choice.kind ?? ''}`).includes(term)),
+      terms.every((term) =>
+        normalized(`${choice.label} ${choice.kind ?? ''} ${choice.searchText ?? ''}`).includes(term),
+      ),
     )
     .sort(
       (a, b) =>
+        collator.compare(a.sortLabel ?? a.label, b.sortLabel ?? b.label) ||
         collator.compare(a.label, b.label) ||
         collator.compare(a.kind ?? '', b.kind ?? '') ||
         a.value.localeCompare(b.value),
