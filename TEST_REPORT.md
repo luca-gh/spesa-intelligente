@@ -1,5 +1,11 @@
 # Rapporto test
 
+## Ordinamento categorie — 15 novembre 2026
+
+72 test locali in 9 file e 92 test browser desktop/mobile PASS; lint, tipi, build, aggiornamento PWA e controllo segreti PASS. Nuovi test PostgreSQL: ordine completo atomico, identità/nomi conservati, payload incompleti/duplicati/estranei/null e snapshot obsoleti respinti senza modifiche parziali, RLS/anon negato e SECURITY INVOKER. Cinque tabelle Realtime nel bootstrap, inclusa categories. Script SQL online esteso e verificato sul database reale in transazione annullata: salvataggio ordine e conflitto obsoleto PASS; zero utenti sintetici residui, categorie reali invariate prima/dopo la migrazione.
+
+Browser: riordino mouse e touch tramite eventi Chrome reali, touchCancel senza salvataggio, tastiera/frecce, refresh con ordine persistente, Frutta prima dei Latticini nella spesa, errore con ritorno all’ordine precedente e blocco offline. Non equivale a prova hardware Safari/iPad né a collaudo WebSocket su due account reali, ancora rinviato.
+
 ## Lista unica — 15 novembre 2026
 
 69 test in 8 file PASS. Nuovi test migrazione: conservazione articoli, contributi, acquisti e collegamenti al piano; riattivazione lista completata; unicità per famiglia, RPC idempotente SECURITY INVOKER, isolamento/anon, duplicazione revocata e arresto sicuro per liste legacy multiple. Script SQL verificato su database reale con rollback; impronte dei dati invariati prima/dopo. Nessuna fixture conservata. Advisor senza errori, avvisi precedenti per 23 RPC definer e protezione password compromesse.
@@ -22,7 +28,7 @@ supabase/tests/online_rls.sql: PASS sul progetto reale. Due membri, invito/accet
 
 Check backend reale: PASS, Auth HTTP 200; 20 tabelle PROTETTA (401/42501 riferito alla tabella richiesta). Non equivale al collaudo autenticato Auth/JWT/PostgREST o Realtime su due client, tuttora NOT RUN completo.
 
-Suite locale attuale: 69 PASS in 8 file, inclusi bootstrap completo, privilegi predefiniti, script SQL online con rollback, ricerca barcode e lista unica. Suite browser corrente: 86 casi desktop/mobile. CI e pubblicazione del nuovo commit vengono verificate separatamente dai test locali.
+Suite locale attuale: 72 PASS in 9 file, inclusi bootstrap completo, privilegi predefiniti, script SQL online con rollback, ricerca barcode, lista unica e ordine categorie. Suite browser corrente: 92 casi desktop/mobile. CI e pubblicazione del nuovo commit vengono verificate separatamente dai test locali.
 
 | Area                            | Ambiente e verifica                                                                                                  | Stato                                                                 |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |

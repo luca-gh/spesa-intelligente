@@ -47,6 +47,7 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
   }
   const catalogSaveRequests: Record<string, unknown>[] = []
   const ensureListRequests: Record<string, unknown>[] = []
+  const categoryOrderRequests: Record<string, unknown>[] = []
   const itemRequests: Record<string, unknown>[] = []
   const catalogDeleteRequests: { table: string; id: string }[] = []
   await page.route('https://fixture.supabase.test/**', async (route) => {
@@ -141,6 +142,12 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
       const record = records.find((r) => r.id === body.p_id)
       if (record) record.archived_at = body.p_archived ? '2026-11-14T13:00:00Z' : null
       result = null
+    } else if (table === 'reorder_categories') {
+      const body = route.request().postDataJSON()
+      categoryOrderRequests.push(body)
+      for (const category of (collections.categories ?? []) as { id: string; sort_order: number }[])
+        category.sort_order = body.p_ids.indexOf(category.id)
+      result = null
     } else if (table === 'delete_category') {
       const { p_id } = route.request().postDataJSON()
       collections.categories = (collections.categories ?? []).filter((c) => (c as { id: string }).id !== p_id)
@@ -194,7 +201,13 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
       }),
     )
   })
-  return { itemRequests, catalogDeleteRequests, catalogSaveRequests, ensureListRequests }
+  return {
+    itemRequests,
+    catalogDeleteRequests,
+    catalogSaveRequests,
+    ensureListRequests,
+    categoryOrderRequests,
+  }
 }
 
 const productCatalog = {
@@ -215,6 +228,159 @@ const productCatalog = {
     },
   ],
 }
+
+const categoryCatalog = {
+  categories: [
+    { id: 'fruit-category', name: 'Frutta', sort_order: 20 },
+    { id: 'dairy-category', name: 'Latticini', sort_order: 10 },
+    { id: 'other-category', name: 'Altri prodotti', sort_order: 999 },
+  ],
+  generic_products: [
+    { id: 'fruit', name: 'Mele', category_id: 'fruit-category', canonical_unit: 'pz' },
+    { id: 'dairy', name: 'Latte', category_id: 'dairy-category', canonical_unit: 'L' },
+  ],
+  shopping_list_items: [
+    {
+      id: 'fruit-item',
+      list_id: '20000000-0000-4000-8000-000000000001',
+      name: 'Mele',
+      unit: 'pz',
+      generic_product_id: 'fruit',
+      created_at: '2026-11-14T12:00:00Z',
+    },
+    {
+      id: 'milk-item',
+      list_id: '20000000-0000-4000-8000-000000000001',
+      name: 'Latte',
+      unit: 'L',
+      generic_product_id: 'dairy',
+      created_at: '2026-11-14T12:00:00Z',
+    },
+  ],
+  list_item_contributions: [
+    {
+      id: 'fruit-contribution',
+      item_id: 'fruit-item',
+      origin_type: 'manual',
+      origin_id: 'fruit-item',
+      requested_quantity: '2',
+    },
+    {
+      id: 'milk-contribution',
+      item_id: 'milk-item',
+      origin_type: 'manual',
+      origin_id: 'milk-item',
+      requested_quantity: '1',
+    },
+  ],
+}
+
+test('categorie: trascinamento mouse, persistenza e ordine dei gruppi nella spesa', async ({ page }) => {
+  const { categoryOrderRequests } = await login(page, false, categoryCatalog)
+  await page.goto('/liste')
+  await expect(page.locator('.category-group h3')).toHaveText(['Latticini', 'Frutta'])
+  await page.goto('/catalogo')
+  await expect(page.locator('.category-order-name')).toHaveText([
+    '1. Latticini',
+    '2. Frutta',
+    '3. Altri prodotti',
+  ])
+  const handle = page.getByRole('button', { name: 'Sposta categoria Frutta', exact: true })
+  await handle.scrollIntoViewIfNeeded()
+  const target = page.locator('[data-category-id="dairy-category"]')
+  await target.scrollIntoViewIfNeeded()
+  const from = (await handle.boundingBox())!
+  const to = (await target.boundingBox())!
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(to.x + 24, to.y + 24, { steps: 6 })
+  await page.mouse.up()
+  await expect.poll(() => categoryOrderRequests.length).toBe(1)
+  await expect(
+    page.getByText('Ordine salvato. La lista della spesa segue questo ordine.', { exact: true }),
+  ).toBeVisible()
+  await expect(page.locator('.category-order-name')).toHaveText([
+    '1. Frutta',
+    '2. Latticini',
+    '3. Altri prodotti',
+  ])
+  await page.reload()
+  await expect(page.locator('.category-order-name')).toHaveText([
+    '1. Frutta',
+    '2. Latticini',
+    '3. Altri prodotti',
+  ])
+  await page.goto('/liste')
+  await expect(page.locator('.category-group h3')).toHaveText(['Frutta', 'Latticini'])
+})
+
+test('categorie: trascinamento touch e annullamento senza salvataggio', async ({ page, context }) => {
+  const { categoryOrderRequests } = await login(page, false, categoryCatalog)
+  await page.goto('/catalogo')
+  const first = page.locator('[data-category-id="dairy-category"]')
+  await first.scrollIntoViewIfNeeded()
+  const from = (await page
+    .getByRole('button', { name: 'Sposta categoria Frutta', exact: true })
+    .boundingBox())!
+  const to = (await first.boundingBox())!
+  const session = await context.newCDPSession(page)
+  const point = (x: number, y: number) => [{ x, y, radiusX: 2, radiusY: 2, force: 1, id: 1 }]
+  await session.send('Input.dispatchTouchEvent', {
+    type: 'touchStart',
+    touchPoints: point(from.x + 22, from.y + 22),
+  })
+  await session.send('Input.dispatchTouchEvent', {
+    type: 'touchMove',
+    touchPoints: point(to.x + 24, to.y + 24),
+  })
+  await session.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] })
+  await expect(page.getByText('Spostamento annullato.', { exact: true })).toBeVisible()
+  expect(categoryOrderRequests).toHaveLength(0)
+  await expect(page.locator('.category-order-name').first()).toHaveText('1. Latticini')
+  const newFrom = (await page
+    .getByRole('button', { name: 'Sposta categoria Frutta', exact: true })
+    .boundingBox())!
+  const newTo = (await first.boundingBox())!
+  await session.send('Input.dispatchTouchEvent', {
+    type: 'touchStart',
+    touchPoints: point(newFrom.x + 22, newFrom.y + 22),
+  })
+  await session.send('Input.dispatchTouchEvent', {
+    type: 'touchMove',
+    touchPoints: point(newTo.x + 24, newTo.y + 24),
+  })
+  await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  await expect.poll(() => categoryOrderRequests.length).toBe(1)
+  await expect(page.locator('.category-order-name').first()).toHaveText('1. Frutta')
+})
+
+test('categorie: tastiera e frecce, errore conserva ordine precedente, offline blocca', async ({
+  page,
+  context,
+}) => {
+  const { categoryOrderRequests } = await login(page, false, categoryCatalog)
+  await page.goto('/catalogo')
+  await page.getByRole('button', { name: 'Sposta categoria Frutta', exact: true }).focus()
+  await page.keyboard.press('ArrowUp')
+  await expect.poll(() => categoryOrderRequests.length).toBe(1)
+  await expect(page.locator('.category-order-name').first()).toHaveText('1. Frutta')
+  await expect(page.getByRole('button', { name: 'Sposta categoria Frutta', exact: true })).toBeEnabled()
+  await page.route('**/rest/v1/rpc/reorder_categories', (route) =>
+    route.fulfill({
+      status: 409,
+      json: {
+        code: 'P0001',
+        message: 'Conflitto: le categorie sono cambiate. Ricarica le categorie e riprova.',
+      },
+    }),
+  )
+  await page.getByRole('button', { name: 'Sposta Frutta giù', exact: true }).click()
+  await expect(page.getByText('Ordine non salvato.', { exact: false })).toBeVisible()
+  await expect(page.locator('.category-order-name').first()).toHaveText('1. Frutta')
+  await context.setOffline(true)
+  await expect(page.getByRole('button', { name: 'Sposta categoria Frutta', exact: true })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Sposta Frutta giù', exact: true })).toBeDisabled()
+})
 
 const scannedProduct = {
   barcode: '8000500037560',

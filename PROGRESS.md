@@ -1,5 +1,9 @@
 # Avanzamento
 
+## Ordine delle categorie — 15 novembre 2026
+
+Trascinamento mouse/tocco, frecce e tastiera nelle Categorie della famiglia; ordine salvato automaticamente e condiviso con selettore categoria e gruppi della lista della spesa. Nuove categorie in fondo. RPC `reorder_categories` SECURITY INVOKER, RLS, salvataggio atomico e verifica della sequenza attesa per respingere bozze obsolete; lock coerenti per famiglia. `categories` aggiunta a Realtime: cinque tabelle pubblicate. Migrazione `20261115122000_category_order.sql` applicata tramite Supabase, categorie esistenti invariate. Collaudo SQL reale transazionale PASS con rollback; zero fixture residue. 72 test locali in 9 file e 92 test browser desktop/mobile PASS, inclusi tocco simulato, annullamento, persistenza, ordine nella spesa, errori e offline. Prova su iPad fisico ancora da eseguire.
+
 ## Lista unica e catalogo nella barra inferiore — 15 novembre 2026
 
 Una sola lista per famiglia, aperta dalla Home; Catalogo nella navigazione primaria/mobile. Rimossi i comandi per gestire liste multiple e i selettori in ricette, pasti e confronto. Migrazione `20261115115132_single_shopping_list.sql` applicata tramite plugin Supabase: vincolo univoco, stato sempre attivo, inizializzazione SECURITY INVOKER con RLS e duplicazione revocata. Impronte dati prima/dopo identiche. Collaudo SQL reale transazionale PASS, fixture annullate. 69 test locali PASS; 86 casi browser correnti, verificati con suite completa e ripetizione dei quattro casi aggiornati. PWA PASS. Advisor: zero errori; avvisi preesistenti su 23 RPC definer autorizzate e protezione password compromesse. CI/deploy del commit verificati dopo pubblicazione. Secondo account reale ancora rinviato come richiesto.

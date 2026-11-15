@@ -1,5 +1,11 @@
-import type { Data } from './types'
+import type { Category, Data } from './types'
 import type { Product } from '../domain/prices'
+
+export function orderedCategories(categories: Category[]) {
+  return [...categories].sort(
+    (a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name, 'it') || a.id.localeCompare(b.id),
+  )
+}
 
 export function productFormat(product: Pick<Product, 'package_quantity' | 'package_unit'>) {
   return product.package_quantity && product.package_unit

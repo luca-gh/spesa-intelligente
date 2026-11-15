@@ -16,6 +16,68 @@
   --border: #e4e8df;
   --cream: #f5f2e6;
 }
+.category-order {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.category-order-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 6px 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+}
+.category-order-row.dragging {
+  background: var(--cream);
+  border-color: var(--green);
+  box-shadow: 0 3px 12px #23634d24;
+}
+.category-drag-handle,
+.category-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  color: var(--green);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f7f8f4;
+}
+.category-drag-handle {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+}
+.category-drag-handle:active {
+  cursor: grabbing;
+}
+.category-order-name {
+  overflow-wrap: anywhere;
+}
+.category-order-actions {
+  grid-column: 2 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  min-width: 0;
+}
+.category-order-actions .text-button {
+  min-height: 44px;
+  white-space: normal;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
 p a {
   text-decoration: underline;
   text-underline-offset: 3px;

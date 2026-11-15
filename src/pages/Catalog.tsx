@@ -1,6 +1,7 @@
 import { ArchiveButton, ArchiveFilter } from '../components/ArchiveButton'
 import { useRef, useState } from 'react'
 import { BarcodeImport } from '../components/BarcodeImport'
+import { CategoryOrder } from '../components/CategoryOrder'
 import type { BarcodeProduct } from '../domain/barcodeLookup'
 import { useSearchParams } from 'react-router-dom'
 import { Plus, Tag, Store as StoreIcon } from 'lucide-react'
@@ -8,7 +9,7 @@ import { useApp } from '../data/context'
 import { insert, remove, removeCatalogProduct, rpc, update } from '../data/client'
 import { convert, dateInZone, euro, quantity, units, validBarcode, type Unit } from '../domain/math'
 import { estimate, rank } from '../domain/prices'
-import { catalogProducts, productFormat } from '../data/catalog'
+import { catalogProducts, productFormat, orderedCategories } from '../data/catalog'
 import {
   ConfirmButton,
   Empty,
@@ -22,7 +23,7 @@ import {
 } from '../components/ui'
 
 export function Catalog() {
-  const { data, household, act } = useApp()
+  const { data, household } = useApp()
   const [search, setSearch] = useState('')
   const [archived, setArchived] = useState(false)
   const [selected, setSelected] = useState('')
@@ -38,6 +39,7 @@ export function Catalog() {
     setPrefill(null)
     setRevision((value) => value + 1)
   }
+  const categories = orderedCategories(data.categories)
   const allProducts = catalogProducts(data)
   const editing = allProducts.find((entry) => entry.kind + ':' + entry.product.id === selected)
   const product = editing?.product
@@ -151,7 +153,7 @@ export function Catalog() {
                 required={false}
               >
                 <option value="">Altri prodotti</option>
-                {data.categories.map((c) => (
+                {categories.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
                   </option>
@@ -297,7 +299,10 @@ export function Catalog() {
         <Form
           className="inline-form"
           onSave={(f) =>
-            insert('categories', household!.id, { name: text(f, 'name'), sort_order: data.categories.length })
+            insert('categories', household!.id, {
+              name: text(f, 'name'),
+              sort_order: Math.max(-1, ...data.categories.map((c) => c.sort_order)) + 1,
+            })
           }
         >
           <Field label="Nuova categoria" name="name" />
@@ -305,29 +310,7 @@ export function Catalog() {
             <Plus size={16} /> Aggiungi
           </Submit>
         </Form>
-        <div className="inline wrap">
-          {data.categories.map((c) => (
-            <span className="inline" key={c.id}>
-              <button
-                className="pill"
-                key={c.id}
-                onClick={() => {
-                  const name = prompt('Rinomina categoria', c.name)
-                  if (name?.trim()) void act(() => update('categories', c.id, { name: name.trim() }))
-                }}
-              >
-                {c.name}
-              </button>
-              <ConfirmButton
-                message={`Eliminare la categoria «${c.name}»? I prodotti resteranno nel catalogo, sotto Altri prodotti.`}
-                success="Categoria eliminata. I prodotti sono conservati in Altri prodotti."
-                onConfirm={() => rpc('delete_category', { p_id: c.id })}
-              >
-                Elimina categoria {c.name}
-              </ConfirmButton>
-            </span>
-          ))}
-        </div>
+        <CategoryOrder />
       </Panel>
     </>
   )

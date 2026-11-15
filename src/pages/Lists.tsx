@@ -7,6 +7,7 @@ import { rpc } from '../data/client'
 import { euro, quantity } from '../domain/math'
 import { AddListItemForm } from '../components/AddListItemForm'
 import type { Item } from '../data/types'
+import { orderedCategories } from '../data/catalog'
 import {
   ConfirmButton,
   Empty,
@@ -56,10 +57,14 @@ function ListDetail({ id }: { id: string }) {
     )
     return data.categories.find((c) => c.id === generic?.category_id)
   }
-  const groups = [...new Set(pending.map((i) => categoryFor(i)?.name ?? 'Altri prodotti'))].sort((a, b) => {
-    const order = (name: string) => data.categories.find((c) => c.name === name)?.sort_order ?? 999
-    return order(a) - order(b) || a.localeCompare(b, 'it')
-  })
+  const categoryOrder = new Map(
+    orderedCategories(data.categories).map((category, index) => [category.name, index]),
+  )
+  const groups = [...new Set(pending.map((i) => categoryFor(i)?.name ?? 'Altri prodotti'))].sort(
+    (a, b) =>
+      (categoryOrder.get(a) ?? Number.MAX_SAFE_INTEGER) - (categoryOrder.get(b) ?? Number.MAX_SAFE_INTEGER) ||
+      a.localeCompare(b, 'it'),
+  )
   const frequent = new Map<string, { item: Item; count: number }>()
   for (const purchase of data.purchases.filter((p) => !p.voided_at)) {
     const old = data.shopping_list_items.find((i) => i.id === purchase.list_item_id)

@@ -30,6 +30,27 @@ do $$ begin
 end $$;
 insert into spesa_test_context select 'item',public.add_list_item((select value::uuid from spesa_test_context where key='list'),'Articolo temporaneo',2,'pz')::text;
 insert into spesa_test_context select 'catalog_product',public.save_catalog_product('Prodotto temporaneo catalogo')->>'id';
+
+insert into public.categories(household_id,name,sort_order)
+select value::uuid,'Frutta temporanea',20 from spesa_test_context where key='home_a';
+insert into public.categories(household_id,name,sort_order)
+select value::uuid,'Latticini temporanei',10 from spesa_test_context where key='home_a';
+do $$
+declare h uuid:=(select value::uuid from spesa_test_context where key='home_a'); ids uuid[]; expected jsonb;
+begin
+  select array_agg(id order by case when name='Frutta temporanea' then 0 else 1 end,sort_order,id),jsonb_object_agg(id::text,sort_order)
+    into ids,expected from public.categories where household_id=h;
+  perform public.reorder_categories(h,ids,expected);
+  if not exists(select 1 from public.categories where household_id=h and name='Frutta temporanea' and sort_order=0) then
+    raise exception 'Ordine categorie non salvato';
+  end if;
+  begin
+    perform public.reorder_categories(h,ids,expected);
+    raise exception 'Ordine categorie obsoleto accettato';
+  exception when raise_exception then
+    if SQLERRM not like 'Conflitto:%' then raise; end if;
+  end;
+end $$;
 do $$
 declare product uuid:=(select value::uuid from spesa_test_context where key='catalog_product'); result jsonb;
 begin
