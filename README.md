@@ -113,6 +113,8 @@ In **Catalogo → Categorie della famiglia**, trascinare la maniglia di una cate
 
 ## Inserimento da codice a barre
 
+Nella **lista della spesa → Aggiungi alla lista**, premi **Scansiona barcode**. Se il codice appartiene a un prodotto attivo del Catalogo, viene selezionato e viene proposta una confezione, con quantità e unità modificabili: premi **Aggiungi** per confermare. Per un codice nuovo, **Completa prodotto e torna alla lista** apre il Catalogo con la ricerca dati già avviata; dopo **Salva prodotto** torni alla lista con la scheda selezionata. Se i dati non sono disponibili, completa il nome manualmente. I prodotti archiviati richiedono ripristino dal Catalogo. È disponibile anche **Inserisci il barcode manualmente**. Restano disponibili ricerca, selettore del catalogo e articoli liberi. La lettura non registra un acquisto e non aggiunge articoli senza conferma.
+
 In **Catalogo prodotti → Scansiona barcode**, autorizzare la fotocamera e inquadrare un EAN-8/EAN-13. In alternativa scrivere il codice EAN e premere **Cerca dati dal barcode**. La pagina Scanner apre lo stesso modulo del catalogo. Nome, marca e formato sono compilati quando disponibili; la categoria viene proposta solo se corrisponde senza ambiguità a una categoria già esistente. Non vengono create categorie automaticamente. Verificare i campi e premere **Salva prodotto**: la ricerca non salva nulla.
 
 I prodotti già presenti sono riconosciuti prima di interrogare il servizio esterno. I campi già scritti richiedono conferma prima della sostituzione. Codici assenti, dati incompleti, errori o limiti del servizio permettono di continuare manualmente; nessun formato viene dedotto dal solo nome.

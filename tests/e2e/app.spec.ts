@@ -392,6 +392,137 @@ const scannedProduct = {
   sourceUrl: 'https://world.openfoodfacts.org/product/8000500037560',
 }
 
+test('barcode nella lista: seleziona dal catalogo e aggiunge solo dopo conferma', async ({ page }) => {
+  const { itemRequests, catalogSaveRequests } = await login(page, false, productCatalog)
+  let lookups = 0
+  await page.route('**/api/products/*', (route) => {
+    lookups++
+    return route.fulfill({ json: { product: null } })
+  })
+  await page.goto('/liste')
+  await page.getByLabel('Cerca nel catalogo', { exact: true }).fill('latte')
+  await page.getByText('Inserisci il barcode manualmente', { exact: true }).click()
+  await page.getByLabel('Barcode per la lista', { exact: true }).fill('8000500037560')
+  await page.getByRole('button', { name: 'Cerca barcode', exact: true }).click()
+  await expect(page.getByRole('combobox', { name: /Prodotto dal catalogo/ })).toHaveValue('specific-flour')
+  await expect(page.getByLabel('Cerca nel catalogo', { exact: true })).toHaveValue('')
+  await expect(page.getByLabel('Quantità', { exact: true })).toHaveValue('500')
+  await expect(page.getByRole('combobox', { name: 'Unità', exact: true })).toHaveValue('g')
+  expect(lookups).toBe(0)
+  expect(catalogSaveRequests).toHaveLength(0)
+  expect(itemRequests).toHaveLength(0)
+  await page.getByLabel('Quantità', { exact: true }).fill('1000')
+  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
+  await expect(page.locator('.shopping-item')).toContainText('Farina fine')
+  expect(itemRequests[0]).toMatchObject({ p_specific: 'specific-flour', p_quantity: '1000', p_unit: 'g' })
+})
+
+test('barcode nella lista: nuovo prodotto, compilazione e ritorno con selezione', async ({ page }) => {
+  const { itemRequests, catalogSaveRequests } = await login(page)
+  await page.route('**/api/products/*', (route) => route.fulfill({ json: { product: scannedProduct } }))
+  await page.goto('/liste')
+  await page.getByText('Inserisci il barcode manualmente', { exact: true }).click()
+  await page.getByLabel('Barcode per la lista', { exact: true }).fill(scannedProduct.barcode)
+  await page.getByRole('button', { name: 'Cerca barcode', exact: true }).click()
+  await page.getByRole('link', { name: 'Completa prodotto e torna alla lista' }).click()
+  await expect(page.getByLabel('Nome prodotto', { exact: true })).toHaveValue(scannedProduct.name)
+  expect(catalogSaveRequests).toHaveLength(0)
+  expect(itemRequests).toHaveLength(0)
+  await page.getByRole('button', { name: 'Salva prodotto', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'La lista della spesa.' })).toBeVisible()
+  await expect(page.getByRole('combobox', { name: /Prodotto dal catalogo/ })).toHaveValue('new-product-0')
+  await expect(page.getByLabel('Quantità', { exact: true })).toHaveValue('1')
+  await expect(page.getByRole('combobox', { name: 'Unità', exact: true })).toHaveValue('L')
+  expect(catalogSaveRequests).toHaveLength(1)
+  expect(itemRequests).toHaveLength(0)
+  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
+  await expect(page.locator('.shopping-item')).toContainText(scannedProduct.name)
+  expect(itemRequests[0]).toMatchObject({ p_specific: 'new-product-0', p_quantity: '1', p_unit: 'L' })
+})
+
+test('barcode nella lista: codice assente o errato non cancella l’articolo libero', async ({ page }) => {
+  const { itemRequests } = await login(page)
+  await page.route('**/api/products/*', (route) => route.fulfill({ json: { product: null } }))
+  await page.goto('/liste')
+  await page.getByLabel('Nome per articolo libero', { exact: true }).fill('Pane fresco')
+  await page.getByText('Inserisci il barcode manualmente', { exact: true }).click()
+  await page.getByLabel('Barcode per la lista', { exact: true }).fill('12345678')
+  await page.getByRole('button', { name: 'Cerca barcode', exact: true }).click()
+  await expect(page.getByText('Il checksum EAN non è valido.', { exact: false })).toBeVisible()
+  await page.getByLabel('Barcode per la lista', { exact: true }).fill('96385074')
+  await page.getByRole('button', { name: 'Cerca barcode', exact: true }).click()
+  await expect(page.getByRole('link', { name: 'Completa prodotto e torna alla lista' })).toBeVisible()
+  await expect(page.getByLabel('Nome per articolo libero', { exact: true })).toHaveValue('Pane fresco')
+  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
+  await expect(page.locator('.shopping-item')).toContainText('Pane fresco')
+  expect(itemRequests[0]).toMatchObject({ p_name: 'Pane fresco', p_generic: null, p_specific: null })
+})
+
+test('barcode nella lista: prodotto archiviato richiede ripristino e offline blocca lettura', async ({
+  page,
+  context,
+}) => {
+  const { itemRequests } = await login(page, false, {
+    ...productCatalog,
+    specific_products: productCatalog.specific_products.map((p) => ({
+      ...p,
+      archived_at: '2026-11-14T12:00:00Z',
+    })),
+  })
+  await page.goto('/liste')
+  await page.getByText('Inserisci il barcode manualmente', { exact: true }).click()
+  await page.getByLabel('Barcode per la lista', { exact: true }).fill('8000500037560')
+  await page.getByRole('button', { name: 'Cerca barcode', exact: true }).click()
+  await expect(page.getByText('Il prodotto è archiviato.', { exact: false })).toBeVisible()
+  await expect(page.getByRole('combobox', { name: /Prodotto dal catalogo/ })).toHaveValue('')
+  expect(itemRequests).toHaveLength(0)
+  await context.setOffline(true)
+  await expect(page.getByRole('button', { name: 'Scansiona barcode', exact: true })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Cerca barcode', exact: true })).toBeDisabled()
+})
+
+test('barcode nella lista: fotocamera seleziona il prodotto senza salvataggi impliciti', async ({ page }) => {
+  const { itemRequests } = await login(page, false, productCatalog)
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'BarcodeDetector', {
+      configurable: true,
+      value: class {
+        detect() {
+          return Promise.resolve([{ rawValue: '8000500037560' }])
+        }
+      },
+    })
+    Object.defineProperty(navigator.mediaDevices, 'getUserMedia', {
+      value: async () => {
+        const canvas = document.createElement('canvas')
+        canvas.width = 500
+        canvas.height = 220
+        const context = canvas.getContext('2d')!
+        const paint = () => {
+          context.fillStyle = 'white'
+          context.fillRect(0, 0, 500, 220)
+        }
+        paint()
+        const stream = canvas.captureStream(10)
+        const interval = setInterval(paint, 100)
+        for (const track of stream.getTracks()) {
+          const stop = track.stop.bind(track)
+          track.stop = () => {
+            clearInterval(interval)
+            stop()
+          }
+        }
+        return stream
+      },
+    })
+  })
+  await page.goto('/liste')
+  await page.getByRole('button', { name: 'Scansiona barcode', exact: true }).click()
+  await expect(page.getByRole('combobox', { name: /Prodotto dal catalogo/ })).toHaveValue('specific-flour')
+  await expect(page.getByRole('button', { name: 'Ferma fotocamera' })).toHaveCount(0)
+  expect(itemRequests).toHaveLength(0)
+})
+
 test('barcode: compila campi modificabili e salva solo dopo conferma', async ({ page }) => {
   const { catalogSaveRequests } = await login(page, false, {
     categories: [{ id: 'milk-category', name: 'Latticini', sort_order: 0 }],

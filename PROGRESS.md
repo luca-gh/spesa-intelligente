@@ -1,5 +1,9 @@
 # Avanzamento
 
+## Barcode direttamente nella lista — 15 novembre 2026
+
+Scanner EAN-8/EAN-13 nel pannello Aggiungi alla lista, con inserimento codice manuale alternativo. Corrispondenza locale nel Catalogo senza richieste esterne; selezione e formato proposto modificabili, aggiunta solo con conferma. Codici nuovi: percorso esplicito al Catalogo, riuso ricerca dati e ritorno automatico con prodotto selezionato dopo salvataggio. Prodotti archiviati mai riattivati automaticamente; errori/codici mancanti lasciano disponibili gli articoli liberi. Conservati ricerca, selezione e inserimento precedenti. Nessuna migrazione, dipendenza o scrittura di prova nel database reale. 72 test locali e 10 nuove prove browser mirate desktop/mobile PASS; suite browser corrente 104 casi.
+
 ## Rimozione dalla lista distinta dal catalogo — 15 novembre 2026
 
 Pulsante **Rimuovi dalla lista** direttamente su ogni articolo, senza passare da Modifica; sostituisce Archivia nella lista e rimuove la cancellazione definitiva dal modulo di modifica. Riutilizza l’archiviazione protetta esistente: acquisti, contributi e catalogo conservati anche con storico. Recupero tramite Mostra articoli rimossi e Rimetti nella lista. Nel Catalogo l’azione è esplicitamente Rimuovi dal catalogo. Nessuna nuova migrazione o modifica ai dati reali. Dodici test browser mirati desktop/mobile PASS, compresi acquisto parziale conservato dopo rimozione/refresh/ripristino, nessuna DELETE e annullamento conferma senza scritture. Suite completa corrente: 94 casi, verificata in CI alla pubblicazione.

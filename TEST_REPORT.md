@@ -1,5 +1,9 @@
 # Rapporto test
 
+## Inserimento nella lista tramite barcode — 15 novembre 2026
+
+72 test locali PASS. 10 nuove prove browser mirate desktop/mobile PASS: lettura camera con stream sintetico, selezione e quantità modificabile, nessuna ricerca esterna per prodotti presenti, nessuna scrittura prima di Aggiungi, nuovo codice con ricerca/creazione Catalogo e ritorno selezionato, codici errati o assenti conservano l’articolo libero, archiviati esclusi e blocco offline. Riuso della camera nativa/ZXing già collaudata; verifica hardware iPad ancora da eseguire. Suite completa corrente: 104 casi. Nessuna modifica schema o dato reale.
+
 ## Rimozione immediata dalla lista — 15 novembre 2026
 
 12 test browser mirati desktop/mobile PASS: pulsante visibile senza Modifica, rimozione dopo acquisto parziale, persistenza dopo refresh, ripristino con quantità acquistata intatta, prodotto ancora nel catalogo, assenza di DELETE, nessuna rimozione dal catalogo nella lista e annullamento senza RPC. Aggiornati i test della rimozione dal catalogo al testo esplicito. Nessuna nuova migrazione o scrittura nel database reale. Suite browser corrente 94 casi; controlli completi eseguiti dalla CI alla pubblicazione.
@@ -32,7 +36,7 @@ supabase/tests/online_rls.sql: PASS sul progetto reale. Due membri, invito/accet
 
 Check backend reale: PASS, Auth HTTP 200; 20 tabelle PROTETTA (401/42501 riferito alla tabella richiesta). Non equivale al collaudo autenticato Auth/JWT/PostgREST o Realtime su due client, tuttora NOT RUN completo.
 
-Suite locale attuale: 72 PASS in 9 file, inclusi bootstrap completo, privilegi predefiniti, script SQL online con rollback, ricerca barcode, lista unica e ordine categorie. Suite browser corrente: 94 casi desktop/mobile. CI e pubblicazione del nuovo commit vengono verificate separatamente dai test locali.
+Suite locale attuale: 72 PASS in 9 file, inclusi bootstrap completo, privilegi predefiniti, script SQL online con rollback, ricerca barcode, lista unica e ordine categorie. Suite browser corrente: 104 casi desktop/mobile. CI e pubblicazione del nuovo commit vengono verificate separatamente dai test locali.
 
 | Area                            | Ambiente e verifica                                                                                                  | Stato                                                                 |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |

@@ -3,7 +3,7 @@ import { useRef, useState } from 'react'
 import { BarcodeImport } from '../components/BarcodeImport'
 import { CategoryOrder } from '../components/CategoryOrder'
 import type { BarcodeProduct } from '../domain/barcodeLookup'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Tag, Store as StoreIcon } from 'lucide-react'
 import { useApp } from '../data/context'
 import { insert, remove, removeCatalogProduct, rpc, update } from '../data/client'
@@ -31,6 +31,8 @@ export function Catalog() {
     (BarcodeProduct & { category: string; variant?: string; message?: string }) | null
   >(null)
   const [catalogParams, setCatalogParams] = useSearchParams()
+  const navigate = useNavigate()
+  const fromList = catalogParams.get('origine') === 'lista'
   const [revision, setRevision] = useState(0)
   const editor = useRef<HTMLDivElement>(null)
   const readDraft = () => new FormData(editor.current!.querySelector('form')!)
@@ -60,6 +62,12 @@ export function Catalog() {
   return (
     <>
       <SectionTitle eyebrow="SAPERE COSA SCEGLIERE" title="Il vostro catalogo." />
+      {fromList && (
+        <p className="callout">
+          Completa e salva il prodotto: tornerai alla lista con il prodotto selezionato. Potrai controllare la
+          quantità e premere Aggiungi. <Link to="/liste">Torna alla lista senza salvare</Link>
+        </p>
+      )}
       <Panel title={editing ? 'Modifica prodotto' : 'Nuovo prodotto'}>
         <p className="muted">
           È obbligatorio solo il nome. Puoi aggiungere o completare gli altri dettagli in seguito.
@@ -125,7 +133,7 @@ export function Catalog() {
                 throw new Error(
                   'Quantità non valida: completa quantità e unità del formato, oppure lascia entrambi vuoti.',
                 )
-              await rpc('save_catalog_product', {
+              const saved = await rpc('save_catalog_product', {
                 p_id: product?.id ?? null,
                 p_specific: editing?.kind === 'specific',
                 p_name: text(f, 'name'),
@@ -137,6 +145,8 @@ export function Catalog() {
                 p_unit: unit || null,
               })
               selectProduct('')
+              if (fromList && typeof saved?.id === 'string')
+                navigate(`/liste?prodotto=${encodeURIComponent(saved.id)}`, { replace: true })
             }}
           >
             <div className="grid-form">
