@@ -103,6 +103,16 @@ Non pubblicare `.env`, report con dati reali, dump del database o immagini priva
 
 Supabase Site URL è l'origine HTTPS pubblica, con redirect esatti all'origine e a `/impostazioni`. Gli indirizzi localhost/127.0.0.1 di sviluppo sono conservati; non sono stati aggiunti wildcard. HTTPS, manifest, routing, icone, service worker, layout mobile e shell offline sono verificati sul sito reale. Restano da collaudare installazione e fotocamera su Android/iOS fisici e il percorso completo con due account reali, rinviato dall'utente. Il service worker conserva solo asset statici; non memorizza risposte API. Le modifiche offline sono disabilitate.
 
+## Inserimento da codice a barre
+
+In **Catalogo prodotti → Scansiona barcode**, autorizzare la fotocamera e inquadrare un EAN-8/EAN-13. In alternativa scrivere il codice EAN e premere **Cerca dati dal barcode**. La pagina Scanner apre lo stesso modulo del catalogo. Nome, marca e formato sono compilati quando disponibili; la categoria viene proposta solo se corrisponde senza ambiguità a una categoria già esistente. Non vengono create categorie automaticamente. Verificare i campi e premere **Salva prodotto**: la ricerca non salva nulla.
+
+I prodotti già presenti sono riconosciuti prima di interrogare il servizio esterno. I campi già scritti richiedono conferma prima della sostituzione. Codici assenti, dati incompleti, errori o limiti del servizio permettono di continuare manualmente; nessun formato viene dedotto dal solo nome.
+
+La lettura avviene sul dispositivo, con riconoscimento nativo oppure ZXing; le immagini non vengono caricate. Solo il codice viene inviato al proxy `/api/products/:barcode` e a [Open Food Facts](https://openfoodfacts.github.io/openfoodfacts-server/api/), banca dati alimentare collaborativa con copertura non garantita e licenza [ODbL](https://opendatacommons.org/licenses/odbl/1-0/). Il proxy usa un host fisso, timeout, User-Agent identificativo e cache pubblica (24 ore per risultati, 5 minuti per assenti); non inoltra credenziali o dati della famiglia. Richieste esplicite, senza ricerca a ogni tasto o tentativi automatici ripetuti. Nessuna chiave API necessaria.
+
+Cloudflare Pages compila `functions/` dal repository; `public/_routes.json` limita le Functions a `/api/products/*`. Il deploy deve includere Functions: un hosting puramente statico non esegue il proxy. `npm run dev` fornisce lo stesso endpoint locale. Service worker escluso per `/api/`; cache browser/backend solo per dati pubblici, nessuna cache aggiuntiva dei dati familiari.
+
 ## Export e backup
 
 Impostazioni permette JSON dei dati caricati e CSV degli acquisti, con importi e annullamenti. L'esportazione JSON ha `schema_version: 1`, include i dati familiari e gli snapshot, esclude gli inviti. È privata: non committarla. Non è un backup automatico del provider né uno snapshot transazionale del database sotto modifiche concorrenti. Per una copia coerente sospendere temporaneamente le modifiche degli altri membri e aggiornare prima la pagina; per backup completi usare strumenti PostgreSQL in un contesto amministrativo protetto.
@@ -123,7 +133,7 @@ La cancellazione dell'identità Auth non è self-service: il gestore deve rimuov
 - **Lista modificata:** aggiornare e ricalcolare l'anteprima; nessuna sovrascrittura automatica della proposta altrui.
 - **Realtime:** le quattro tabelle delle liste devono essere pubblicate; vengono ricaricate tutte le collezioni dopo un evento o al ritorno online/focus. Altre sezioni non hanno eventi propri e si aggiornano al focus o dopo un salvataggio.
 - **Dati numerosi:** caricamento iniziale limitato a 10.000 record per tabella; se il limite viene raggiunto il caricamento fallisce esplicitamente. Prima di avvicinarsi a questa dimensione, implementare paginazione e aggregazioni server-side.
-- **Camera:** richiede HTTPS/localhost, permessi e browser compatibile; su Safari usare il barcode manuale se l'API non è presente.
+- **Camera:** richiede HTTPS/localhost e permessi; senza riconoscimento nativo viene caricato ZXing. Resta sempre disponibile l'inserimento EAN manuale. Prove su fotocamere fisiche Android/iOS ancora da eseguire.
 - **PWA vecchia:** confermare l'aggiornamento proposto; durante sviluppo il service worker non è attivo.
 
 Dipendenze e relative licenze sono elencate in [DEPENDENCIES.md](DEPENDENCIES.md). Non è stata assegnata una licenza al codice originale del progetto: la decisione spetta al titolare.

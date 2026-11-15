@@ -243,6 +243,9 @@ Generato dal lockfile con `npm run licenses`. Le licenze complete sono nei pacch
 | @vitejs/plugin-react | 6.3.0 | MIT |
 | @vitest/mocker | 5.1.0 | MIT |
 | @vitest/spy | 5.1.0 | MIT |
+| @zxing/browser | 0.1.5 | MIT |
+| @zxing/library | 0.21.3 | MIT |
+| @zxing/text-encoding | 0.9.0 | (Unlicense OR Apache-2.0) |
 | acorn | 8.19.0 | MIT |
 | acorn-jsx | 5.3.2 | MIT |
 | ajv | 6.15.0 | MIT |
@@ -499,6 +502,7 @@ Generato dal lockfile con `npm run licenses`. Le licenze complete sono nei pacch
 | tinyexec | 1.3.1 | MIT |
 | tinyglobby | 0.2.17 | MIT |
 | ts-api-utils | 2.5.0 | MIT |
+| ts-custom-error | 3.3.1 | MIT |
 | tslib | 2.8.1 | 0BSD |
 | type-check | 0.4.0 | MIT |
 | type-fest | 0.16.0 | (MIT OR CC0-1.0) |

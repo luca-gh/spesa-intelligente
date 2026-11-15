@@ -1,10 +1,12 @@
 import { ArchiveButton, ArchiveFilter } from '../components/ArchiveButton'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { BarcodeImport } from '../components/BarcodeImport'
+import type { BarcodeProduct } from '../domain/barcodeLookup'
 import { useSearchParams } from 'react-router-dom'
 import { Plus, Tag, Store as StoreIcon } from 'lucide-react'
 import { useApp } from '../data/context'
 import { insert, remove, removeCatalogProduct, rpc, update } from '../data/client'
-import { convert, dateInZone, euro, quantity, units, validBarcode } from '../domain/math'
+import { convert, dateInZone, euro, quantity, units, validBarcode, type Unit } from '../domain/math'
 import { estimate, rank } from '../domain/prices'
 import { catalogProducts, productFormat } from '../data/catalog'
 import {
@@ -24,6 +26,18 @@ export function Catalog() {
   const [search, setSearch] = useState('')
   const [archived, setArchived] = useState(false)
   const [selected, setSelected] = useState('')
+  const [prefill, setPrefill] = useState<
+    (BarcodeProduct & { category: string; variant?: string; message?: string }) | null
+  >(null)
+  const [catalogParams, setCatalogParams] = useSearchParams()
+  const [revision, setRevision] = useState(0)
+  const editor = useRef<HTMLDivElement>(null)
+  const readDraft = () => new FormData(editor.current!.querySelector('form')!)
+  const selectProduct = (key: string) => {
+    setSelected(key)
+    setPrefill(null)
+    setRevision((value) => value + 1)
+  }
   const allProducts = catalogProducts(data)
   const editing = allProducts.find((entry) => entry.kind + ':' + entry.product.id === selected)
   const product = editing?.product
@@ -56,103 +70,158 @@ export function Catalog() {
         <p className="muted">
           È obbligatorio solo il nome. Puoi aggiungere o completare gli altri dettagli in seguito.
         </p>
-        <Form
-          key={selected}
-          onSave={async (f) => {
-            const barcode = text(f, 'barcode')
-            const size = text(f, 'size')
-            const unit = text(f, 'unit')
-            if (barcode && !validBarcode(barcode))
-              throw new Error('Quantità non valida: controlla il checksum del barcode EAN.')
-            if (!!size !== !!unit)
-              throw new Error(
-                'Quantità non valida: completa quantità e unità del formato, oppure lascia entrambi vuoti.',
+        <div ref={editor}>
+          <BarcodeImport
+            key={`barcode:${selected}:${revision}`}
+            initialCode={catalogParams.get('barcode') ?? ''}
+            onConsumed={() =>
+              setCatalogParams(
+                (current) => {
+                  current.delete('barcode')
+                  return current
+                },
+                { replace: true },
               )
-            await rpc('save_catalog_product', {
-              p_id: product?.id ?? null,
-              p_specific: editing?.kind === 'specific',
-              p_name: text(f, 'name'),
-              p_category: text(f, 'category') || null,
-              p_brand: text(f, 'brand'),
-              p_barcode: barcode || null,
-              p_variant: text(f, 'variant'),
-              p_quantity: size ? quantity(size).toString() : null,
-              p_unit: unit || null,
-            })
-            setSelected('')
-          }}
-        >
-          <div className="grid-form">
-            <Field
-              label="Nome prodotto"
-              name="name"
-              value={product?.name}
-              placeholder="Latte parzialmente scremato"
-            />
-            <Select label="Categoria" name="category" value={editing?.categoryId ?? ''} required={false}>
-              <option value="">Altri prodotti</option>
-              {data.categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
-            <Field
-              label="Marca (facoltativa)"
-              name="brand"
-              value={details?.brand}
-              required={false}
-              placeholder="Es. Abit"
-            />
-            <Field
-              label="EAN-8 / EAN-13 (facoltativo)"
-              name="barcode"
-              value={details?.barcode ?? ''}
-              required={false}
-            />
-            <Field
-              label="Variante / note sul prodotto (facoltative)"
-              name="variant"
-              value={details?.variant}
-              required={false}
-            />
-          </div>
-          <details open={!!details?.package_quantity}>
-            <summary>Formato della confezione (facoltativo)</summary>
-            <p className="muted">
-              Indicalo quando lo conosci: serve per confrontare quantità e prezzi. Se manca, la stima segnala
-              il prezzo come non disponibile.
+            }
+            readDraft={readDraft}
+            onOpen={(id) => selectProduct(`specific:${id}`)}
+            onApply={(found, category) => {
+              setPrefill({ ...found, category })
+              setRevision((value) => value + 1)
+            }}
+            onCodeOnly={(barcode, message) => {
+              const draft = readDraft()
+              setPrefill({
+                barcode,
+                message,
+                name: text(draft, 'name'),
+                brand: text(draft, 'brand'),
+                size: text(draft, 'size'),
+                unit: text(draft, 'unit') as Unit | '',
+                variant: text(draft, 'variant'),
+                category: text(draft, 'category'),
+                categories: [],
+                sourceUrl: '',
+              })
+              setRevision((value) => value + 1)
+            }}
+          />
+          {prefill && (
+            <p className="callout" role="status">
+              {prefill.message ??
+                'Campi compilati dai dati disponibili. Verifica e completa prima di salvare.'}
+              {!prefill.category && ' Categoria da scegliere manualmente.'}
+              {!prefill.name && ' Nome da inserire manualmente.'}{' '}
+              {prefill.sourceUrl && (
+                <a href={prefill.sourceUrl} target="_blank" rel="noreferrer">
+                  Fonte Open Food Facts
+                </a>
+              )}
             </p>
+          )}
+          <Form
+            key={`form:${selected}:${revision}`}
+            onSave={async (f) => {
+              const barcode = text(f, 'barcode')
+              const size = text(f, 'size')
+              const unit = text(f, 'unit')
+              if (barcode && !validBarcode(barcode))
+                throw new Error('Quantità non valida: controlla il checksum del barcode EAN.')
+              if (!!size !== !!unit)
+                throw new Error(
+                  'Quantità non valida: completa quantità e unità del formato, oppure lascia entrambi vuoti.',
+                )
+              await rpc('save_catalog_product', {
+                p_id: product?.id ?? null,
+                p_specific: editing?.kind === 'specific',
+                p_name: text(f, 'name'),
+                p_category: text(f, 'category') || null,
+                p_brand: text(f, 'brand'),
+                p_barcode: barcode || null,
+                p_variant: text(f, 'variant'),
+                p_quantity: size ? quantity(size).toString() : null,
+                p_unit: unit || null,
+              })
+              selectProduct('')
+            }}
+          >
             <div className="grid-form">
               <Field
-                label="Quantità per confezione"
-                name="size"
-                value={details?.package_quantity ?? ''}
-                required={false}
-                placeholder="Es. 1 oppure 500"
+                label="Nome prodotto"
+                name="name"
+                value={prefill?.name ?? product?.name}
+                placeholder="Latte parzialmente scremato"
               />
               <Select
-                label="Unità del formato"
-                name="unit"
-                value={details?.package_unit ?? ''}
+                label="Categoria"
+                name="category"
+                value={prefill?.category ?? editing?.categoryId ?? ''}
                 required={false}
               >
-                <option value="">Non indicata</option>
-                {units.map((unit) => (
-                  <option key={unit}>{unit}</option>
+                <option value="">Altri prodotti</option>
+                {data.categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
                 ))}
               </Select>
+              <Field
+                label="Marca (facoltativa)"
+                name="brand"
+                value={prefill?.brand ?? details?.brand}
+                required={false}
+                placeholder="Es. Abit"
+              />
+              <Field
+                label="EAN-8 / EAN-13 (facoltativo)"
+                name="barcode"
+                value={prefill?.barcode ?? details?.barcode ?? ''}
+                required={false}
+              />
+              <Field
+                label="Variante / note sul prodotto (facoltative)"
+                name="variant"
+                value={prefill ? (prefill.variant ?? '') : details?.variant}
+                required={false}
+              />
             </div>
-          </details>
-          <div className="inline">
-            <Submit>Salva prodotto</Submit>
-            {editing && (
-              <button className="text-button" type="button" onClick={() => setSelected('')}>
-                Annulla modifica
-              </button>
-            )}
-          </div>
-        </Form>
+            <details open={!!(prefill?.size ?? details?.package_quantity)}>
+              <summary>Formato della confezione (facoltativo)</summary>
+              <p className="muted">
+                Indicalo quando lo conosci: serve per confrontare quantità e prezzi. Se manca, la stima
+                segnala il prezzo come non disponibile.
+              </p>
+              <div className="grid-form">
+                <Field
+                  label="Quantità per confezione"
+                  name="size"
+                  value={prefill?.size ?? details?.package_quantity ?? ''}
+                  required={false}
+                  placeholder="Es. 1 oppure 500"
+                />
+                <Select
+                  label="Unità del formato"
+                  name="unit"
+                  value={prefill?.unit ?? details?.package_unit ?? ''}
+                  required={false}
+                >
+                  <option value="">Non indicata</option>
+                  {units.map((unit) => (
+                    <option key={unit}>{unit}</option>
+                  ))}
+                </Select>
+              </div>
+            </details>
+            <div className="inline">
+              <Submit>Salva prodotto</Submit>
+              {editing && (
+                <button className="text-button" type="button" onClick={() => selectProduct('')}>
+                  Annulla modifica
+                </button>
+              )}
+            </div>
+          </Form>
+        </div>
       </Panel>
       <Panel title="Prodotti">
         <p className="muted">
@@ -191,14 +260,14 @@ export function Catalog() {
                     <td>{specific?.barcode || '—'}</td>
                     <td>{specific ? productFormat(specific) : 'Non indicato'}</td>
                     <td>
-                      <button className="text-button" onClick={() => setSelected(key)}>
+                      <button className="text-button" onClick={() => selectProduct(key)}>
                         Modifica
                       </button>
                       <ArchiveButton
                         table={table}
                         record={p}
                         onDone={() => {
-                          if (selected === key) setSelected('')
+                          if (selected === key) selectProduct('')
                         }}
                       />
                       <ConfirmButton
@@ -206,7 +275,7 @@ export function Catalog() {
                         success="Prodotto eliminato dal catalogo."
                         onConfirm={async () => {
                           await removeCatalogProduct(table, p.id)
-                          if (selected === key) setSelected('')
+                          if (selected === key) selectProduct('')
                         }}
                       >
                         Elimina

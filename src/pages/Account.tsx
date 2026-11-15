@@ -1,10 +1,11 @@
 import { ArchiveButton, ArchiveFilter } from '../components/ArchiveButton'
-import { productFormat } from '../data/catalog'
-import { useEffect, useRef, useState } from 'react'
+import { BarcodeCamera } from '../components/BarcodeCamera'
+import { useNavigate } from 'react-router-dom'
+import { useState } from 'react'
 import Decimal from 'decimal.js'
-import { Camera, Download, KeyRound, ScanLine } from 'lucide-react'
+import { Download, KeyRound, ScanLine } from 'lucide-react'
 import { useApp } from '../data/context'
-import { client, requireClient, rpc, update } from '../data/client'
+import { requireClient, rpc, update } from '../data/client'
 import { dateInZone, euro, validBarcode } from '../domain/math'
 import { statistics } from '../domain/planning'
 import { ConfirmButton, Empty, Field, Form, Panel, SectionTitle, Submit, text } from '../components/ui'
@@ -415,119 +416,35 @@ export function Account() {
     </>
   )
 }
-interface DetectorResult {
-  rawValue: string
-}
-interface Detector {
-  detect: (video: HTMLVideoElement) => Promise<DetectorResult[]>
-}
-type DetectorConstructor = new (options: { formats: string[] }) => Detector
 export function Scanner() {
-  const { data } = useApp()
+  const navigate = useNavigate()
   const [code, setCode] = useState('')
-  const [message, setMessage] = useState('')
-  const [scanning, setScanning] = useState(false)
-  const video = useRef<HTMLVideoElement>(null)
-  const stream = useRef<MediaStream | null>(null)
-  const [confirmed, setConfirmed] = useState(false)
-  useEffect(
-    () => () => {
-      stream.current?.getTracks().forEach((t) => t.stop())
-    },
-    [],
-  )
-  useEffect(() => {
-    if (!scanning) return
-    let active = true
-    let timer: ReturnType<typeof setTimeout>
-    const DetectorClass = (window as unknown as { BarcodeDetector?: DetectorConstructor }).BarcodeDetector
-    if (!DetectorClass) return
-    const detector = new DetectorClass({ formats: ['ean_8', 'ean_13'] })
-    const read = async () => {
-      if (!active || !video.current) return
-      try {
-        const found = await detector.detect(video.current)
-        if (found[0] && validBarcode(found[0].rawValue)) {
-          setCode(found[0].rawValue)
-          setConfirmed(false)
-          setScanning(false)
-          stream.current?.getTracks().forEach((t) => t.stop())
-          return
-        }
-      } catch {
-        /* Retry while camera initializes. */
-      }
-      if (active) timer = setTimeout(() => void read(), 300)
-    }
-    void read()
-    return () => {
-      active = false
-      clearTimeout(timer)
-    }
-  }, [scanning])
-  const start = async () => {
-    setMessage('')
-    if (!('BarcodeDetector' in window)) {
-      setMessage(
-        'La scansione automatica non è disponibile in questo browser. Inserisci il barcode qui sotto.',
-      )
+  const [error, setError] = useState('')
+  const open = (barcode: string) => {
+    if (!validBarcode(barcode)) {
+      setError('Il checksum EAN non è valido. Ricontrolla le cifre.')
       return
     }
-    try {
-      stream.current = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-      if (video.current) {
-        video.current.srcObject = stream.current
-        await video.current.play()
-      }
-      setScanning(true)
-    } catch {
-      stream.current?.getTracks().forEach((t) => t.stop())
-      setMessage('Fotocamera non disponibile o permesso negato. Puoi inserire il codice manualmente.')
-    }
+    navigate('/catalogo?barcode=' + encodeURIComponent(barcode))
   }
-  const product = data.specific_products.find((p) => p.barcode === code)
   return (
     <>
       <SectionTitle eyebrow="RITROVA IL PRODOTTO, AL VOLO" title="Scanner barcode." />
       <Panel title="Scansiona o inserisci il codice">
-        <p>Supporta EAN-8 ed EAN-13. Nessun dato viene salvato senza conferma.</p>
-        <video
-          ref={video}
-          playsInline
-          muted
-          className={scanning ? 'camera' : 'camera hidden'}
-          aria-label="Anteprima fotocamera"
-        />
-        <div className="inline">
-          <button className="button" onClick={() => void start()} disabled={scanning}>
-            <Camera size={18} /> Apri fotocamera
-          </button>
-          {scanning && (
-            <button
-              className="button secondary"
-              onClick={() => {
-                stream.current?.getTracks().forEach((t) => t.stop())
-                setScanning(false)
-              }}
-            >
-              Ferma fotocamera
-            </button>
-          )}
-        </div>
-        {message && (
-          <p role="status" className="callout">
-            {message}
-          </p>
-        )}
+        <p>
+          Leggi un EAN-8 o EAN-13: apriremo il modulo prodotto con i dati disponibili. Il salvataggio richiede
+          la tua conferma.
+        </p>
+        <BarcodeCamera onDetected={open} />
         <form
           className="form"
           onSubmit={(e) => {
             e.preventDefault()
-            setConfirmed(true)
+            open(code.trim())
           }}
         >
           <label className="field">
-            Barcode manuale
+            <span>Barcode manuale</span>
             <input
               inputMode="numeric"
               pattern="[0-9]{8}|[0-9]{13}"
@@ -535,48 +452,27 @@ export function Scanner() {
               value={code}
               onChange={(e) => {
                 setCode(e.target.value)
-                setConfirmed(false)
+                setError('')
               }}
             />
           </label>
           <button className="button secondary" type="submit">
-            <ScanLine size={18} /> Cerca e conferma codice
+            <ScanLine size={18} />
+            Cerca e compila prodotto
           </button>
         </form>
-        {confirmed &&
-          (validBarcode(code) ? (
-            product ? (
-              <div className="callout">
-                <h3>{product.name}</h3>
-                {product.archived_at && (
-                  <p>
-                    Prodotto archiviato: puoi ripristinarlo dalla vista Mostra archiviati del Catalogo
-                    prodotti.
-                  </p>
-                )}
-                <p>
-                  {product.brand} · {productFormat(product)}
-                </p>
-                <a href="/prezzi">Registra un prezzo →</a>
-              </div>
-            ) : (
-              <p className="callout">
-                Barcode valido, prodotto assente nel catalogo. Crea e conferma il prodotto nel Catalogo
-                prodotti.
-              </p>
-            )
-          ) : (
-            <p className="callout">Il checksum EAN non è valido. Ricontrolla le cifre.</p>
-          ))}
+        {error && (
+          <p className="callout" role="status">
+            {error}
+          </p>
+        )}
       </Panel>
       <Panel title="Foto, ricette e scontrini">
         <p>
-          Le importazioni OCR e da URL non sono ancora attive. Le immagini private non vengono caricate. Usa
-          l’inserimento manuale per ricette e acquisti.
+          La lettura dei barcode non carica foto. Le importazioni OCR di ricette e scontrini non sono ancora
+          attive.
         </p>
       </Panel>
     </>
   )
 }
-// Session and family data are never written into service-worker caches.
-export { client }

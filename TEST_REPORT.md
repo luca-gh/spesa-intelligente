@@ -1,5 +1,9 @@
 # Rapporto test
 
+## Compilazione da barcode — 15 novembre 2026
+
+66 test locali e 82 browser desktop/mobile PASS; lint, tipi, build, aggiornamento PWA e controllo segreti PASS, zero vulnerabilità runtime rilevate da npm audit. Nuovi casi: normalizzazione nome/lingua, formato esplicito e assente, categorie ambigue, codice restituito errato, checksum/metodo/origine rifiutati, host fisso e assenza di inoltro credenziali, cache pubblica e indisponibilità provider. Browser: compilazione modificabile e salvataggio esplicito, conservazione bozza, scheda già esistente senza richiesta esterna, dati parziali, errore servizio, risposta tardiva dopo cambio EAN, permessi negati, lettura nativa e decodifica ZXing reale da canvas/video sintetico con arresto stream. Nessuna richiesta al provider reale durante questi test browser, nessuna scrittura nel catalogo reale. Probe separato al provider staging: HTTP 200, esempio pubblico 3274080005003 normalizzato come Acqua minerale, 1500 ml. Fotocamera hardware Android/iOS: NOT RUN.
+
 Data: 14 novembre 2026, Europe/Rome. Ambiente locale Windows, Node.js 22 LTS portatile, npm, PGlite/PostgreSQL, Playwright Chromium. Versioni esatte nel lockfile. Verifiche locali concluse e confermate in CI su Linux/Node 22.
 
 ## Verifica sul servizio reale dopo le migrazioni
@@ -12,7 +16,7 @@ supabase/tests/online_rls.sql: PASS sul progetto reale. Due membri, invito/accet
 
 Check backend reale: PASS, Auth HTTP 200; 20 tabelle PROTETTA (401/42501 riferito alla tabella richiesta). Non equivale al collaudo autenticato Auth/JWT/PostgREST o Realtime su due client, tuttora NOT RUN completo.
 
-Suite locale attuale: 54 PASS in 6 file, inclusi bootstrap completo, privilegi predefiniti e script SQL online con rollback. Controlli locali finali PASS: lint, typecheck, build, 54 test, 68 test browser e controllo segreti. CI del nuovo commit verificata separatamente dopo la pubblicazione.
+Suite locale attuale: 66 PASS in 7 file, inclusi bootstrap completo, privilegi predefiniti, script SQL online con rollback e ricerca barcode. Suite browser: 82 PASS desktop/mobile. CI e pubblicazione del nuovo commit vengono verificate separatamente dai test locali.
 
 | Area                            | Ambiente e verifica                                                                                                  | Stato                                                                 |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |

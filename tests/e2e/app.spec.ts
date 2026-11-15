@@ -211,6 +211,216 @@ const productCatalog = {
   ],
 }
 
+const scannedProduct = {
+  barcode: '8000500037560',
+  name: 'Latte parzialmente scremato',
+  brand: 'Abit',
+  size: '1',
+  unit: 'L',
+  categories: ['en:milks'],
+  sourceUrl: 'https://world.openfoodfacts.org/product/8000500037560',
+}
+
+test('barcode: compila campi modificabili e salva solo dopo conferma', async ({ page }) => {
+  const { catalogSaveRequests } = await login(page, false, {
+    categories: [{ id: 'milk-category', name: 'Latticini', sort_order: 0 }],
+  })
+  await page.route('**/api/products/*', (route) => route.fulfill({ json: { product: scannedProduct } }))
+  await page.goto('/catalogo')
+  await page.getByLabel('EAN-8 / EAN-13 (facoltativo)', { exact: true }).fill(scannedProduct.barcode)
+  await page.getByRole('button', { name: 'Cerca dati dal barcode' }).click()
+  await expect(page.getByLabel('Nome prodotto', { exact: true })).toHaveValue(scannedProduct.name)
+  await expect(page.getByLabel('Marca (facoltativa)', { exact: true })).toHaveValue('Abit')
+  await expect(page.getByRole('combobox', { name: 'Categoria', exact: true })).toHaveValue('milk-category')
+  await expect(page.getByLabel('Quantità per confezione', { exact: true })).toHaveValue('1')
+  expect(catalogSaveRequests).toHaveLength(0)
+  await page.getByLabel('Nome prodotto', { exact: true }).fill('Latte corretto')
+  await page.getByRole('button', { name: 'Salva prodotto', exact: true }).click()
+  await expect.poll(() => catalogSaveRequests.length).toBe(1)
+  expect(catalogSaveRequests[0]).toMatchObject({
+    p_name: 'Latte corretto',
+    p_brand: 'Abit',
+    p_unit: 'L',
+    p_quantity: '1',
+  })
+})
+
+test('barcode: conserva il testo scritto fino a conferma della sostituzione', async ({ page }) => {
+  await login(page)
+  await page.route('**/api/products/*', (route) => route.fulfill({ json: { product: scannedProduct } }))
+  await page.goto('/catalogo')
+  await page.getByLabel('Nome prodotto', { exact: true }).fill('Nome scritto a mano')
+  await page.getByLabel('EAN-8 / EAN-13 (facoltativo)', { exact: true }).fill(scannedProduct.barcode)
+  await page.getByRole('button', { name: 'Cerca dati dal barcode' }).click()
+  await expect(page.getByRole('button', { name: 'Usa dati trovati' })).toBeVisible()
+  await expect(page.getByLabel('Nome prodotto', { exact: true })).toHaveValue('Nome scritto a mano')
+  await page.getByRole('button', { name: 'Usa dati trovati' }).click()
+  await expect(page.getByLabel('Nome prodotto', { exact: true })).toHaveValue(scannedProduct.name)
+})
+
+test('barcode: apre un prodotto già presente senza interrogare la banca dati', async ({ page }) => {
+  const { catalogSaveRequests } = await login(page, false, productCatalog)
+  let requests = 0
+  await page.route('**/api/products/*', (route) => {
+    requests++
+    return route.fulfill({ json: { product: null } })
+  })
+  await page.goto('/catalogo')
+  await page.getByLabel('EAN-8 / EAN-13 (facoltativo)', { exact: true }).fill(scannedProduct.barcode)
+  await page.getByRole('button', { name: 'Cerca dati dal barcode' }).click()
+  await page.getByRole('button', { name: 'Apri scheda esistente' }).click()
+  await expect(page.getByLabel('Nome prodotto', { exact: true })).toHaveValue('Farina fine')
+  expect(requests).toBe(0)
+  expect(catalogSaveRequests).toHaveLength(0)
+})
+
+test('barcode: dati parziali e servizio indisponibile mantengono inserimento manuale', async ({ page }) => {
+  await login(page)
+  await page.route('**/api/products/*', (route) =>
+    route.fulfill({
+      json: { product: { ...scannedProduct, name: '', brand: '', size: '', unit: '', categories: [] } },
+    }),
+  )
+  await page.goto('/catalogo')
+  await page.getByLabel('EAN-8 / EAN-13 (facoltativo)', { exact: true }).fill(scannedProduct.barcode)
+  await page.getByRole('button', { name: 'Cerca dati dal barcode' }).click()
+  await expect(page.getByText('Nome da inserire manualmente.', { exact: false })).toBeVisible()
+  await expect(page.getByLabel('Nome prodotto', { exact: true })).toHaveValue('')
+  await page.getByLabel('Nome prodotto', { exact: true }).fill('Nome manuale')
+  await page.route('**/api/products/*', (route) =>
+    route.fulfill({ status: 503, json: { error: 'Indisponibile' } }),
+  )
+  await page.getByRole('button', { name: 'Cerca dati dal barcode' }).click()
+  await expect(page.getByText('Ricerca non disponibile.', { exact: false })).toBeVisible()
+  await expect(page.getByLabel('Nome prodotto', { exact: true })).toHaveValue('Nome manuale')
+})
+
+test('barcode: una risposta in ritardo non sovrascrive un EAN cambiato', async ({ page }) => {
+  await login(page)
+  let respond!: () => void
+  const response = new Promise<void>((resolve) => {
+    respond = resolve
+  })
+  await page.route('**/api/products/*', async (route) => {
+    await response
+    await route.fulfill({ json: { product: scannedProduct } })
+  })
+  await page.goto('/catalogo')
+  await page.getByLabel('EAN-8 / EAN-13 (facoltativo)', { exact: true }).fill(scannedProduct.barcode)
+  const requested = page.waitForRequest('**/api/products/*')
+  await page.getByRole('button', { name: 'Cerca dati dal barcode' }).click()
+  await requested
+  await page.getByLabel('EAN-8 / EAN-13 (facoltativo)', { exact: true }).fill('96385074')
+  respond()
+  await expect(page.getByText('Il campo EAN è cambiato', { exact: false })).toBeVisible()
+  await expect(page.getByLabel('Nome prodotto', { exact: true })).toHaveValue('')
+})
+
+for (const native of [true, false]) {
+  test(`barcode fotocamera: ${native ? 'lettore nativo' : 'decodifica ZXing reale'} e arresto stream`, async ({
+    page,
+  }) => {
+    await login(page)
+    await page.addInitScript(
+      ({ native, code }) => {
+        const left = [
+          '0001101',
+          '0011001',
+          '0010011',
+          '0111101',
+          '0100011',
+          '0110001',
+          '0101111',
+          '0111011',
+          '0110111',
+          '0001011',
+        ]
+        const alternate = [
+          '0100111',
+          '0110011',
+          '0011011',
+          '0100001',
+          '0011101',
+          '0111001',
+          '0000101',
+          '0010001',
+          '0001001',
+          '0010111',
+        ]
+        const parity = [
+          'LLLLLL',
+          'LLGLGG',
+          'LLGGLG',
+          'LLGGGL',
+          'LGLLGG',
+          'LGGLLG',
+          'LGGGLL',
+          'LGLGLG',
+          'LGLGGL',
+          'LGGLGL',
+        ][Number(code[0])]
+        let bits = '101'
+        for (let i = 1; i <= 6; i++) bits += (parity[i - 1] === 'L' ? left : alternate)[Number(code[i])]
+        bits += '01010'
+        for (let i = 7; i < 13; i++)
+          bits += left[Number(code[i])]
+            .split('')
+            .map((bit) => (bit === '1' ? '0' : '1'))
+            .join('')
+        bits += '101'
+        Object.defineProperty(window, 'BarcodeDetector', {
+          configurable: true,
+          value: native
+            ? class {
+                detect() {
+                  return Promise.resolve([{ rawValue: code }])
+                }
+              }
+            : undefined,
+        })
+        Object.defineProperty(navigator.mediaDevices, 'getUserMedia', {
+          value: async () => {
+            const canvas = document.createElement('canvas')
+            canvas.width = 500
+            canvas.height = 220
+            const ctx = canvas.getContext('2d')!
+            const paint = () => {
+              ctx.fillStyle = 'white'
+              ctx.fillRect(0, 0, 500, 220)
+              ctx.fillStyle = 'black'
+              for (let i = 0; i < bits.length; i++) if (bits[i] === '1') ctx.fillRect(40 + i * 4, 25, 4, 160)
+            }
+            paint()
+            const stream = canvas.captureStream(10)
+            const interval = setInterval(paint, 100)
+            const state = window as unknown as { cameraStopped: boolean }
+            state.cameraStopped = false
+            for (const track of stream.getTracks()) {
+              const stop = track.stop.bind(track)
+              track.stop = () => {
+                state.cameraStopped = true
+                clearInterval(interval)
+                stop()
+              }
+            }
+            return stream
+          },
+        })
+      },
+      { native, code: scannedProduct.barcode },
+    )
+    await page.route('**/api/products/*', (route) => route.fulfill({ json: { product: scannedProduct } }))
+    await page.goto('/scanner')
+    await page.getByRole('button', { name: 'Scansiona barcode' }).click()
+    await expect(page.getByLabel('Nome prodotto', { exact: true })).toHaveValue(scannedProduct.name, {
+      timeout: 20000,
+    })
+    expect(await page.evaluate(() => (window as unknown as { cameraStopped: boolean }).cameraStopped)).toBe(
+      true,
+    )
+  })
+}
+
 test('catalogo unico: salva con solo il nome, senza formato o campi obbligatori aggiuntivi', async ({
   page,
 }) => {
@@ -659,14 +869,17 @@ test('aggiunta articolo e acquisto parziale senza prezzo', async ({ page }) => {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 test('scanner manuale, checksum e nessun salvataggio implicito', async ({ page }) => {
-  await login(page)
+  const { catalogSaveRequests } = await login(page)
+  await page.route('**/api/products/*', (route) => route.fulfill({ json: { product: null } }))
   await page.goto('/scanner')
   await page.getByLabel('Barcode manuale').fill('12345678')
-  await page.getByRole('button', { name: 'Cerca e conferma codice' }).click()
+  await page.getByRole('button', { name: 'Cerca e compila prodotto' }).click()
   await expect(page.getByText('Il checksum EAN non è valido.', { exact: false })).toBeVisible()
   await page.getByLabel('Barcode manuale').fill('8000500037560')
-  await page.getByRole('button', { name: 'Cerca e conferma codice' }).click()
-  await expect(page.getByText('Barcode valido, prodotto assente', { exact: false })).toBeVisible()
+  await page.getByRole('button', { name: 'Cerca e compila prodotto' }).click()
+  await expect(page.getByText('Prodotto non trovato nella banca dati.', { exact: false })).toBeVisible()
+  await expect(page.getByLabel('EAN-8 / EAN-13 (facoltativo)', { exact: true })).toHaveValue('8000500037560')
+  expect(catalogSaveRequests).toHaveLength(0)
 })
 test('offline informa e blocca salvataggio', async ({ page, context }) => {
   await login(page)
@@ -868,7 +1081,7 @@ test('permesso fotocamera negato offre inserimento manuale', async ({ page }) =>
     })
   })
   await page.goto('/scanner')
-  await page.getByRole('button', { name: 'Apri fotocamera' }).click()
+  await page.getByRole('button', { name: 'Scansiona barcode' }).click()
   await expect(
     page.getByText('Fotocamera non disponibile o permesso negato.', { exact: false }),
   ).toBeVisible()

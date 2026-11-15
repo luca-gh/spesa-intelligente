@@ -1,6 +1,10 @@
 # Avanzamento
 
-Aggiornamento: 14 novembre 2026. Implementazione progressiva: **consegna completa non verificata**. I gate online non vengono considerati superati in base alle fixture locali.
+## Inserimento barcode — 15 novembre 2026
+
+Implementati lettura camera EAN-8/EAN-13 (nativa e ZXing), ricerca manuale, compilazione revisionabile del catalogo da Open Food Facts e riconoscimento prodotti già presenti. Campi incompleti restano manuali; categorie solo esistenti e univoche. Nessun salvataggio implicito o invio di immagini. Proxy Pages con cache di soli dati pubblici e attribuzione ODbL. Test locali: 66 PASS; browser desktop/mobile: 82 PASS, compresa decodifica ZXing reale su video sintetico. Richiesta al provider staging: PASS con prodotto pubblico. Fotocamera fisica Android/iOS ancora NOT RUN. Questa funzione completa la parte barcode della fase 5; OCR e altre importazioni rimangono TODO e il gate complessivo resta aperto.
+
+Aggiornamento: 15 novembre 2026. Implementazione progressiva: **consegna completa non verificata**. I gate online non vengono considerati superati in base alle fixture locali.
 
 | Fase                            | Stato del gate | Lavoro presente e blocchi                                                                                                                                                                                                                                                            |
 | ------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

@@ -3,12 +3,30 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import { loadEnv } from 'vite'
 import { assertPublicEnvironment } from './src/domain/config.ts'
+import { onRequest } from './functions/api/products/[barcode].ts'
 
 export default defineConfig(({ mode }) => {
   assertPublicEnvironment(loadEnv(mode, process.cwd(), 'VITE_'))
   return {
+    optimizeDeps: { include: ['@zxing/browser', '@zxing/library'] },
     plugins: [
       react(),
+      {
+        name: 'local-barcode-api',
+        configureServer(server) {
+          server.middlewares.use(async (req, res, next) => {
+            const url = new URL(req.url ?? '/', 'http://localhost')
+            if (!url.pathname.startsWith('/api/products/')) return next()
+            const response = await onRequest({
+              request: new Request(url, { method: req.method ?? 'GET' }),
+              params: { barcode: url.pathname.slice('/api/products/'.length) },
+            })
+            res.statusCode = response.status
+            response.headers.forEach((value, key) => res.setHeader(key, value))
+            res.end(await response.text())
+          })
+        },
+      },
       VitePWA({
         registerType: 'prompt',
         includeAssets: ['icon.svg', 'apple-touch-icon.png', 'offline.html'],
@@ -30,7 +48,7 @@ export default defineConfig(({ mode }) => {
         workbox: {
           globPatterns: ['**/*.{js,css,html,png,svg,woff2}'],
           navigateFallback: '/index.html',
-          navigateFallbackDenylist: [/^\/auth\//],
+          navigateFallbackDenylist: [/^\/auth\//, /^\/api\//],
           cleanupOutdatedCaches: true,
         },
       }),
