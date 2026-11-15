@@ -5,6 +5,7 @@ import { CalendarDays, Star, Plus, ArrowLeft, ArrowRight } from 'lucide-react'
 import { useApp } from '../data/context'
 import { insert, remove, rpc, update } from '../data/client'
 import { ingredientProducts } from '../data/catalog'
+import { SearchSelect } from '../components/SearchSelect'
 import { convert, dateInZone, quantity, scale, units, type Unit } from '../domain/math'
 import { previewDiff, type Contribution } from '../domain/planning'
 import {
@@ -232,14 +233,11 @@ export function Recipes() {
             <legend>Ingredienti del catalogo</legend>
             {Array.from({ length: ingredientCount }, (_, i) => (
               <div className="ingredient-form" key={i}>
-                <Select label={`Ingrediente ${i + 1}`} name={`product${i}`}>
-                  <option value="">Scegli prodotto</option>
-                  {ingredientProducts(data).map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.name}
-                    </option>
-                  ))}
-                </Select>
+                <SearchSelect
+                  label={`Ingrediente ${i + 1}`}
+                  name={`product${i}`}
+                  choices={ingredientProducts(data).map((g) => ({ value: g.id, label: g.name }))}
+                />
                 <Field label="Quantità" name={`quantity${i}`} value="1" />
                 <Select label="Unità" name={`unit${i}`}>
                   {units.map((u) => (
@@ -488,25 +486,16 @@ export function Meals() {
                   <option key={s}>{s}</option>
                 ))}
               </Select>
-              <Select label="Ricetta o alimento" name="component">
-                <option value="">Scegli</option>
-                <optgroup label="Ricette">
-                  {data.recipes
+              <SearchSelect
+                label="Ricetta o alimento"
+                name="component"
+                choices={[
+                  ...data.recipes
                     .filter((r) => !r.archived_at)
-                    .map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.title}
-                      </option>
-                    ))}
-                </optgroup>
-                <optgroup label="Alimenti">
-                  {ingredientProducts(data).map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.name}
-                    </option>
-                  ))}
-                </optgroup>
-              </Select>
+                    .map((r) => ({ value: r.id, label: r.title, kind: 'Ricetta' })),
+                  ...ingredientProducts(data).map((g) => ({ value: g.id, label: g.name, kind: 'Alimento' })),
+                ]}
+              />
               <Field
                 label={`Persone (default ${household!.default_diners})`}
                 name="servings"

@@ -1,0 +1,157 @@
+import { useEffect, useId, useRef, useState } from 'react'
+import { useApp } from '../data/context'
+import { matchingChoices, type SearchChoice } from '../domain/choices'
+
+export function SearchSelect({
+  label,
+  name,
+  choices,
+}: {
+  label: string
+  name: string
+  choices: SearchChoice[]
+}) {
+  const { busy, online } = useApp()
+  const id = useId()
+  const input = useRef<HTMLInputElement>(null)
+  const root = useRef<HTMLDivElement>(null)
+  const [query, setQuery] = useState('')
+  const [value, setValue] = useState('')
+  const [open, setOpen] = useState(false)
+  const [active, setActive] = useState(-1)
+  const selected = choices.find((choice) => choice.value === value)
+  const results = matchingChoices(choices, selected ? '' : query)
+  const disabled = busy || !online
+  const expanded = open && !disabled
+  const activeIndex = Math.min(active, results.length - 1)
+  const optionId = (index: number) => `${id}-option-${index}`
+
+  useEffect(() => {
+    input.current?.setCustomValidity(
+      !selected && query ? 'Seleziona una voce tra i risultati suggeriti.' : '',
+    )
+  }, [selected, query])
+  useEffect(() => {
+    const form = input.current?.form
+    const reset = () => {
+      setQuery('')
+      setValue('')
+      setOpen(false)
+      setActive(-1)
+      input.current?.setCustomValidity('')
+    }
+    form?.addEventListener('reset', reset)
+    return () => form?.removeEventListener('reset', reset)
+  }, [])
+  useEffect(() => {
+    const outside = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false)
+    }
+    document.addEventListener('pointerdown', outside)
+    return () => document.removeEventListener('pointerdown', outside)
+  }, [])
+  useEffect(() => {
+    if (expanded && activeIndex >= 0)
+      document.getElementById(`${id}-option-${activeIndex}`)?.scrollIntoView({ block: 'nearest' })
+  }, [expanded, activeIndex, id, query])
+
+  function choose(choice: SearchChoice) {
+    setValue(choice.value)
+    setQuery(choice.label)
+    setOpen(false)
+    setActive(-1)
+    input.current?.setCustomValidity('')
+    input.current?.focus({ preventScroll: true })
+  }
+  return (
+    <div className="field search-select" ref={root}>
+      <label htmlFor={id}>{label}</label>
+      <input type="hidden" name={name} value={selected?.value ?? ''} disabled={disabled} />
+      <input
+        ref={input}
+        id={id}
+        role="combobox"
+        aria-autocomplete="list"
+        aria-expanded={expanded}
+        aria-controls={expanded ? `${id}-results` : undefined}
+        aria-activedescendant={expanded && activeIndex >= 0 ? optionId(activeIndex) : undefined}
+        aria-describedby={`${id}-help`}
+        value={selected?.label ?? query}
+        required
+        disabled={disabled}
+        autoComplete="off"
+        spellCheck={false}
+        maxLength={200}
+        placeholder="Scrivi per cercare…"
+        onFocus={() => setOpen(true)}
+        onClick={() => setOpen(true)}
+        onBlur={() => {
+          setOpen(false)
+          setActive(-1)
+        }}
+        onChange={(event) => {
+          setQuery(event.target.value)
+          setValue('')
+          setActive(-1)
+          setOpen(true)
+          event.currentTarget.setCustomValidity(
+            event.target.value ? 'Seleziona una voce tra i risultati suggeriti.' : '',
+          )
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault()
+            setOpen(true)
+            setActive(
+              event.key === 'ArrowDown'
+                ? Math.min(activeIndex + 1, results.length - 1)
+                : activeIndex <= 0
+                  ? results.length - 1
+                  : activeIndex - 1,
+            )
+          } else if (event.key === 'Enter' && expanded && results.length) {
+            event.preventDefault()
+            choose(results[activeIndex >= 0 ? activeIndex : 0])
+          } else if (event.key === 'Escape') {
+            event.preventDefault()
+            setOpen(false)
+            setActive(-1)
+          } else if (event.key === 'Tab') {
+            setOpen(false)
+            setActive(-1)
+          }
+        }}
+      />
+      <small className="muted" id={`${id}-help`}>
+        Scrivi il nome e seleziona un risultato.
+      </small>
+      {expanded && (
+        <div className="search-select-popup">
+          <ul id={`${id}-results`} role="listbox" aria-label={`Suggerimenti per ${label}`}>
+            {results.map((choice, index) => (
+              <li
+                key={choice.value}
+                id={optionId(index)}
+                role="option"
+                aria-selected={index === activeIndex}
+                className={index === activeIndex ? 'active' : ''}
+                onPointerDown={(event) => event.preventDefault()}
+                onClick={() => choose(choice)}
+              >
+                <span>{choice.label}</span>
+                {choice.kind && <small>{choice.kind}</small>}
+              </li>
+            ))}
+          </ul>
+          {!results.length && (
+            <p role="status">
+              {choices.length
+                ? 'Nessun risultato. Prova un altro nome.'
+                : 'Nessuna voce disponibile. Aggiungi un prodotto al Catalogo o una ricetta.'}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}

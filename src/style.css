@@ -895,6 +895,56 @@ small {
 .item-actions {
   margin-top: 8px;
 }
+.search-select {
+  position: relative;
+  min-width: 0;
+}
+.search-select-popup {
+  position: absolute;
+  top: calc(100% - 12px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fffefa;
+  box-shadow: 0 6px 20px #263d3426;
+  overflow: hidden;
+}
+.search-select-popup ul {
+  list-style: none;
+  padding: 4px;
+  margin: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.search-select-popup [role='option'] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  padding: 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.search-select-popup [role='option'] span {
+  min-width: 0;
+}
+.search-select-popup [role='option'] small {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.search-select-popup [role='option']:hover,
+.search-select-popup [role='option'].active {
+  background: #e9efdf;
+}
+.search-select-popup p {
+  margin: 0;
+  padding: 14px;
+}
 .list-barcode-picker {
   margin-bottom: 18px;
   padding-bottom: 16px;

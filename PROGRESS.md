@@ -1,5 +1,11 @@
 # Avanzamento
 
+## Ingredienti e calendario con autocompletamento — 15 novembre 2026
+
+Selettore con ricerca per ogni ingrediente delle ricette e per Ricetta o alimento nel calendario. Risultati sempre in ordine alfabetico italiano, filtrati mentre si scrive, senza distinzione tra maiuscole e accenti e con supporto a più parole parziali. Nel calendario ricette e alimenti sono ordinati insieme, con tipo visibile per distinguere gli omonimi. Selezione con tocco, mouse, frecce e Invio; Escape chiude. Il testo libero senza selezione non viene salvato; ogni ingrediente mantiene la propria scelta. Valori conservati dopo un errore e svuotati solo dopo salvataggio riuscito. Nessuna migrazione o nuova dipendenza.
+
+Verifiche locali PASS: lint, tipi, build, 82 test in 10 file, 116 prove browser desktop/mobile, aggiornamento PWA e controllo segreti. Nessuna scrittura di prova nel database reale; il collaudo iPad fisico resta distinto dalle prove touch simulate.
+
 ## Barcode non alimentari — 15 novembre 2026
 
 Aggiunte Open Beauty Facts e Open Products Facts come fonti alternative a Open Food Facts, per cosmetici/igiene e altri prodotti del supermercato. Nessun collegamento a Open Pet Food Facts, nessun product_type=all e nessun redirect seguito; record dichiarati petfood ignorati. Fonte effettiva visibile e crediti aggiornati. Alimentari trovati al primo tentativo senza chiamate aggiuntive; deadline complessiva 10 secondi, niente cache negativa per guasti parziali e compatibilità dei client precedenti. Nessuna migrazione, chiave API o dipendenza. 108 test browser desktop/mobile PASS; suite locale corrente 79 casi, inclusi 19 test di normalizzazione/proxy PASS. Probe pubblici: Open Beauty Facts 8001090662231 (Herbal Essences, Coconut Milk, 400 ml) e Open Products Facts 3178041366304 (Henkel, Décolor Stop); quantità senza unità lasciata manuale. Nessun dato di famiglia consultato o scritto.

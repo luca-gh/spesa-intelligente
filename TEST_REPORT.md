@@ -1,5 +1,11 @@
 # Rapporto test
 
+## Autocompletamento ricette e pasti — 15 novembre 2026
+
+Tre nuovi test locali per ordine italiano, ricerca parziale su più parole senza accenti/maiuscole, identificativi conservati e omonimi ricetta/alimento. Otto nuove prove browser desktop/mobile PASS: lista alfabetica senza archiviati, selezione da tastiera e tocco simulato, righe ingrediente indipendenti, nessun risultato, testo modificato senza identificativo obsoleto, errore con scelta conservata, reset dopo salvataggio, calendario con ricetta e alimento omonimi e payload corretti. Fixture isolate: nessun dato reale letto o scritto; il tocco simulato non equivale a prova hardware iPad.
+
+Suite completa locale: 82 test in 10 file e 116 prove browser PASS. Controlli lint, tipi, build, aggiornamento PWA e segreti PASS. Aggiunta finale della validazione del testo composto solo da spazi: ripetute le otto prove mirate; suite completa del commit verificata anche in CI alla pubblicazione.
+
 ## Tre fonti barcode, esclusi animali — 15 novembre 2026
 
 Suite browser completa 108 PASS desktop/mobile. Nuovi casi: cosmetico e prodotto per la casa, fonte/link corretti, campi e categoria già esistente, formato, ritorno dal Catalogo e aggiunta alla lista solo dopo conferma, nessun overflow mobile. I test browser usano fixture e non interrogano i provider. Suite locale corrente 79 casi; 19 test proxy/parser PASS, compresi fallback tra tre host, alimentari senza chiamate aggiuntive, guasto di una fonte con risultato da un’altra, rifiuto redirect/animali e dati mancanti, corrispondenza barcode, attribuzione e conteggi espliciti. Client senza scope restano alimentari. Lint, tipi e build verificati; prova PWA e controllo segreti eseguiti prima della pubblicazione.
@@ -42,7 +48,7 @@ supabase/tests/online_rls.sql: PASS sul progetto reale. Due membri, invito/accet
 
 Check backend reale: PASS, Auth HTTP 200; 20 tabelle PROTETTA (401/42501 riferito alla tabella richiesta). Non equivale al collaudo autenticato Auth/JWT/PostgREST o Realtime su due client, tuttora NOT RUN completo.
 
-Suite locale corrente: 79 casi in 9 file, inclusi bootstrap completo, privilegi predefiniti, script SQL online con rollback, ricerca barcode su tre fonti, lista unica e ordine categorie. Suite browser corrente: 108 casi desktop/mobile. CI e pubblicazione del nuovo commit vengono verificate separatamente dai test locali.
+Suite locale corrente: 82 casi in 10 file, inclusi bootstrap completo, privilegi predefiniti, script SQL online con rollback, ricerca barcode su tre fonti, lista unica, ordine categorie e autocompletamento. Suite browser corrente: 116 casi desktop/mobile. CI e pubblicazione del nuovo commit vengono verificate separatamente dai test locali.
 
 | Area                            | Ambiente e verifica                                                                                                  | Stato                                                                 |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |

@@ -48,6 +48,8 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
   const catalogSaveRequests: Record<string, unknown>[] = []
   const ensureListRequests: Record<string, unknown>[] = []
   const categoryOrderRequests: Record<string, unknown>[] = []
+  const recipeSaveRequests: Record<string, unknown>[] = []
+  const mealRequests: Record<string, unknown>[] = []
   const itemRequests: Record<string, unknown>[] = []
   const catalogDeleteRequests: { table: string; id: string }[] = []
   await page.route('https://fixture.supabase.test/**', async (route) => {
@@ -131,6 +133,32 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
         voided_at: null,
       })
       result = body.p_id
+    } else if (table === 'save_recipe') {
+      const body = route.request().postDataJSON()
+      recipeSaveRequests.push(body)
+      const id = `recipe-new-${recipeSaveRequests.length}`
+      ;(collections.recipes ??= []).push({
+        id,
+        title: body.p_title,
+        base_servings: body.p_servings,
+        instructions: body.p_instructions,
+        is_favorite: false,
+      })
+      for (const [index, ingredient] of body.p_ingredients.entries())
+        (collections.recipe_ingredients ??= []).push({
+          id: `${id}-${index}`,
+          recipe_id: id,
+          generic_product_id: ingredient.product_id,
+          quantity: ingredient.quantity,
+          unit: ingredient.unit,
+        })
+      result = id
+    } else if (table === 'meal_entries' && route.request().method() === 'POST') {
+      const body = route.request().postDataJSON()
+      mealRequests.push(body)
+      const entry = { id: `meal-new-${mealRequests.length}`, ...body }
+      ;(collections.meal_entries ??= []).push(entry)
+      result = entry
     } else if (table === 'shopping_lists' && route.request().method() === 'POST') {
       const body = route.request().postDataJSON()
       const next = { ...list, title: body.title }
@@ -207,6 +235,8 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
     catalogSaveRequests,
     ensureListRequests,
     categoryOrderRequests,
+    recipeSaveRequests,
+    mealRequests,
   }
 }
 
@@ -228,6 +258,165 @@ const productCatalog = {
     },
   ],
 }
+
+const autocompleteCatalog = {
+  generic_products: [
+    { id: 'zucchini', name: 'Zucchine', canonical_unit: 'g', category_id: null },
+    { id: 'oil', name: 'Olio extra vergine di oliva', canonical_unit: 'ml', category_id: null },
+    { id: 'coffee', name: 'Caffè', canonical_unit: 'g', category_id: null },
+    { id: 'apricot', name: 'Albicocche', canonical_unit: 'g', category_id: null },
+    {
+      id: 'archived-food',
+      name: 'Aglio archiviato',
+      canonical_unit: 'g',
+      category_id: null,
+      archived_at: '2026-11-14T12:00:00Z',
+    },
+  ],
+}
+
+test('autocomplete: ingredienti alfabetici, accenti, tastiera e righe indipendenti', async ({ page }) => {
+  await login(page, false, autocompleteCatalog)
+  await page.goto('/ricette')
+  const first = page.getByRole('combobox', { name: 'Ingrediente 1', exact: true })
+  await first.click()
+  await expect(page.getByRole('listbox').locator('li > span')).toHaveText([
+    'Albicocche',
+    'Caffè',
+    'Olio extra vergine di oliva',
+    'Zucchine',
+  ])
+  await first.fill('CAFFE')
+  await expect(page.getByRole('listbox').getByRole('option')).toHaveCount(1)
+  await first.press('ArrowDown')
+  await first.press('Enter')
+  await expect(first).toHaveValue('Caffè')
+  await page.getByRole('button', { name: 'Altro ingrediente', exact: true }).click()
+  const second = page.getByRole('combobox', { name: 'Ingrediente 2', exact: true })
+  await second.fill('olio oliva')
+  const option = page.getByRole('option', { name: 'Olio extra vergine di oliva', exact: true })
+  if (test.info().project.name === 'mobile') await option.tap()
+  else await option.click()
+  await expect(second).toHaveValue('Olio extra vergine di oliva')
+  await expect(first).toHaveValue('Caffè')
+  expect(await page.locator('input[name="product0"]').inputValue()).toBe('coffee')
+  expect(await page.locator('input[name="product1"]').inputValue()).toBe('oil')
+  await first.fill('inesistente')
+  await expect(page.getByText('Nessun risultato. Prova un altro nome.', { exact: true })).toBeVisible()
+  expect(await page.locator('input[name="product0"]').inputValue()).toBe('')
+  await first.press('Escape')
+  await expect(page.getByRole('listbox')).toHaveCount(0)
+  await expect(second).toHaveValue('Olio extra vergine di oliva')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+})
+
+test('autocomplete: ricetta conserva scelta dopo errore e pulisce il selettore dopo salvataggio', async ({
+  page,
+}) => {
+  const { recipeSaveRequests } = await login(page, false, autocompleteCatalog)
+  let fail = true
+  await page.route('**/rest/v1/rpc/save_recipe', async (route) => {
+    if (fail) {
+      fail = false
+      await route.fulfill({ status: 503, json: { message: 'Fixture unavailable' } })
+    } else await route.fallback()
+  })
+  await page.goto('/ricette')
+  await page.getByLabel('Titolo', { exact: true }).fill('Albicocche semplici')
+  await page.getByLabel('Procedimento', { exact: true }).fill('Lavare e servire.')
+  const ingredient = page.getByRole('combobox', { name: 'Ingrediente 1', exact: true })
+  await ingredient.fill('albi')
+  await page.getByRole('option', { name: 'Albicocche', exact: true }).click()
+  await page.getByLabel('Quantità', { exact: true }).fill('2')
+  await page.getByRole('button', { name: 'Salva ricetta', exact: true }).click()
+  await expect(page.locator('.notice')).toContainText('Operazione non riuscita')
+  await expect(ingredient).toHaveValue('Albicocche')
+  await page.getByRole('button', { name: 'Salva ricetta', exact: true }).click()
+  await expect.poll(() => recipeSaveRequests.length).toBe(1)
+  expect(recipeSaveRequests[0]).toMatchObject({
+    p_title: 'Albicocche semplici',
+    p_ingredients: [{ product_id: 'apricot', quantity: '2', unit: 'g' }],
+  })
+  await expect(ingredient).toHaveValue('')
+  await expect(page.getByRole('heading', { name: 'Albicocche semplici', exact: true })).toBeVisible()
+})
+
+test('autocomplete: testo non selezionato non invia ingredienti vecchi o arbitrari', async ({ page }) => {
+  const { recipeSaveRequests } = await login(page, false, autocompleteCatalog)
+  await page.goto('/ricette')
+  await page.getByLabel('Titolo', { exact: true }).fill('Ricetta valida')
+  await page.getByLabel('Procedimento', { exact: true }).fill('Procedimento valido')
+  const ingredient = page.getByRole('combobox', { name: 'Ingrediente 1', exact: true })
+  await ingredient.fill('albi')
+  await page.getByRole('option', { name: 'Albicocche', exact: true }).click()
+  await ingredient.fill('prodotto mai salvato')
+  await page.getByRole('button', { name: 'Salva ricetta', exact: true }).click()
+  expect(await ingredient.evaluate((element) => element.matches(':invalid'))).toBe(true)
+  expect(await page.locator('input[name="product0"]').inputValue()).toBe('')
+  expect(recipeSaveRequests).toHaveLength(0)
+  await ingredient.fill('   ')
+  await page.getByRole('button', { name: 'Salva ricetta', exact: true }).click()
+  expect(await ingredient.evaluate((element) => element.matches(':invalid'))).toBe(true)
+  expect(recipeSaveRequests).toHaveLength(0)
+})
+
+test('autocomplete: calendario alfabetico misto, omonimi e selezione corretta ricetta/alimento', async ({
+  page,
+}) => {
+  await page.clock.install({ time: new Date('2026-11-18T12:00:00Z') })
+  const { mealRequests } = await login(page, false, {
+    ...autocompleteCatalog,
+    recipes: [
+      { id: 'recipe-z', title: 'Zuppa', base_servings: 2 },
+      { id: 'recipe-c', title: 'Caffè', base_servings: 2 },
+      {
+        id: 'recipe-a',
+        title: 'Aglio archiviato ricetta',
+        base_servings: 2,
+        archived_at: '2026-11-14T12:00:00Z',
+      },
+    ],
+    meal_plans: [{ id: 'plan', week_start: '2026-11-16', linked_list_id: null, version: 1 }],
+  })
+  await page.goto('/pasti')
+  const component = page.getByRole('combobox', { name: 'Ricetta o alimento', exact: true })
+  await component.click()
+  await expect(page.getByRole('listbox').locator('li > span')).toHaveText([
+    'Albicocche',
+    'Caffè',
+    'Caffè',
+    'Olio extra vergine di oliva',
+    'Zucchine',
+    'Zuppa',
+  ])
+  await component.fill('caffe')
+  await expect(page.getByRole('listbox').getByRole('option')).toHaveCount(2)
+  const recipe = page.getByRole('option', { name: /Caffè.*Ricetta/ })
+  if (test.info().project.name === 'mobile') await recipe.tap()
+  else await recipe.click()
+  await page.getByRole('button', { name: 'Aggiungi pasto', exact: true }).click()
+  await expect.poll(() => mealRequests.length).toBe(1)
+  expect(mealRequests[0]).toMatchObject({
+    recipe_id: 'recipe-c',
+    generic_product_id: null,
+    quantity: null,
+    unit: null,
+  })
+  await expect(component).toHaveValue('')
+  await component.fill('olio oliva')
+  await component.press('ArrowDown')
+  await component.press('Enter')
+  await page.getByRole('combobox', { name: 'Unità', exact: true }).selectOption('ml')
+  await page.getByRole('button', { name: 'Aggiungi pasto', exact: true }).click()
+  await expect.poll(() => mealRequests.length).toBe(2)
+  expect(mealRequests[1]).toMatchObject({
+    recipe_id: null,
+    generic_product_id: 'oil',
+    quantity: '1',
+    unit: 'ml',
+  })
+  await expect(component).toHaveValue('')
+})
 
 const categoryCatalog = {
   categories: [
