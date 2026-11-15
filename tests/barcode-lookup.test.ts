@@ -93,7 +93,8 @@ describe('ricerca pubblica isolata dai dati privati', () => {
     expect(response.status).toBe(200)
     const [url, options] = upstream.mock.calls[0]
     expect(url.origin).toBe('https://world.openfoodfacts.org')
-    expect(options.redirect).toBe('error')
+    // Workers rejects redirect: 'error' before sending the request. Manual never follows redirects.
+    expect(options.redirect).toBe('manual')
     expect(options.headers.Authorization).toBeUndefined()
     expect(options.headers.Cookie).toBeUndefined()
     expect(options.headers['User-Agent']).toContain('SpesaIntelligente/')
@@ -105,6 +106,7 @@ describe('ricerca pubblica isolata dai dati privati', () => {
       .fn()
       .mockResolvedValueOnce(new Response('', { status: 404 }))
       .mockResolvedValueOnce(new Response('', { status: 429 }))
+      .mockResolvedValueOnce(new Response('', { status: 302, headers: { Location: 'https://other.test' } }))
     vi.stubGlobal('fetch', upstream)
     const context = {
       request: new Request('https://app.test/api/products/' + code),
@@ -114,6 +116,10 @@ describe('ricerca pubblica isolata dai dati privati', () => {
     const failed = await onRequest(context)
     expect(failed.status).toBe(503)
     expect(failed.headers.get('Cache-Control')).toBe('no-store')
+    const redirected = await onRequest(context)
+    expect(redirected.status).toBe(503)
+    expect(redirected.headers.get('X-Lookup-Status')).toBe('upstream-302')
+    expect(upstream).toHaveBeenCalledTimes(3)
   })
   it('riutilizza la cache pubblica senza interrogare di nuovo il provider', async () => {
     const upstream = vi.fn()

@@ -35,7 +35,7 @@ export async function onRequest(context: LookupContext): Promise<Response> {
         Accept: 'application/json',
         'User-Agent': 'SpesaIntelligente/0.1.0 (https://github.com/luca-gh/spesa-intelligente)',
       },
-      redirect: 'error',
+      redirect: 'manual',
       signal: AbortSignal.timeout(8000),
     })
     failure = `upstream-${upstream.status}`
