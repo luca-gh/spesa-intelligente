@@ -545,6 +545,50 @@ small {
   gap: 16px;
   margin-bottom: 13px;
 }
+.catalog-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 130px), 1fr));
+  gap: 12px;
+  margin: 0;
+}
+.catalog-summary > div {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #f5f7ef;
+  overflow-wrap: anywhere;
+}
+.catalog-summary dd {
+  margin: 6px 0 0;
+  font-size: 28px;
+  font-weight: 700;
+}
+.catalog-products > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+.catalog-products > summary::-webkit-details-marker {
+  display: none;
+}
+.catalog-products > summary h2 {
+  margin: 0;
+}
+.catalog-products[open] > summary {
+  margin-bottom: 16px;
+}
+.catalog-products > summary > span {
+  text-align: right;
+}
+.catalog-products th {
+  color: #607254;
+}
+.plan-actions {
+  margin-bottom: 20px;
+}
 .panel-heading h2 {
   margin: 0;
 }

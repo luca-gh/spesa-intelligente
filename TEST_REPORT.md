@@ -1,5 +1,13 @@
 # Rapporto test
 
+## Dashboard categorie, ordine lista e cancellazione piani — 15 novembre 2026
+
+Nuovi test locali: conteggio delle schede attive senza gruppi interni/archiviati, diverse marche, categorie vuote, ordine familiare, fallback senza categoria e catalogo vuoto. Script `supabase/tests/meal_plan_deletion.sql` verificato in PGlite e sul progetto reale dentro una transazione annullata: DELETE del proprio piano con pasti a cascata, rifiuto cross-family/anon, lista/contributi/acquisti invariati, ricette/ingredienti/modelli/altre settimane conservati, settimana ricreata vuota e piano archiviato eliminabile. Permessi e FK remoti verificati; impronte delle 20 tabelle applicative e Auth identiche prima/dopo. Nessuna migrazione, privilegio aggiuntivo o dato reale eliminato.
+
+Dieci nuove prove browser mirate desktop/mobile PASS: dashboard prima dell’inserimento, conteggi indipendenti da ricerca/archiviati, riduzione/espansione mouse/tocco/tastiera, ricerca che riapre la tabella, accessibilità axe del Catalogo e assenza overflow; articoli da acquistare/acquistati sopra il modulo e aggiunta funzionante; eliminazione piano attivo/archiviato, conferma con date, refresh e ricreazione, altra settimana/lista/modelli conservati, annullamento ed errore che conservano l’anteprima, blocco offline e nuovo tentativo. Simulazioni browser isolate, non collaudo hardware iPad né due account reali.
+
+Suite completa locale PASS: 88 test in 12 file e 132 prove browser desktop/mobile. Lint, tipi, build, aggiornamento PWA e controllo segreti PASS. Corretto il contrasto delle intestazioni della tabella prodotti rilevato da axe. CI e verifica HTTPS eseguite alla pubblicazione.
+
 ## Schermata iniziale lista e ordine menu — 15 novembre 2026
 
 Aggiornati gli scenari browser desktop/mobile della precedente dashboard: `/` apre la lista effettiva a `/liste`, niente Home, menu primario e barra inferiore ordinati Catalogo/Ricette/Lista della spesa/Pasti/Statistiche. Verificate tutte e cinque le destinazioni e la voce corrente, lista vuota senza comandi di creazione, dati esistenti conservati, vecchi URL con evidenziazione della lista, logo e Indietro senza ciclo di reindirizzamenti. Accessibilità axe della nuova schermata iniziale PASS; accesso senza sessione e gestione avvisi ancora funzionanti. Dieci prove mirate PASS. Fixture isolate; nessuna lettura/scrittura di dati reali e nessuna nuova migrazione.
@@ -70,7 +78,7 @@ supabase/tests/online_rls.sql: PASS sul progetto reale. Due membri, invito/accet
 
 Check backend reale: PASS, Auth HTTP 200; 20 tabelle PROTETTA (401/42501 riferito alla tabella richiesta). Non equivale al collaudo autenticato Auth/JWT/PostgREST o Realtime su due client, tuttora NOT RUN completo.
 
-Suite locale corrente: 85 casi in 11 file, inclusi bootstrap completo, privilegi predefiniti, script SQL online con rollback, ricerca barcode su tre fonti, lista unica, ordine categorie, autocompletamento anche nella lista e cancellazione completa prodotti. Suite browser corrente: 122 casi desktop/mobile. CI e pubblicazione del nuovo commit vengono verificate separatamente dai test locali.
+Suite locale corrente: 88 casi in 12 file, inclusi bootstrap completo, privilegi predefiniti, script SQL online con rollback, ricerca barcode su tre fonti, lista unica, conteggi/ordine categorie, autocompletamento, cancellazione completa prodotti ed eliminazione piani. Suite browser corrente: 132 casi desktop/mobile. CI e pubblicazione del nuovo commit vengono verificate separatamente dai test locali.
 
 | Area                            | Ambiente e verifica                                                                                                  | Stato                                                                 |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |

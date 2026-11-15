@@ -396,6 +396,21 @@ export function Meals() {
           <ArrowRight />
         </button>
       </div>
+      {plan && (
+        <div className="inline wrap plan-actions">
+          <ArchiveButton table="meal_plans" record={plan} onDone={() => setPreview(null)} />
+          <ConfirmButton
+            message={`Eliminare definitivamente il piano settimanale dal ${new Date(week + 'T12:00:00').toLocaleDateString('it-IT')} al ${new Date(addDays(week, 6) + 'T12:00:00').toLocaleDateString('it-IT')}? Verranno eliminati tutti i pasti del piano. La lista della spesa, le quantità già trasferite, gli acquisti, le ricette e i modelli resteranno invariati. Non è possibile annullare questa operazione.`}
+            success="Piano settimanale eliminato."
+            onConfirm={async () => {
+              await remove('meal_plans', plan.id)
+              setPreview(null)
+            }}
+          >
+            Elimina piano settimanale
+          </ConfirmButton>
+        </div>
+      )}
       {!plan ? (
         <Panel title="Una settimana da organizzare">
           <p>Crea il piano e aggiungi ricette e alimenti nei vari momenti della giornata.</p>
@@ -412,11 +427,9 @@ export function Meals() {
             Il piano è nascosto dal calendario. Le quantità già trasferite nelle liste e gli acquisti sono
             conservati. Ripristinalo per modificarlo.
           </p>
-          <ArchiveButton table="meal_plans" record={plan} />
         </Panel>
       ) : (
         <>
-          <ArchiveButton table="meal_plans" record={plan} onDone={() => setPreview(null)} />
           <div className="week-grid">
             {days.map((day) => (
               <section className="day-card" key={day}>

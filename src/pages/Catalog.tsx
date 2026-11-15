@@ -9,7 +9,7 @@ import { useApp } from '../data/context'
 import { insert, remove, removeCatalogProduct, rpc, update } from '../data/client'
 import { convert, dateInZone, euro, quantity, units, validBarcode, type Unit } from '../domain/math'
 import { estimate, rank } from '../domain/prices'
-import { catalogProducts, productFormat, orderedCategories } from '../data/catalog'
+import { catalogProducts, productFormat, orderedCategories, catalogCategoryCounts } from '../data/catalog'
 import {
   ConfirmButton,
   Empty,
@@ -26,6 +26,7 @@ export function Catalog() {
   const { data, household } = useApp()
   const [search, setSearch] = useState('')
   const [archived, setArchived] = useState(false)
+  const [productsExpanded, setProductsExpanded] = useState(true)
   const [selected, setSelected] = useState('')
   const [prefill, setPrefill] = useState<
     (BarcodeProduct & { category: string; variant?: string; message?: string }) | null
@@ -43,6 +44,7 @@ export function Catalog() {
   }
   const categories = orderedCategories(data.categories)
   const allProducts = catalogProducts(data)
+  const summary = catalogCategoryCounts(data)
   const editing = allProducts.find((entry) => entry.kind + ':' + entry.product.id === selected)
   const product = editing?.product
   const details = editing?.kind === 'specific' ? editing.product : undefined
@@ -62,6 +64,23 @@ export function Catalog() {
   return (
     <>
       <SectionTitle eyebrow="SAPERE COSA SCEGLIERE" title="Il vostro catalogo." />
+      <Panel title="Prodotti per categoria">
+        <p className="muted">
+          {summary.total} prodotti attivi nel catalogo. I conteggi non cambiano con la ricerca; gli archiviati
+          sono esclusi.
+        </p>
+        <dl className="catalog-summary" aria-label="Numero di prodotti per categoria">
+          {summary.rows.map((category) => (
+            <div key={category.id ?? 'uncategorized'}>
+              <dt>{category.name}</dt>
+              <dd>{category.count}</dd>
+            </div>
+          ))}
+        </dl>
+        {!summary.rows.length && (
+          <p className="muted">Aggiungi le categorie della famiglia nella sezione qui sotto.</p>
+        )}
+      </Panel>
       {fromList && (
         <p className="callout">
           Completa e salva il prodotto: tornerai alla lista con il prodotto selezionato. Potrai controllare la
@@ -231,11 +250,24 @@ export function Catalog() {
         Cerca prodotto, marca o barcode
         <input
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value)
+            setProductsExpanded(true)
+          }}
           placeholder="Es. latte parzialmente scremato…"
         />
       </label>
-      <Panel title="Prodotti">
+      <details
+        className="panel catalog-products"
+        open={productsExpanded}
+        onToggle={(event) => setProductsExpanded(event.currentTarget.open)}
+      >
+        <summary>
+          <h2>
+            Prodotti <span className="count">{products.length}</span>
+          </h2>
+          <span className="text-button">{productsExpanded ? 'Riduci tabella' : 'Espandi tabella'}</span>
+        </summary>
         <p className="muted">
           I prodotti sono sempre in ordine alfabetico per nome. Rimuovi dal catalogo elimina definitivamente
           anche i dati collegati e lo storico prezzi. Archivia conserva tutti i dati.
@@ -304,7 +336,7 @@ export function Catalog() {
             Aggiungi un prodotto oppure modifica la ricerca.
           </Empty>
         )}
-      </Panel>
+      </details>
       <Panel title="Categorie della famiglia">
         <Form
           className="inline-form"

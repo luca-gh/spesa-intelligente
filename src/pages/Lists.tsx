@@ -301,42 +301,6 @@ function ListDetail({ id }: { id: string }) {
           <Link to={`/prezzi?lista=${id}`}>Calcola e salva la previsione prima della spesa →</Link>
         </div>
       )}
-      {frequent.size > 0 && (
-        <Panel title="Acquistati spesso">
-          <p className="muted">
-            Dagli acquisti reali non annullati. Ogni pulsante aggiunge 1 unità indicata; puoi poi correggere
-            la quantità.
-          </p>
-          <div className="inline wrap">
-            {[...frequent.values()]
-              .sort((a, b) => b.count - a.count || a.item.name.localeCompare(b.item.name, 'it'))
-              .slice(0, 8)
-              .map(({ item }) => (
-                <button
-                  className="button secondary"
-                  key={item.id}
-                  onClick={() =>
-                    void act(() =>
-                      rpc('add_list_item', {
-                        p_list: id,
-                        p_name: item.name,
-                        p_quantity: '1',
-                        p_unit: item.unit,
-                        p_generic: item.generic_product_id,
-                        p_specific: item.specific_product_id,
-                      }),
-                    )
-                  }
-                >
-                  {item.name} · 1 {item.unit}
-                </button>
-              ))}
-          </div>
-        </Panel>
-      )}
-      <Panel title="Aggiungi alla lista">
-        <AddListItemForm key={id} listId={id} />
-      </Panel>
       <label className="field search-field">
         Filtra articoli
         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cerca nella lista…" />
@@ -402,6 +366,42 @@ function ListDetail({ id }: { id: string }) {
           </h2>
           {done.filter((i) => i.name.toLowerCase().includes(search.toLowerCase())).map(renderItem)}
         </section>
+      )}
+      <Panel title="Aggiungi alla lista">
+        <AddListItemForm key={id} listId={id} />
+      </Panel>
+      {frequent.size > 0 && (
+        <Panel title="Acquistati spesso">
+          <p className="muted">
+            Dagli acquisti reali non annullati. Ogni pulsante aggiunge 1 unità indicata; puoi poi correggere
+            la quantità.
+          </p>
+          <div className="inline wrap">
+            {[...frequent.values()]
+              .sort((a, b) => b.count - a.count || a.item.name.localeCompare(b.item.name, 'it'))
+              .slice(0, 8)
+              .map(({ item }) => (
+                <button
+                  className="button secondary"
+                  key={item.id}
+                  onClick={() =>
+                    void act(() =>
+                      rpc('add_list_item', {
+                        p_list: id,
+                        p_name: item.name,
+                        p_quantity: '1',
+                        p_unit: item.unit,
+                        p_generic: item.generic_product_id,
+                        p_specific: item.specific_product_id,
+                      }),
+                    )
+                  }
+                >
+                  {item.name} · 1 {item.unit}
+                </button>
+              ))}
+          </div>
+        </Panel>
       )}
     </>
   )

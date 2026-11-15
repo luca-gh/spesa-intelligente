@@ -1,5 +1,13 @@
 # Avanzamento
 
+## Catalogo compatto, lista prima del modulo e cancellazione piani — 15 novembre 2026
+
+Dashboard in cima al Catalogo con prodotti attivi per categoria, zeri inclusi, ordine familiare e Altri prodotti per le schede senza categoria. Conteggi indipendenti dai filtri e dai raggruppamenti interni. Tabella Prodotti richiudibile con details/summary nativi, mouse/tocco/tastiera; la ricerca la riapre. Intestazioni della tabella rese più leggibili. Nella lista gli articoli, inclusi gli acquistati, precedono il modulo di aggiunta e i suggerimenti frequenti.
+
+Pasti: Elimina piano settimanale disponibile per attivi e archiviati, con date e conferma irreversibile; cancella piano/pasti, azzera l’anteprima solo dopo successo e permette di ricreare la settimana vuota. Lista già confermata, acquisti, ricette, modelli e altre settimane conservati. Riutilizzati DELETE, RLS e FK ON DELETE CASCADE esistenti; nessuna migrazione o nuovo privilegio. Script SQL locale/remoto PASS con rollback e impronte dei dati reali invariate. Due test locali per i conteggi e uno per la cancellazione SQL; dieci prove browser mirate desktop/mobile PASS, inclusa accessibilità del Catalogo.
+
+Suite completa PASS: 88 test locali in 12 file, 132 prove browser desktop/mobile, lint, tipi, build, aggiornamento PWA e segreti. Screenshot mobile della dashboard verificato; nessun collaudo hardware aggiuntivo. CI e disponibilità HTTPS controllate sul commit pubblicato.
+
 ## Lista come schermata iniziale e nuovo menu — 15 novembre 2026
 
 Home sostituita dalla lista della spesa già presente: `/` reindirizza a `/liste` con replace, anche dal logo e dall’avvio PWA esistente. Rimossa la precedente pagina Home e il collegamento Home dalla lista. Menu principale desktop e barra mobile condividono l’ordine Catalogo, Ricette, Lista della spesa, Pasti, Statistiche; lista al centro, senza duplicazione nel menu secondario. Vecchi URL `/liste/...` conservati, voce attiva anche su quei percorsi. Nessuna migrazione o modifica ai dati. Dieci prove mirate desktop/mobile PASS: avvio, lista vuota e popolata, cinque destinazioni e ordine, voce attiva, logo/Indietro senza passaggio Home, URL precedenti, accessibilità axe e accesso senza sessione.

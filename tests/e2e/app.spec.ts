@@ -142,8 +142,8 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
     } else if (table === 'add_list_item') {
       const body = route.request().postDataJSON()
       itemRequests.push(body)
-      const id = `item-new-${items.length + 1}`
-      items.push({
+      const id = `item-new-${collections.shopping_list_items.length + 1}`
+      ;(collections.shopping_list_items as Record<string, unknown>[]).push({
         id,
         list_id: body.p_list,
         name: body.p_name,
@@ -153,8 +153,8 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
         note: '',
         created_at: '2026-11-14T13:00:00Z',
       })
-      contributions.push({
-        id: 'new-manual',
+      ;(collections.list_item_contributions as Record<string, unknown>[]).push({
+        id: id + '-manual',
         item_id: id,
         origin_type: 'manual',
         origin_id: id,
@@ -201,6 +201,16 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
       const entry = { id: `meal-new-${mealRequests.length}`, ...body }
       ;(collections.meal_entries ??= []).push(entry)
       result = entry
+    } else if (table === 'meal_plans' && route.request().method() === 'POST') {
+      const body = route.request().postDataJSON()
+      const plan = {
+        id: `new-plan-${(collections.meal_plans ?? []).length}`,
+        version: 1,
+        archived_at: null,
+        ...body,
+      }
+      ;(collections.meal_plans ??= []).push(plan)
+      result = plan
     } else if (table === 'shopping_lists' && route.request().method() === 'POST') {
       const body = route.request().postDataJSON()
       const next = { ...list, title: body.title }
@@ -233,6 +243,7 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
         'recipes',
         'recipe_ingredients',
         'meal_templates',
+        'meal_plans',
       ].includes(table) &&
       route.request().method() === 'DELETE'
     ) {
@@ -241,6 +252,10 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
       const records = collections[table] as { id: string }[]
       const index = records.findIndex((record) => record.id === id)
       result = index >= 0 ? records.splice(index, 1)[0] : null
+      if (table === 'meal_plans')
+        collections.meal_entries = ((collections.meal_entries ?? []) as { meal_plan_id: string }[]).filter(
+          (entry) => entry.meal_plan_id !== id,
+        )
     } else result = collections[table] ?? []
     await route.fulfill({ json: result, headers: { 'access-control-allow-origin': '*' } })
   })
@@ -1192,6 +1207,123 @@ test('lista: il prodotto senza marca permette il confronto tra le marche disponi
   })
 })
 
+test('catalogo: dashboard per categoria, tabella richiudibile e ricerca che la riapre', async ({ page }) => {
+  await login(page, false, {
+    ...categoryCatalog,
+    categories: [
+      ...categoryCatalog.categories,
+      { id: 'empty-category', name: 'Categoria vuota', sort_order: 30 },
+    ],
+    generic_products: categoryCatalog.generic_products.map((p) => ({
+      ...p,
+      is_catalog_group: p.id === 'fruit',
+    })),
+    specific_products: ['A', 'B', 'C'].map((brand) => ({
+      id: 'fruit-' + brand,
+      name: 'Mele',
+      brand,
+      generic_product_id: 'fruit',
+      variant: '',
+      barcode: null,
+      package_quantity: null,
+      package_unit: null,
+      archived_at: brand === 'C' ? '2026-11-15' : null,
+    })),
+  })
+  await page.goto('/catalogo')
+  const counts = page.locator('dl[aria-label="Numero di prodotti per categoria"]')
+  await expect(counts.locator('dt')).toHaveText(['Latticini', 'Frutta', 'Categoria vuota', 'Altri prodotti'])
+  await expect(counts.locator('dd')).toHaveText(['1', '2', '0', '0'])
+  expect(
+    await counts.evaluate(
+      (element) =>
+        !!(
+          element.compareDocumentPosition(document.querySelector('form')!) & Node.DOCUMENT_POSITION_FOLLOWING
+        ),
+    ),
+  ).toBe(true)
+  const toggle = page.locator('.catalog-products > summary')
+  if (test.info().project.name === 'mobile') await toggle.tap()
+  else await toggle.click()
+  await expect(page.locator('.catalog-products table')).not.toBeVisible()
+  await expect(toggle).toContainText('Espandi tabella')
+  const categories = page.getByRole('heading', { name: 'Categorie della famiglia', exact: true })
+  await categories.scrollIntoViewIfNeeded()
+  await expect(categories).toBeInViewport()
+  await toggle.focus()
+  await toggle.press('Enter')
+  await expect(page.locator('.catalog-products table')).toBeVisible()
+  await toggle.press('Enter')
+  await page.getByLabel('Cerca prodotto, marca o barcode').fill('Latte')
+  await expect(page.locator('.catalog-products table')).toBeVisible()
+  await expect(page.locator('.catalog-products tbody tr')).toHaveCount(1)
+  await expect(counts.locator('dd')).toHaveText(['1', '2', '0', '0'])
+  await page.getByLabel('Cerca prodotto, marca o barcode').fill('')
+  await page.getByLabel('Mostra archiviati', { exact: true }).check()
+  await expect(page.locator('.catalog-products tbody tr')).toHaveCount(1)
+  await expect(counts.locator('dd')).toHaveText(['1', '2', '0', '0'])
+  const accessibility = await new AxeBuilder({ page })
+    .include('#main')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+    .analyze()
+  expect(
+    accessibility.violations.map((v) => ({
+      id: v.id,
+      nodes: v.nodes.map((n) => ({ target: n.target, summary: n.failureSummary })),
+    })),
+  ).toEqual([])
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await page.screenshot({
+    path: `test-results/catalog-dashboard-${test.info().project.name}.png`,
+    fullPage: true,
+  })
+})
+
+test('lista: articoli da acquistare e acquistati precedono il modulo di aggiunta', async ({ page }) => {
+  const list = '20000000-0000-4000-8000-000000000001'
+  const { itemRequests } = await login(page, false, {
+    shopping_list_items: ['pending', 'done'].map((id) => ({
+      id,
+      name: id === 'pending' ? 'Da comprare' : 'Già acquistato',
+      list_id: list,
+      unit: 'pz',
+      created_at: '2026-11-15T12:00:00Z',
+    })),
+    list_item_contributions: ['pending', 'done'].map((id) => ({
+      id: id + '-contribution',
+      item_id: id,
+      origin_type: 'manual',
+      origin_id: id,
+      requested_quantity: '1',
+    })),
+    purchases: [
+      {
+        id: 'purchase',
+        list_item_id: 'done',
+        quantity: '1',
+        unit: 'pz',
+        total_paid: '2',
+        voided_at: null,
+        purchased_at: '2026-11-15T12:00:00Z',
+      },
+    ],
+  })
+  await page.goto('/liste')
+  await expect(page.getByRole('button', { name: 'Registra acquisto Da comprare', exact: true })).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'Registra acquisto Già acquistato', exact: true }),
+  ).toBeVisible()
+  const formTop = (await page
+    .getByRole('heading', { name: 'Aggiungi alla lista', exact: true })
+    .boundingBox())!.y
+  for (const article of await page.locator('.shopping-item').all())
+    expect((await article.boundingBox())!.y).toBeLessThan(formTop)
+  await page.getByLabel('Nome per articolo libero').fill('Pane nuovo')
+  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
+  await expect.poll(() => itemRequests.length).toBe(1)
+  await expect(page.locator('.shopping-item').filter({ hasText: 'Pane nuovo' })).toBeVisible()
+})
+
 test('catalogo: ordine alfabetico automatico senza selettore', async ({ page }) => {
   await login(page, false, productCatalog)
   await page.goto('/catalogo')
@@ -1969,6 +2101,131 @@ test('ricette: rimozione ingrediente, archiviazione e ripristino', async ({ page
   await page.getByRole('button', { name: 'Ripristina', exact: true }).click()
   await page.getByLabel('Mostra archiviati', { exact: true }).uncheck()
   await expect(page.locator('.recipe-card')).toContainText('Ricetta Test')
+})
+
+for (const archived of [false, true]) {
+  test(`pasti: elimina piano ${archived ? 'archiviato' : 'attivo'}, conserva altra settimana e permette di ricrearlo`, async ({
+    page,
+  }) => {
+    await page.clock.install({ time: new Date('2026-11-18T12:00:00Z') })
+    const { catalogDeleteRequests } = await login(page, true, {
+      ...productCatalog,
+      meal_plans: [
+        {
+          id: 'plan',
+          week_start: '2026-11-16',
+          linked_list_id: '20000000-0000-4000-8000-000000000001',
+          version: 1,
+          archived_at: archived ? '2026-11-15' : null,
+        },
+        { id: 'other-plan', week_start: '2026-11-23', version: 1, archived_at: null },
+      ],
+      recipes: [{ id: 'recipe', title: 'Ricetta conservata', base_servings: 2, instructions: '' }],
+      meal_entries: [
+        {
+          id: 'entry',
+          meal_plan_id: 'plan',
+          generic_product_id: 'generic-milk',
+          quantity: '1',
+          unit: 'L',
+          meal_date: '2026-11-18',
+          meal_slot: 'pranzo',
+        },
+        {
+          id: 'other-entry',
+          meal_plan_id: 'other-plan',
+          recipe_id: 'recipe',
+          meal_date: '2026-11-23',
+          meal_slot: 'pranzo',
+        },
+      ],
+      meal_templates: [{ id: 'template', name: 'Modello conservato', entries_json: [] }],
+      purchases: [
+        {
+          id: 'purchase',
+          list_item_id: 'item',
+          quantity: '0.5',
+          unit: 'L',
+          total_paid: '2',
+          voided_at: null,
+          purchased_at: '2026-11-18T12:00:00Z',
+        },
+      ],
+    })
+    await page.goto('/pasti')
+    page.once('dialog', async (dialog) => {
+      expect(dialog.message()).toContain('16/11/2026')
+      expect(dialog.message()).toContain('22/11/2026')
+      expect(dialog.message()).toContain('quantità già trasferite')
+      await dialog.accept()
+    })
+    await page.getByRole('button', { name: 'Elimina piano settimanale', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Crea piano settimanale', exact: true })).toBeVisible()
+    await expect(page.locator('.week-grid')).toHaveCount(0)
+    expect(catalogDeleteRequests).toEqual([{ table: 'meal_plans', id: 'plan' }])
+    await page.reload()
+    await page.getByRole('button', { name: 'Crea piano settimanale', exact: true }).click()
+    await expect(page.locator('.week-grid')).toBeVisible()
+    await expect(page.locator('.meal-chip')).toHaveCount(0)
+    await expect(page.getByText('Modello conservato', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Settimana successiva', exact: true }).click()
+    await expect(page.locator('.meal-chip')).toContainText('Ricetta conservata')
+    await page.goto('/liste')
+    await expect(page.locator('.shopping-item')).toContainText('Latte')
+    await expect(page.locator('.shopping-item')).toContainText('0.5 L')
+  })
+}
+
+test('pasti: annullamento, errore e offline preservano il piano e la sua anteprima', async ({
+  page,
+  context,
+}) => {
+  await page.clock.install({ time: new Date('2026-11-18T12:00:00Z') })
+  const { catalogDeleteRequests } = await login(page, false, {
+    ...productCatalog,
+    meal_plans: [{ id: 'plan', week_start: '2026-11-16', version: 1, archived_at: null }],
+    meal_entries: [
+      {
+        id: 'entry',
+        meal_plan_id: 'plan',
+        generic_product_id: 'generic-milk',
+        quantity: '1',
+        unit: 'L',
+        meal_date: '2026-11-18',
+        meal_slot: 'pranzo',
+      },
+    ],
+  })
+  await page.goto('/pasti')
+  await page.getByRole('button', { name: 'Calcola anteprima delle differenze', exact: true }).click()
+  await expect(page.locator('.diff')).toBeVisible()
+  const button = page.getByRole('button', { name: 'Elimina piano settimanale', exact: true })
+  page.once('dialog', (dialog) => dialog.dismiss())
+  await button.click()
+  expect(catalogDeleteRequests).toHaveLength(0)
+  await expect(page.locator('.diff')).toBeVisible()
+  let fail = true
+  await page.route('**/rest/v1/meal_plans?*', async (route) => {
+    if (route.request().method() === 'DELETE' && fail) {
+      fail = false
+      await route.fulfill({ status: 503, json: { message: 'Fixture unavailable' } })
+    } else await route.fallback()
+  })
+  page.on('dialog', (dialog) => dialog.accept())
+  await button.click()
+  await expect(page.locator('.notice')).toContainText('Operazione non riuscita')
+  await expect(page.locator('.diff')).toBeVisible()
+  expect(catalogDeleteRequests).toHaveLength(0)
+  await context.setOffline(true)
+  await page.evaluate(() => window.dispatchEvent(new Event('offline')))
+  await expect(button).toBeDisabled()
+  await context.setOffline(false)
+  await page.evaluate(() => window.dispatchEvent(new Event('online')))
+  await expect(button).toBeEnabled()
+  await button.click()
+  await expect(page.getByRole('button', { name: 'Crea piano settimanale', exact: true })).toBeVisible()
+  await expect(page.locator('.diff')).toHaveCount(0)
+  expect(catalogDeleteRequests).toHaveLength(1)
 })
 
 test('piano settimanale archiviato nasconde il calendario ed è ripristinabile', async ({ page }) => {
