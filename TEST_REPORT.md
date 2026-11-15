@@ -1,5 +1,15 @@
 # Rapporto test
 
+## Cancellazione completa prodotti — 15 novembre 2026
+
+Due nuovi test PostgreSQL: script SQL riutilizzabile con fixture temporanee e rollback forzato tramite errore prima della cancellazione finale. Verificati prodotto archiviato/attivo, generico legacy, scheda senza gruppo, ultima marca e gruppo condiviso con marca archiviata; rimozione di articoli attivi/rimossi, contributi, acquisti, prezzi annullati/attivi, ingredienti, pasti, JSON dei modelli, esclusioni dagli sconti e previsioni annidate. Conservati altri prodotti, acquisti, prezzi, ricette, modelli, categorie e negozi; incremento versioni lista/piani, anteprima obsoleta respinta. Due membri sintetici, famiglia estranea, accesso privato diretto, anon e grant sulle tabelle contabili verificati.
+
+Lo stesso script `supabase/tests/catalog_deletion.sql` eseguito sul progetto reale: PASS, transazione annullata. Impronte di tutte le 20 tabelle applicative e di auth.users identiche prima dell’installazione/test e dopo; nessuna fixture persistente o prodotto reale eliminato. Migrazione 20261115190432 registrata, checksum SQL corrispondente al file locale. Advisor security/performance senza errori: restano 23 RPC pubbliche definer, protezione password compromesse, indici FK/RLS e policy preesistenti. La nuova implementazione privilegiata è nello schema private, con wrapper pubblico invoker; nessun nuovo grant di scrittura diretta.
+
+Prove browser desktop/mobile con fixture: conferma nominativa e irreversibilità, annullamento senza RPC, una sola RPC senza DELETE separati, errore con bozza conservata e nuovo tentativo, blocco offline, aggiornamento lista anche dopo refresh, ingrediente rimosso da ricetta conservata, pasto diretto rimosso e ricetta nel calendario conservata, storico prezzi pulito. Non sono prove Auth/JWT su due account reali o test hardware iPad.
+
+Suite completa locale PASS: 84 test in 11 file e 120 prove browser desktop/mobile. Lint, tipi, build, aggiornamento PWA e controllo segreti PASS; CI del commit e disponibilità HTTPS verificate alla pubblicazione.
+
 ## Autocompletamento ricette e pasti — 15 novembre 2026
 
 Tre nuovi test locali per ordine italiano, ricerca parziale su più parole senza accenti/maiuscole, identificativi conservati e omonimi ricetta/alimento. Otto nuove prove browser desktop/mobile PASS: lista alfabetica senza archiviati, selezione da tastiera e tocco simulato, righe ingrediente indipendenti, nessun risultato, testo modificato senza identificativo obsoleto, errore con scelta conservata, reset dopo salvataggio, calendario con ricetta e alimento omonimi e payload corretti. Fixture isolate: nessun dato reale letto o scritto; il tocco simulato non equivale a prova hardware iPad.
@@ -48,7 +58,7 @@ supabase/tests/online_rls.sql: PASS sul progetto reale. Due membri, invito/accet
 
 Check backend reale: PASS, Auth HTTP 200; 20 tabelle PROTETTA (401/42501 riferito alla tabella richiesta). Non equivale al collaudo autenticato Auth/JWT/PostgREST o Realtime su due client, tuttora NOT RUN completo.
 
-Suite locale corrente: 82 casi in 10 file, inclusi bootstrap completo, privilegi predefiniti, script SQL online con rollback, ricerca barcode su tre fonti, lista unica, ordine categorie e autocompletamento. Suite browser corrente: 116 casi desktop/mobile. CI e pubblicazione del nuovo commit vengono verificate separatamente dai test locali.
+Suite locale corrente: 84 casi in 11 file, inclusi bootstrap completo, privilegi predefiniti, script SQL online con rollback, ricerca barcode su tre fonti, lista unica, ordine categorie, autocompletamento e cancellazione completa prodotti. Suite browser corrente: 120 casi desktop/mobile. CI e pubblicazione del nuovo commit vengono verificate separatamente dai test locali.
 
 | Area                            | Ambiente e verifica                                                                                                  | Stato                                                                 |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |

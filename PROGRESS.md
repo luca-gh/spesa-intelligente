@@ -1,5 +1,13 @@
 # Avanzamento
 
+## Cancellazione completa dal Catalogo — 15 novembre 2026
+
+Rimuovi dal catalogo ora cancella definitivamente anche prodotti con collegamenti, dopo conferma nominativa con elenco delle conseguenze. Un’unica transazione rimuove articoli e contributi, acquisti, prezzi anche annullati, previsioni che citano dati eliminati ed esclusioni dagli sconti. All’ultima scheda di un alimento, elimina anche il raggruppamento interno e i suoi riferimenti negli ingredienti delle ricette, nei pasti e nei modelli, conservando ricette/modelli e le altre voci. Altre marche, anche archiviate, restano con i collegamenti generici condivisi. Archivia continua a conservare lo storico; la rimozione dalla lista resta distinta.
+
+Migrazione 20261115190432 applicata tramite Supabase; funzioni soltanto, nessuna cancellazione di prodotti reali durante l’installazione. Wrapper pubblico invoker e implementazione privata definer per le tabelle contabili RPC-only, autorizzazione esplicita per famiglia e privilegi anon revocati. Collaudo SQL remoto transazionale PASS con rollback; impronte di tutte le tabelle applicative e Auth invariate. Advisor senza errori; avvisi preesistenti documentati nel rapporto test. Due nuovi test locali coprono lo script SQL e il rollback forzato dopo rimozioni parziali.
+
+Verifiche locali PASS: lint, tipi, build, 84 test in 11 file, 120 prove browser desktop/mobile, aggiornamento PWA e controllo segreti. Pubblicazione e CI del commit controllate separatamente.
+
 ## Ingredienti e calendario con autocompletamento — 15 novembre 2026
 
 Selettore con ricerca per ogni ingrediente delle ricette e per Ricetta o alimento nel calendario. Risultati sempre in ordine alfabetico italiano, filtrati mentre si scrive, senza distinzione tra maiuscole e accenti e con supporto a più parole parziali. Nel calendario ricette e alimenti sono ordinati insieme, con tipo visibile per distinguere gli omonimi. Selezione con tocco, mouse, frecce e Invio; Escape chiude. Il testo libero senza selezione non viene salvato; ogni ingrediente mantiene la propria scelta. Valori conservati dopo un errore e svuotati solo dopo salvataggio riuscito. Nessuna migrazione o nuova dipendenza.

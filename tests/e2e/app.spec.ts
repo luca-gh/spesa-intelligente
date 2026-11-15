@@ -97,6 +97,48 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
         package_unit: body.p_unit,
       })
       result = { id: specific.id, specific: true }
+    } else if (table === 'delete_catalog_product') {
+      const { p_id, p_specific } = route.request().postDataJSON()
+      const table = p_specific ? 'specific_products' : 'generic_products'
+      catalogDeleteRequests.push({ table, id: p_id })
+      const records = collections[table] as Record<string, unknown>[]
+      const selected = records.find((r) => r.id === p_id)
+      const specifics = (collections.specific_products ?? []) as Record<string, unknown>[]
+      const group = p_specific ? selected?.generic_product_id : p_id
+      const deletedSpecifics = new Set(
+        p_specific ? [p_id] : specifics.filter((r) => r.generic_product_id === group).map((r) => r.id),
+      )
+      const deleteGroup =
+        group && !specifics.some((r) => r.generic_product_id === group && !deletedSpecifics.has(r.id))
+      collections.specific_products = specifics.filter((r) => !deletedSpecifics.has(r.id))
+      collections.generic_products = (collections.generic_products as Record<string, unknown>[]).filter(
+        (r) => !(deleteGroup && r.id === group),
+      )
+      const deletedItems = new Set(
+        ((collections.shopping_list_items ?? []) as Record<string, unknown>[])
+          .filter(
+            (r) =>
+              deletedSpecifics.has(r.specific_product_id) || (deleteGroup && r.generic_product_id === group),
+          )
+          .map((r) => r.id),
+      )
+      for (const target of [
+        'shopping_list_items',
+        'purchases',
+        'price_observations',
+        'list_item_contributions',
+        'recipe_ingredients',
+        'meal_entries',
+      ])
+        collections[target] = ((collections[target] ?? []) as Record<string, unknown>[]).filter(
+          (r) =>
+            !deletedSpecifics.has(r.specific_product_id) &&
+            !(deleteGroup && r.generic_product_id === group) &&
+            !deletedItems.has(r.id) &&
+            !deletedItems.has(r.list_item_id) &&
+            !deletedItems.has(r.item_id),
+        )
+      result = null
     } else if (table === 'add_list_item') {
       const body = route.request().postDataJSON()
       itemRequests.push(body)
@@ -1200,17 +1242,24 @@ test('catalogo: elimina generico e commerciale inutilizzati e chiude la modifica
   await specific.getByRole('button', { name: 'Rimuovi dal catalogo', exact: true }).click()
   await expect(specific).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Nuovo prodotto' })).toBeVisible()
-  await expect(page.getByRole('status').filter({ hasText: 'Prodotto rimosso dal catalogo.' })).toBeVisible()
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Prodotto e dati collegati eliminati definitivamente.' }),
+  ).toBeVisible()
   expect(catalogDeleteRequests).toEqual([
     { table: 'generic_products', id: 'generic-milk' },
     { table: 'specific_products', id: 'specific-flour' },
   ])
 })
-test('catalogo: annullare la conferma conserva il prodotto senza inviare DELETE', async ({ page }) => {
+test('catalogo: annullare la conferma definitiva conserva il prodotto senza chiamare la RPC', async ({
+  page,
+}) => {
   const { catalogDeleteRequests } = await login(page, false, productCatalog)
   await page.goto('/catalogo')
   page.once('dialog', async (dialog) => {
     expect(dialog.message()).toContain('Latte intero')
+    expect(dialog.message()).toContain('storico prezzi')
+    expect(dialog.message()).toContain('ricette')
+    expect(dialog.message()).toContain('Non è possibile annullare')
     await dialog.dismiss()
   })
   const row = page.getByRole('row', { name: /^Latte intero/ })
@@ -1222,25 +1271,204 @@ for (const { table, rowName } of [
   { table: 'generic_products', rowName: /^Farina 00/ },
   { table: 'specific_products', rowName: /^Farina fine/ },
 ]) {
-  test(`catalogo: ${table} in uso resta visibile con un messaggio comprensibile`, async ({ page }) => {
-    await login(page, false, productCatalog)
-    await page.route(`**/rest/v1/${table}?*`, async (route) => {
-      if (route.request().method() === 'DELETE')
-        await route.fulfill({
-          status: 409,
-          json: { code: '23503', message: 'foreign key constraint fixture_private_detail' },
-        })
-      else await route.fallback()
+  test(`catalogo: ${table} errore di cancellazione conserva prodotto e bozza per riprovare`, async ({
+    page,
+  }) => {
+    const { catalogDeleteRequests } = await login(page, false, productCatalog)
+    let fail = true
+    await page.route('**/rest/v1/rpc/delete_catalog_product', async (route) => {
+      if (fail) {
+        fail = false
+        await route.fulfill({ status: 503, json: { message: 'fixture_private_detail' } })
+      } else await route.fallback()
     })
     await page.goto('/catalogo')
-    page.once('dialog', (dialog) => dialog.accept())
+    page.on('dialog', (dialog) => dialog.accept())
     const row = page.getByRole('row', { name: rowName })
+    await row.getByRole('button', { name: 'Modifica', exact: true }).click()
+    await page.getByLabel('Nome prodotto', { exact: true }).fill('Bozza da conservare')
     await row.getByRole('button', { name: 'Rimuovi dal catalogo', exact: true }).click()
-    await expect(page.getByRole('status').filter({ hasText: 'Prodotto in uso:' })).toBeVisible()
+    await expect(page.getByRole('status').filter({ hasText: 'Operazione non riuscita' })).toBeVisible()
     await expect(row).toBeVisible()
+    await expect(page.getByLabel('Nome prodotto', { exact: true })).toHaveValue('Bozza da conservare')
     await expect(page.getByText('fixture_private_detail', { exact: false })).toHaveCount(0)
+    expect(catalogDeleteRequests).toHaveLength(0)
+    await row.getByRole('button', { name: 'Rimuovi dal catalogo', exact: true }).click()
+    await expect(row).toHaveCount(0)
+    expect(catalogDeleteRequests).toHaveLength(1)
   })
 }
+
+test('catalogo: cancellazione definitiva aggiorna lista, ingredienti, pasti e storico prezzi', async ({
+  page,
+}) => {
+  await page.clock.install({ time: new Date('2026-11-18T12:00:00Z') })
+  const listId = '20000000-0000-4000-8000-000000000001'
+  const { catalogDeleteRequests } = await login(page, false, {
+    ...productCatalog,
+    generic_products: productCatalog.generic_products.map((p) => ({
+      ...p,
+      is_catalog_group: p.id === 'generic-milk',
+    })),
+    specific_products: [
+      ...productCatalog.specific_products,
+      {
+        id: 'specific-milk',
+        name: 'Latte intero',
+        generic_product_id: 'generic-milk',
+        brand: 'Abit',
+        variant: '',
+        package_quantity: '1',
+        package_unit: 'L',
+      },
+    ],
+    shopping_list_items: [
+      {
+        id: 'milk-item',
+        list_id: listId,
+        name: 'Latte nella lista',
+        generic_product_id: null,
+        specific_product_id: 'specific-milk',
+        unit: 'L',
+        note: '',
+        created_at: '2026-11-14T12:00:00Z',
+      },
+    ],
+    list_item_contributions: [
+      {
+        id: 'milk-quantity',
+        item_id: 'milk-item',
+        origin_type: 'manual',
+        origin_id: 'milk-item',
+        requested_quantity: '2',
+      },
+    ],
+    purchases: [
+      {
+        id: 'milk-purchase',
+        list_item_id: 'milk-item',
+        specific_product_id: 'specific-milk',
+        quantity: '1',
+        total_paid: '2',
+        unit: 'L',
+        purchased_at: '2026-11-18T10:00:00Z',
+        voided_at: null,
+      },
+    ],
+    recipes: [{ id: 'breakfast', title: 'Colazione semplice', base_servings: 2, instructions: 'Mescolare.' }],
+    recipe_ingredients: [
+      {
+        id: 'milk-ingredient',
+        recipe_id: 'breakfast',
+        generic_product_id: 'generic-milk',
+        quantity: '1',
+        unit: 'L',
+      },
+      {
+        id: 'flour-ingredient',
+        recipe_id: 'breakfast',
+        generic_product_id: 'generic-flour',
+        quantity: '100',
+        unit: 'g',
+      },
+    ],
+    meal_plans: [{ id: 'plan', week_start: '2026-11-16', linked_list_id: listId, version: 1 }],
+    meal_entries: [
+      {
+        id: 'milk-meal',
+        meal_plan_id: 'plan',
+        meal_date: '2026-11-18',
+        meal_slot: 'pranzo',
+        generic_product_id: 'generic-milk',
+        quantity: '1',
+        unit: 'L',
+        recipe_id: null,
+      },
+      {
+        id: 'recipe-meal',
+        meal_plan_id: 'plan',
+        meal_date: '2026-11-18',
+        meal_slot: 'cena',
+        recipe_id: 'breakfast',
+        generic_product_id: null,
+      },
+    ],
+    price_observations: [
+      {
+        id: 'milk-price',
+        specific_product_id: 'specific-milk',
+        store_id: 'shop',
+        price_amount: '2',
+        kind: 'regular',
+        observed_at: '2026-11-18T10:00:00Z',
+      },
+    ],
+  })
+  const writes: { method: string; path: string; body: unknown }[] = []
+  page.on('request', (request) => {
+    if (request.url().includes('/rest/v1/') && request.method() !== 'GET')
+      writes.push({
+        method: request.method(),
+        path: new URL(request.url()).pathname,
+        body: request.postDataJSON(),
+      })
+  })
+  await page.goto('/liste')
+  await expect(
+    page.getByRole('button', { name: 'Registra acquisto Latte nella lista', exact: true }),
+  ).toBeVisible()
+  await page.goto('/catalogo')
+  page.once('dialog', async (dialog) => {
+    expect(dialog.message()).toContain('Latte intero')
+    expect(dialog.message()).toContain('Abit')
+    expect(dialog.message()).toContain('acquisti')
+    await dialog.accept()
+  })
+  await page
+    .getByRole('row', { name: /^Latte intero/ })
+    .getByRole('button', { name: 'Rimuovi dal catalogo', exact: true })
+    .click()
+  await expect(page.getByRole('row', { name: /^Latte intero/ })).toHaveCount(0)
+  expect(catalogDeleteRequests).toEqual([{ table: 'specific_products', id: 'specific-milk' }])
+  expect(writes).toEqual([
+    {
+      method: 'POST',
+      path: '/rest/v1/rpc/delete_catalog_product',
+      body: { p_id: 'specific-milk', p_specific: true },
+    },
+  ])
+  await page.goto('/liste')
+  await expect(page.getByRole('form', { name: 'Aggiungi un articolo alla lista' })).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'Registra acquisto Latte nella lista', exact: true }),
+  ).toHaveCount(0)
+  await page.reload()
+  await expect(page.getByRole('form', { name: 'Aggiungi un articolo alla lista' })).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'Registra acquisto Latte nella lista', exact: true }),
+  ).toHaveCount(0)
+  await page.goto('/ricette')
+  await page.getByRole('button', { name: 'Colazione semplice', exact: true }).click()
+  await expect(page.locator('.ingredients')).toContainText('Farina 00')
+  await expect(page.locator('.ingredients')).not.toContainText('Latte')
+  await page.goto('/pasti')
+  await expect(page.locator('.meal-chip')).toHaveCount(1)
+  await expect(page.locator('.meal-chip')).toContainText('Colazione semplice')
+  await page.goto('/prezzi')
+  await expect(page.getByRole('heading', { name: 'Ogni prezzo ha una data' })).toBeVisible()
+})
+
+test('catalogo: offline blocca la cancellazione definitiva senza richieste', async ({ page }) => {
+  const { catalogDeleteRequests } = await login(page, false, productCatalog)
+  await page.goto('/catalogo')
+  const row = page.getByRole('row', { name: /^Latte intero/ })
+  await expect(row).toBeVisible()
+  await page.context().setOffline(true)
+  await page.evaluate(() => window.dispatchEvent(new Event('offline')))
+  await expect(row.getByRole('button', { name: 'Rimuovi dal catalogo', exact: true })).toBeDisabled()
+  expect(catalogDeleteRequests).toHaveLength(0)
+  await expect(row).toBeVisible()
+})
 
 test('catalogo vuoto esplicito e articolo libero obbligatorio', async ({ page }) => {
   const { itemRequests } = await login(page, true)

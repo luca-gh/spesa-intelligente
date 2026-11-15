@@ -72,15 +72,5 @@ export async function remove(table: string, id: string) {
   if (error) throw error
 }
 export async function removeCatalogProduct(table: 'generic_products' | 'specific_products', id: string) {
-  try {
-    await remove(table, id)
-  } catch (error) {
-    if (typeof error === 'object' && error && 'code' in error && error.code === '23503') {
-      throw new Error(
-        'Prodotto in uso: è collegato a prodotti commerciali, liste, ricette, pasti, prezzi o acquisti. Puoi archiviarlo per rimuoverlo dalle viste attive, conservando i dati collegati.',
-        { cause: error },
-      )
-    }
-    throw error
-  }
+  await rpc('delete_catalog_product', { p_id: id, p_specific: table === 'specific_products' })
 }

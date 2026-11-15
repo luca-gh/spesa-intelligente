@@ -237,8 +237,8 @@ export function Catalog() {
       </label>
       <Panel title="Prodotti">
         <p className="muted">
-          I prodotti sono sempre in ordine alfabetico per nome. Puoi eliminare quelli inutilizzati o
-          archiviarli conservando i dati collegati.
+          I prodotti sono sempre in ordine alfabetico per nome. Rimuovi dal catalogo elimina definitivamente
+          anche i dati collegati e lo storico prezzi. Archivia conserva tutti i dati.
         </p>
         <ArchiveFilter value={archived} onChange={setArchived} />
         <div className="table-wrap">
@@ -283,8 +283,8 @@ export function Catalog() {
                         }}
                       />
                       <ConfirmButton
-                        message={`Rimuovere il prodotto «${p.name}» dal catalogo? Se ha dati collegati, usa Archivia per conservarli.`}
-                        success="Prodotto rimosso dal catalogo."
+                        message={`Eliminare definitivamente «${p.name}»${specific?.brand ? ` (${specific.brand})` : ''}? Verranno cancellati anche gli articoli collegati nella lista, gli acquisti, lo storico prezzi e le previsioni che li contengono. Se non restano altre marche o varianti dello stesso alimento, verrà tolto anche dagli ingredienti delle ricette, dai pasti e dai modelli. Le ricette e gli altri prodotti resteranno. Non è possibile annullare questa operazione.`}
+                        success="Prodotto e dati collegati eliminati definitivamente."
                         onConfirm={async () => {
                           await removeCatalogProduct(table, p.id)
                           if (selected === key) selectProduct('')
