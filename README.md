@@ -8,7 +8,7 @@ PWA in italiano per organizzare la spesa di una famiglia: una sola lista condivi
 
 ## Avvio locale
 
-Una sola lista della spesa per famiglia, aperta direttamente dalla Home; **Catalogo** nella barra inferiore. Ricette, pasti e confronto prezzi usano automaticamente la lista condivisa. Nessun comando per creare, duplicare, rinominare, completare o archiviare liste; gli articoli restano gestibili con i vincoli dello storico. Inizializzazione idempotente con RLS e vincolo UNIQUE per famiglia, anche per accessi concorrenti.
+Una sola lista della spesa per famiglia, aperta direttamente all’avvio al posto della Home. Menu principale e barra inferiore nello stesso ordine: **Catalogo, Ricette, Lista della spesa, Pasti, Statistiche**. La lista occupa la posizione centrale; negozi, prezzi, scanner e impostazioni restano nel menu secondario. Il percorso iniziale `/` porta a `/liste`, mantenendo validi anche i vecchi collegamenti `/liste/...`. Ricette, pasti e confronto prezzi usano automaticamente la lista condivisa. Nessun comando per creare, duplicare, rinominare, completare o archiviare liste; gli articoli restano gestibili con i vincoli dello storico. Inizializzazione idempotente con RLS e vincolo UNIQUE per famiglia, anche per accessi concorrenti.
 
 La migrazione `20261115115132_single_shopping_list.sql` conserva gli identificativi e i dati collegati. Nel progetto corrente nessun dato modificato; su altre installazioni con liste multiple la migrazione si interrompe prima delle modifiche, richiedendo una riconciliazione esplicita.
 

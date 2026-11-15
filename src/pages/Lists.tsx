@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Check, ShoppingBasket } from 'lucide-react'
+import { Check, ShoppingBasket } from 'lucide-react'
 import { useApp } from '../data/context'
 import { rpc } from '../data/client'
 import { euro, quantity } from '../domain/math'
@@ -269,9 +269,6 @@ function ListDetail({ id }: { id: string }) {
   }
   return (
     <>
-      <Link className="back-link" to="/">
-        <ArrowLeft size={17} /> Home
-      </Link>
       <SectionTitle eyebrow={`${pending.length} ARTICOLI DA ACQUISTARE`} title="La lista della spesa.">
         <button className="button" onClick={() => setShopping(!shopping)}>
           <ShoppingBasket size={18} />

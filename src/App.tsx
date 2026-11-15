@@ -1,10 +1,9 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
-import { Link, NavLink, Route, Routes } from 'react-router-dom'
+import { Link, Navigate, NavLink, Route, Routes } from 'react-router-dom'
 import {
   BookOpen,
   CalendarDays,
   ChartNoAxesCombined,
-  House,
   ListChecks,
   ShoppingBasket,
   Settings,
@@ -21,7 +20,6 @@ import { useRegisterSW } from 'virtual:pwa-register/react'
 import { client, requireClient, rpc } from './data/client'
 import { useApp } from './data/context'
 import { Field, Form, Submit, text } from './components/ui'
-import { Home } from './pages/Home'
 const Lists = lazy(() => import('./pages/Lists').then((m) => ({ default: m.Lists })))
 const Catalog = lazy(() => import('./pages/Catalog').then((m) => ({ default: m.Catalog })))
 const Stores = lazy(() => import('./pages/Catalog').then((m) => ({ default: m.Stores })))
@@ -33,14 +31,13 @@ const Account = lazy(() => import('./pages/Account').then((m) => ({ default: m.A
 const Scanner = lazy(() => import('./pages/Account').then((m) => ({ default: m.Scanner })))
 
 const primary = [
-  { to: '/', label: 'Home', icon: House },
   { to: '/catalogo', label: 'Catalogo', icon: Package },
   { to: '/ricette', label: 'Ricette', icon: BookOpen },
+  { to: '/liste', label: 'Lista della spesa', icon: ListChecks },
   { to: '/pasti', label: 'Pasti', icon: CalendarDays },
   { to: '/statistiche', label: 'Statistiche', icon: ChartNoAxesCombined },
 ]
 const secondary = [
-  { to: '/liste', label: 'Lista della spesa', icon: ListChecks },
   { to: '/negozi', label: 'Supermercati', icon: Store },
   { to: '/prezzi', label: 'Prezzi e confronto', icon: Tags },
   { to: '/scanner', label: 'Scanner', icon: ScanLine },
@@ -313,7 +310,7 @@ export function App() {
             <main id="main" className="content">
               <Suspense fallback={<p role="status">Caricamento della sezione…</p>}>
                 <Routes>
-                  <Route path="/" element={<Home />} />
+                  <Route path="/" element={<Navigate to="/liste" replace />} />
                   <Route path="/liste/*" element={<Lists />} />
                   <Route path="/catalogo" element={<Catalog />} />
                   <Route path="/negozi" element={<Stores />} />
@@ -328,7 +325,7 @@ export function App() {
                     element={
                       <div>
                         <h1>Pagina non trovata</h1>
-                        <Link to="/">Torna alla Home</Link>
+                        <Link to="/liste">Torna alla lista della spesa</Link>
                       </div>
                     }
                   />

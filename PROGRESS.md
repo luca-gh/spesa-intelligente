@@ -1,5 +1,11 @@
 # Avanzamento
 
+## Lista come schermata iniziale e nuovo menu — 15 novembre 2026
+
+Home sostituita dalla lista della spesa già presente: `/` reindirizza a `/liste` con replace, anche dal logo e dall’avvio PWA esistente. Rimossa la precedente pagina Home e il collegamento Home dalla lista. Menu principale desktop e barra mobile condividono l’ordine Catalogo, Ricette, Lista della spesa, Pasti, Statistiche; lista al centro, senza duplicazione nel menu secondario. Vecchi URL `/liste/...` conservati, voce attiva anche su quei percorsi. Nessuna migrazione o modifica ai dati. Dieci prove mirate desktop/mobile PASS: avvio, lista vuota e popolata, cinque destinazioni e ordine, voce attiva, logo/Indietro senza passaggio Home, URL precedenti, accessibilità axe e accesso senza sessione.
+
+Suite completa PASS: 85 test locali in 11 file, 122 prove browser desktop/mobile, lint, tipi, build, aggiornamento PWA e controllo segreti. CI e disponibilità HTTPS verificate alla pubblicazione.
+
 ## Autocompletamento nella lista della spesa — 15 novembre 2026
 
 Prodotto dal catalogo ora è un unico campo con suggerimenti, condiviso con ingredienti e calendario. Ricerca mentre si scrive per nome, marca, variante e barcode, senza accenti/maiuscole e per più parole parziali; risultati alfabetici per il nome, con marca e formato visibili. Selezione con tastiera, mouse o tocco, invalidazione dell’ID quando cambia il testo, ritorno esplicito all’articolo libero. Conservati formato iniziale, conversioni compatibili, errore con bozza conservata, reset solo dopo successo, barcode e ritorno dal Catalogo. Prodotti archiviati o rimossi non restano selezionabili dopo refresh. Nessuna migrazione, nuova dipendenza o modifica al database reale.

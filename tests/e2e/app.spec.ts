@@ -1643,23 +1643,46 @@ test('accesso senza sessione e layout responsive', async ({ page }) => {
   await expect(page.getByLabel('Email', { exact: true })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
-test('dashboard vuota reale e navigazione', async ({ page }) => {
+test('schermata iniziale lista della spesa e ordine dei cinque collegamenti principali', async ({ page }) => {
   await login(page)
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: 'Le cose buone iniziano da qui.' })).toBeVisible()
-  await expect(page.getByText('La lista è vuota')).toBeVisible()
-  await expect(page.getByText('0,00 €', { exact: true })).toBeVisible()
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
-  await page.screenshot({ path: `test-results/home-${test.info().project.name}.png`, fullPage: true })
-  await page.getByRole('link', { name: 'Organizza la spesa' }).click()
+  await expect(page).toHaveURL(/\/liste$/)
   await expect(page.getByRole('heading', { name: 'La lista della spesa.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Una lista, tante possibilità.' })).toBeVisible()
+  const labels = ['Catalogo', 'Ricette', 'Lista della spesa', 'Pasti', 'Statistiche']
+  await expect(page.locator('.sidebar nav[aria-label="Navigazione principale"] a')).toHaveText(labels)
+  await expect(page.locator('.bottom-nav a')).toHaveText(labels)
+  await expect(page.getByRole('link', { name: 'Home', exact: true })).toHaveCount(0)
+  const nav = page.getByRole('navigation', {
+    name: test.info().project.name === 'mobile' ? 'Navigazione mobile' : 'Navigazione principale',
+    exact: true,
+  })
+  await expect(nav.getByRole('link', { name: 'Lista della spesa', exact: true })).toHaveAttribute(
+    'aria-current',
+    'page',
+  )
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await page.screenshot({ path: `test-results/initial-list-${test.info().project.name}.png`, fullPage: true })
   await expect(page.getByLabel('Titolo della lista')).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Crea lista', exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Duplica', exact: true })).toHaveCount(0)
-  await expect(page.locator('.bottom-nav a[href="/catalogo"]')).toHaveText('Catalogo')
-  await expect(page.locator('.bottom-nav a[href="/liste"]')).toHaveCount(0)
-  await page.getByRole('link', { name: 'Catalogo', exact: true }).filter({ visible: true }).click()
+  for (const [label, heading] of [
+    ['Catalogo', 'Il vostro catalogo.'],
+    ['Ricette', 'Il vostro ricettario.'],
+    ['Lista della spesa', 'La lista della spesa.'],
+    ['Pasti', 'La settimana a tavola.'],
+    ['Statistiche', 'Uno sguardo alle abitudini.'],
+  ]) {
+    await nav.getByRole('link', { name: label, exact: true }).click()
+    await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible()
+    await expect(nav.getByRole('link', { name: label, exact: true })).toHaveAttribute('aria-current', 'page')
+  }
+  await nav.getByRole('link', { name: 'Catalogo', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Il vostro catalogo.' })).toBeVisible()
+  await page.locator(test.info().project.name === 'mobile' ? '.mobile-brand' : '.brand').click()
+  await expect(page).toHaveURL(/\/liste$/)
+  await page.goBack()
+  await expect(page).toHaveURL(/\/catalogo$/)
 })
 test('Salvato scompare dopo quattro secondi e resta nascosto cambiando sezione', async ({ page }) => {
   await login(page, true)
@@ -1670,8 +1693,12 @@ test('Salvato scompare dopo quattro secondi e resta nascosto cambiando sezione',
   await expect(page.locator('.notice')).toHaveText('Salvato.')
   await page.clock.fastForward(4_000)
   await expect(page.locator('.notice')).toHaveCount(0)
-  await page.locator('nav').getByRole('link', { name: 'Home', exact: true }).filter({ visible: true }).click()
-  await expect(page.getByRole('heading', { name: 'Le cose buone iniziano da qui.' })).toBeVisible()
+  await page
+    .locator('nav')
+    .getByRole('link', { name: 'Catalogo', exact: true })
+    .filter({ visible: true })
+    .click()
+  await expect(page.getByRole('heading', { name: 'Il vostro catalogo.' })).toBeVisible()
   await expect(page.locator('.notice')).toHaveCount(0)
 })
 
@@ -1689,8 +1716,14 @@ test('lista unica: vecchi collegamenti aprono la stessa lista e mantengono gli a
   page,
 }) => {
   await login(page, true)
+  await page.goto('/')
+  await expect(page).toHaveURL(/\/liste$/)
+  await expect(page.getByRole('button', { name: 'Registra acquisto Latte' })).toBeVisible()
   await page.goto('/liste/vecchia-lista')
   await expect(page.getByRole('button', { name: 'Registra acquisto Latte' })).toBeVisible()
+  await expect(page.locator('nav a[aria-current="page"]').filter({ visible: true })).toHaveText([
+    'Lista della spesa',
+  ])
   await expect(page.getByRole('button', { name: 'Segna lista completata' })).toHaveCount(0)
   await page.getByRole('link', { name: 'Confronta prezzi →', exact: true }).click()
   await expect(page.getByRole('combobox', { name: 'Lista', exact: true })).toHaveCount(0)
@@ -1752,10 +1785,10 @@ test('offline informa e blocca salvataggio', async ({ page, context }) => {
   await expect(page.getByText('Sei offline. Le modifiche richiedono una connessione.')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Aggiungi', exact: true })).toBeDisabled()
 })
-test('accessibilità essenziale della dashboard', async ({ page }) => {
+test('accessibilità essenziale della schermata iniziale lista', async ({ page }) => {
   await login(page)
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: 'Le cose buone iniziano da qui.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'La lista della spesa.' })).toBeVisible()
   const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()
   expect(
     result.violations.map((v) => ({

@@ -1,5 +1,11 @@
 # Rapporto test
 
+## Schermata iniziale lista e ordine menu — 15 novembre 2026
+
+Aggiornati gli scenari browser desktop/mobile della precedente dashboard: `/` apre la lista effettiva a `/liste`, niente Home, menu primario e barra inferiore ordinati Catalogo/Ricette/Lista della spesa/Pasti/Statistiche. Verificate tutte e cinque le destinazioni e la voce corrente, lista vuota senza comandi di creazione, dati esistenti conservati, vecchi URL con evidenziazione della lista, logo e Indietro senza ciclo di reindirizzamenti. Accessibilità axe della nuova schermata iniziale PASS; accesso senza sessione e gestione avvisi ancora funzionanti. Dieci prove mirate PASS. Fixture isolate; nessuna lettura/scrittura di dati reali e nessuna nuova migrazione.
+
+Suite completa locale PASS: 85 test in 11 file e 122 prove browser desktop/mobile. Lint, tipi, build, aggiornamento service worker e controllo segreti PASS. Screenshot iniziale desktop/mobile e assenza di overflow verificati. CI e pubblicazione HTTPS controllate sul commit finale; nessuna prova hardware iPad aggiuntiva.
+
 ## Autocompletamento prodotti nella lista — 15 novembre 2026
 
 Nuovo test locale: ricerca per barcode e più parole nome/marca; ordine per nome separato dai dettagli della confezione. Nuovo scenario browser desktop/mobile: lista alfabetica, prodotti archiviati esclusi, CAFFE trova Caffè, selezione da tastiera e tocco simulato, ricerca olio oliva, quantità/unità coerenti, ritorno esplicito all’articolo libero, nessun risultato ed Escape, salvataggio libero anche con testo di ricerca non selezionato. Aggiornati i test precedenti alla selezione tramite suggerimenti: marca/EAN, nessun identificativo obsoleto, conversioni, accessibilità axe e assenza overflow, errore e nuovo tentativo, reset, barcode camera/manuale e ritorno dal Catalogo. Fixture browser isolate, nessuna scrittura su dati reali. I test touch simulati non equivalgono a collaudo iPad fisico.
