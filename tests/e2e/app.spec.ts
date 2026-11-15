@@ -302,7 +302,7 @@ const productCatalog = {
 }
 
 async function chooseListProduct(page: Page, name: string | RegExp, query = '') {
-  const input = page.getByRole('combobox', { name: /Prodotto.*facoltativo/ })
+  const input = page.getByRole('combobox', { name: 'Prodotto dal catalogo', exact: true })
   await input.fill(query)
   await input.click()
   const option = page.getByRole('listbox').getByRole('option', { name, exact: typeof name === 'string' })
@@ -705,7 +705,7 @@ test('barcode nella lista: seleziona dal catalogo e aggiunge solo dopo conferma'
     return route.fulfill({ json: { product: null } })
   })
   await page.goto('/liste')
-  await page.getByRole('combobox', { name: /Prodotto.*facoltativo/ }).fill('latte')
+  await page.getByRole('combobox', { name: 'Prodotto dal catalogo', exact: true }).fill('latte')
   await page.getByText('Inserisci il barcode manualmente', { exact: true }).click()
   await page.getByLabel('Barcode per la lista', { exact: true }).fill('8000500037560')
   await page.getByRole('button', { name: 'Cerca barcode', exact: true }).click()
@@ -1153,7 +1153,7 @@ test('lista: un solo prodotto senza formato, con quantità modificabile e senza 
     ],
   })
   await page.goto('/liste/20000000-0000-4000-8000-000000000001')
-  const select = page.getByRole('combobox', { name: /Prodotto.*facoltativo/ })
+  const select = page.getByRole('combobox', { name: 'Prodotto dal catalogo', exact: true })
   await select.click()
   await expect(page.getByRole('listbox').getByRole('option')).toHaveCount(1)
   await chooseListProduct(page, /^Latte/)
@@ -1483,7 +1483,7 @@ test('catalogo vuoto esplicito e articolo libero obbligatorio', async ({ page })
   const { itemRequests } = await login(page, true)
   await page.goto('/liste/20000000-0000-4000-8000-000000000001')
   await expect(page.getByText('Il catalogo è vuoto.', { exact: false })).toBeVisible()
-  await expect(page.getByRole('combobox', { name: /Prodotto.*facoltativo/ })).toBeDisabled()
+  await expect(page.getByRole('combobox', { name: 'Prodotto dal catalogo', exact: true })).toBeDisabled()
   const name = page.getByLabel('Nome per articolo libero')
   await expect(name).toHaveAttribute('required', '')
   await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
@@ -1499,7 +1499,7 @@ test('prodotto commerciale: quantità del formato, unità e riferimento corretti
 }) => {
   const { itemRequests } = await login(page, true, productCatalog)
   await page.goto('/liste/20000000-0000-4000-8000-000000000001')
-  const product = page.getByRole('combobox', { name: /Prodotto.*facoltativo/ })
+  const product = page.getByRole('combobox', { name: 'Prodotto dal catalogo', exact: true })
   await chooseListProduct(page, /^Farina fine/)
   await expect(page.getByLabel('Unità', { exact: true })).toHaveValue('g')
   await expect(page.getByLabel('Quantità', { exact: true })).toHaveValue('500')
@@ -1559,7 +1559,7 @@ test('lista autocomplete: ordine alfabetico, accenti, tastiera, tocco e articolo
 }) => {
   const { itemRequests } = await login(page, false, autocompleteCatalog)
   await page.goto('/liste')
-  const product = page.getByRole('combobox', { name: /Prodotto.*facoltativo/ })
+  const product = page.getByRole('combobox', { name: 'Prodotto dal catalogo', exact: true })
   await product.click()
   await expect(page.getByRole('listbox').locator('li > span')).toHaveText([
     'Albicocche',
@@ -1601,7 +1601,7 @@ test('lista autocomplete: ordine alfabetico, accenti, tastiera, tocco e articolo
 test('ricerca per marca e codice, nessuna selezione nascosta quando il filtro cambia', async ({ page }) => {
   await login(page, true, productCatalog)
   await page.goto('/liste/20000000-0000-4000-8000-000000000001')
-  const product = page.getByRole('combobox', { name: /Prodotto.*facoltativo/ })
+  const product = page.getByRole('combobox', { name: 'Prodotto dal catalogo', exact: true })
   await chooseListProduct(page, 'Latte intero')
   await product.fill('Molino')
   await expect(page.locator('input[name="product"]')).toHaveValue('')
@@ -1625,7 +1625,7 @@ test('errore di salvataggio conserva prodotto, quantità e ricerca per riprovare
     } else await route.fallback()
   })
   await page.goto('/liste/20000000-0000-4000-8000-000000000001')
-  const product = page.getByRole('combobox', { name: /Prodotto.*facoltativo/ })
+  const product = page.getByRole('combobox', { name: 'Prodotto dal catalogo', exact: true })
   await chooseListProduct(page, /^Farina fine/, 'Molino')
   await page.getByLabel('Quantità', { exact: true }).fill('750')
   await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
@@ -1788,7 +1788,7 @@ test('prodotti archiviati: scompaiono dalle scelte e possono essere ripristinati
     .click()
   await expect(page.getByRole('row').filter({ hasText: 'Latte intero' })).toHaveCount(0)
   await page.goto('/liste/20000000-0000-4000-8000-000000000001')
-  await page.getByRole('combobox', { name: /Prodotto.*facoltativo/ }).fill('Latte')
+  await page.getByRole('combobox', { name: 'Prodotto dal catalogo', exact: true }).fill('Latte')
   await expect(
     page.getByRole('listbox').getByRole('option', { name: 'Latte intero', exact: true }),
   ).toHaveCount(0)

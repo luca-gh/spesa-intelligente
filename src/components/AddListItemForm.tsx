@@ -161,7 +161,7 @@ export function AddListItemForm({ listId }: { listId: string }) {
         </p>
         <SearchSelect
           className="catalog-product"
-          label="Prodotto dal catalogo (facoltativo)"
+          label="Prodotto dal catalogo"
           name="product"
           choices={choices}
           value={selected?.id ?? ''}
