@@ -9,7 +9,7 @@ import { useApp } from '../data/context'
 import { insert, remove, removeCatalogProduct, rpc, update } from '../data/client'
 import { convert, dateInZone, euro, quantity, units, validBarcode, type Unit } from '../domain/math'
 import { estimate, rank } from '../domain/prices'
-import { catalogProducts, productFormat, orderedCategories, catalogCategoryCounts } from '../data/catalog'
+import { catalogProducts, productFormat, orderedCategories, catalogTotals } from '../data/catalog'
 import {
   ConfirmButton,
   Empty,
@@ -44,7 +44,7 @@ export function Catalog() {
   }
   const categories = orderedCategories(data.categories)
   const allProducts = catalogProducts(data)
-  const summary = catalogCategoryCounts(data)
+  const summary = catalogTotals(data)
   const editing = allProducts.find((entry) => entry.kind + ':' + entry.product.id === selected)
   const product = editing?.product
   const details = editing?.kind === 'specific' ? editing.product : undefined
@@ -64,22 +64,17 @@ export function Catalog() {
   return (
     <>
       <SectionTitle eyebrow="SAPERE COSA SCEGLIERE" title="Il vostro catalogo." />
-      <Panel title="Prodotti per categoria">
-        <p className="muted">
-          {summary.total} prodotti attivi nel catalogo. I conteggi non cambiano con la ricerca; gli archiviati
-          sono esclusi.
-        </p>
-        <dl className="catalog-summary" aria-label="Numero di prodotti per categoria">
-          {summary.rows.map((category) => (
-            <div key={category.id ?? 'uncategorized'}>
-              <dt>{category.name}</dt>
-              <dd>{category.count}</dd>
-            </div>
-          ))}
+      <Panel title="Riepilogo catalogo">
+        <dl className="catalog-summary" aria-label="Totali del catalogo">
+          <div>
+            <dt>Prodotti attivi</dt>
+            <dd>{summary.products}</dd>
+          </div>
+          <div>
+            <dt>Categorie</dt>
+            <dd>{summary.categories}</dd>
+          </div>
         </dl>
-        {!summary.rows.length && (
-          <p className="muted">Aggiungi le categorie della famiglia nella sezione qui sotto.</p>
-        )}
       </Panel>
       {fromList && (
         <p className="callout">

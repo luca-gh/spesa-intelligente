@@ -1,5 +1,11 @@
 # Rapporto test
 
+## Due totali nel Catalogo — 15 novembre 2026
+
+Aggiornati i test dei conteggi e lo scenario browser desktop/mobile: soltanto Prodotti attivi e Categorie, conteggi indipendenti dai filtri, categorie vuote incluse, nessuna categoria virtuale contata e catalogo vuoto con due zeri. Mantenute le prove di riduzione/espansione, ricerca, accessibilità e assenza di overflow. Nessuna nuova migrazione o scrittura sui dati reali.
+
+88 test locali in 12 file e due prove browser mirate PASS; lint, tipi, build e segreti verificati. Suite completa di 132 casi eseguita dalla CI sul commit pubblicato.
+
 ## Dashboard categorie, ordine lista e cancellazione piani — 15 novembre 2026
 
 Nuovi test locali: conteggio delle schede attive senza gruppi interni/archiviati, diverse marche, categorie vuote, ordine familiare, fallback senza categoria e catalogo vuoto. Script `supabase/tests/meal_plan_deletion.sql` verificato in PGlite e sul progetto reale dentro una transazione annullata: DELETE del proprio piano con pasti a cascata, rifiuto cross-family/anon, lista/contributi/acquisti invariati, ricette/ingredienti/modelli/altre settimane conservati, settimana ricreata vuota e piano archiviato eliminabile. Permessi e FK remoti verificati; impronte delle 20 tabelle applicative e Auth identiche prima/dopo. Nessuna migrazione, privilegio aggiuntivo o dato reale eliminato.

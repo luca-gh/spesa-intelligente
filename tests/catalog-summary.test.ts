@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { catalogCategoryCounts } from '../src/data/catalog'
+import { catalogTotals } from '../src/data/catalog'
 import { emptyData, type Data } from '../src/data/types'
 
 const data: Data = {
@@ -57,23 +57,15 @@ const data: Data = {
   ],
 }
 
-it('conta le schede attive senza duplicare i gruppi, mantiene categorie vuote e ordine familiare', () => {
-  expect(catalogCategoryCounts(data)).toEqual({
-    total: 5,
-    rows: [
-      { id: 'empty', name: 'Categoria vuota', count: 0 },
-      { id: 'fruit', name: 'Frutta', count: 3 },
-      { id: 'other', name: 'Altri prodotti', count: 2 },
-    ],
-  })
+it('conta prodotti attivi senza duplicare i gruppi e tutte le categorie, anche vuote', () => {
+  expect(catalogTotals(data)).toEqual({ products: 5, categories: 3 })
 })
 
 it('gestisce catalogo vuoto e prodotti senza categoria anche se Altri prodotti è stata eliminata', () => {
-  expect(catalogCategoryCounts(emptyData)).toEqual({ total: 0, rows: [] })
-  const result = catalogCategoryCounts({
+  expect(catalogTotals(emptyData)).toEqual({ products: 0, categories: 0 })
+  const result = catalogTotals({
     ...data,
     categories: data.categories.filter((c) => c.id !== 'other'),
   })
-  expect(result.rows.at(-1)).toEqual({ id: null, name: 'Altri prodotti', count: 2 })
-  expect(result.total).toBe(5)
+  expect(result).toEqual({ products: 5, categories: 2 })
 })

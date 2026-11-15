@@ -39,24 +39,9 @@ export function ingredientProducts(data: Data) {
   return data.generic_products.filter((g) => (g.is_catalog_group ? activeGroups.has(g.id) : !g.archived_at))
 }
 
-export function catalogCategoryCounts(data: Data) {
-  const categories = orderedCategories(data.categories)
-  const fallback = categories.find((c) => c.name === 'Altri prodotti')
-  const counts = new Map<string | null, number>()
-  const categoryIds = new Set(categories.map((c) => c.id))
-  let total = 0
-  for (const entry of catalogProducts(data)) {
-    if (entry.product.archived_at) continue
-    const categoryId =
-      entry.categoryId && categoryIds.has(entry.categoryId) ? entry.categoryId : (fallback?.id ?? null)
-    counts.set(categoryId, (counts.get(categoryId) ?? 0) + 1)
-    total++
+export function catalogTotals(data: Data) {
+  return {
+    products: catalogProducts(data).filter((entry) => !entry.product.archived_at).length,
+    categories: data.categories.length,
   }
-  const rows = categories.map((c) => ({
-    id: c.id as string | null,
-    name: c.name,
-    count: counts.get(c.id) ?? 0,
-  }))
-  if (counts.has(null)) rows.push({ id: null, name: 'Altri prodotti', count: counts.get(null)! })
-  return { total, rows }
 }

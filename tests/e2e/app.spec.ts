@@ -1207,7 +1207,9 @@ test('lista: il prodotto senza marca permette il confronto tra le marche disponi
   })
 })
 
-test('catalogo: dashboard per categoria, tabella richiudibile e ricerca che la riapre', async ({ page }) => {
+test('catalogo: totali prodotti e categorie, tabella richiudibile e ricerca che la riapre', async ({
+  page,
+}) => {
   await login(page, false, {
     ...categoryCatalog,
     categories: [
@@ -1231,9 +1233,9 @@ test('catalogo: dashboard per categoria, tabella richiudibile e ricerca che la r
     })),
   })
   await page.goto('/catalogo')
-  const counts = page.locator('dl[aria-label="Numero di prodotti per categoria"]')
-  await expect(counts.locator('dt')).toHaveText(['Latticini', 'Frutta', 'Categoria vuota', 'Altri prodotti'])
-  await expect(counts.locator('dd')).toHaveText(['1', '2', '0', '0'])
+  const counts = page.locator('dl[aria-label="Totali del catalogo"]')
+  await expect(counts.locator('dt')).toHaveText(['Prodotti attivi', 'Categorie'])
+  await expect(counts.locator('dd')).toHaveText(['3', '4'])
   expect(
     await counts.evaluate(
       (element) =>
@@ -1257,11 +1259,11 @@ test('catalogo: dashboard per categoria, tabella richiudibile e ricerca che la r
   await page.getByLabel('Cerca prodotto, marca o barcode').fill('Latte')
   await expect(page.locator('.catalog-products table')).toBeVisible()
   await expect(page.locator('.catalog-products tbody tr')).toHaveCount(1)
-  await expect(counts.locator('dd')).toHaveText(['1', '2', '0', '0'])
+  await expect(counts.locator('dd')).toHaveText(['3', '4'])
   await page.getByLabel('Cerca prodotto, marca o barcode').fill('')
   await page.getByLabel('Mostra archiviati', { exact: true }).check()
   await expect(page.locator('.catalog-products tbody tr')).toHaveCount(1)
-  await expect(counts.locator('dd')).toHaveText(['1', '2', '0', '0'])
+  await expect(counts.locator('dd')).toHaveText(['3', '4'])
   const accessibility = await new AxeBuilder({ page })
     .include('#main')
     .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])

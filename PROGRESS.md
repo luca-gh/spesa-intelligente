@@ -1,5 +1,11 @@
 # Avanzamento
 
+## Riepilogo catalogo con due totali — 15 novembre 2026
+
+Su richiesta successiva, la dashboard per categoria è sostituita da due soli numeri: prodotti attivi complessivi e categorie effettivamente presenti, incluse quelle vuote. Nessun dettaglio per singola categoria o categoria virtuale nel totale. Ricerca e vista archiviati non cambiano i totali; gruppi interni e prodotti archiviati esclusi dal conteggio prodotti come prima. Nessuna modifica ai dati.
+
+88 test locali e due prove browser mirate desktop/mobile PASS, incluse espansione della tabella e accessibilità. Suite completa in CI e pubblicazione controllate sul commit finale.
+
 ## Catalogo compatto, lista prima del modulo e cancellazione piani — 15 novembre 2026
 
 Dashboard in cima al Catalogo con prodotti attivi per categoria, zeri inclusi, ordine familiare e Altri prodotti per le schede senza categoria. Conteggi indipendenti dai filtri e dai raggruppamenti interni. Tabella Prodotti richiudibile con details/summary nativi, mouse/tocco/tastiera; la ricerca la riapre. Intestazioni della tabella rese più leggibili. Nella lista gli articoli, inclusi gli acquistati, precedono il modulo di aggiunta e i suggerimenti frequenti.
