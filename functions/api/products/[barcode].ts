@@ -22,6 +22,7 @@ export async function onRequest(context: LookupContext): Promise<Response> {
   const cacheKey = new Request(new URL(`/api/products/${code}`, context.request.url))
   const hit = await cache?.match(cacheKey)
   if (hit) return hit
+  let failure = 'network'
   try {
     const url = new URL(`https://world.openfoodfacts.org/api/v3/product/${code}.json`)
     url.searchParams.set(
@@ -37,13 +38,16 @@ export async function onRequest(context: LookupContext): Promise<Response> {
       redirect: 'error',
       signal: AbortSignal.timeout(8000),
     })
+    failure = `upstream-${upstream.status}`
     if (!upstream.ok && upstream.status !== 404) throw new Error('Servizio non disponibile')
+    failure = 'invalid-response'
     const product = upstream.status === 404 ? null : parseBarcodeProduct(code, await upstream.json())
     const response = Response.json(
       { product },
       { headers: { ...headers, 'Cache-Control': `public, max-age=${product ? 86400 : 300}` } },
     )
     if (cache) {
+      failure = 'cache-write'
       const write = cache.put(cacheKey, response.clone())
       if (context.waitUntil) context.waitUntil(write)
       else await write
@@ -52,7 +56,7 @@ export async function onRequest(context: LookupContext): Promise<Response> {
   } catch {
     return Response.json(
       { error: 'Ricerca non disponibile. Riprova oppure completa i dati manualmente.' },
-      { status: 503, headers: { ...headers, 'Cache-Control': 'no-store' } },
+      { status: 503, headers: { ...headers, 'Cache-Control': 'no-store', 'X-Lookup-Status': failure } },
     )
   }
 }
