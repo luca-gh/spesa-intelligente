@@ -1,5 +1,5 @@
 import { validBarcode } from '../../../src/domain/math.ts'
-import { parseBarcodeProduct } from '../../../src/domain/barcodeLookup.ts'
+import { barcodeSources, parseBarcodeProduct, type BarcodeSource } from '../../../src/domain/barcodeLookup.ts'
 
 export interface LookupContext {
   request: Request
@@ -19,29 +19,55 @@ export async function onRequest(context: LookupContext): Promise<Response> {
   if (origin && origin !== new URL(context.request.url).origin)
     return Response.json({ error: 'Origine non consentita' }, { status: 403, headers })
   const cache = (globalThis.caches as (CacheStorage & { default?: Cache }) | undefined)?.default
-  const cacheKey = new Request(new URL(`/api/products/${code}`, context.request.url))
+  // Older installed clients label every result as food; keep their existing contract.
+  const supermarket = new URL(context.request.url).searchParams.get('scope') === 'supermarket'
+  const cacheKey = new Request(
+    new URL(`/api/products/${code}${supermarket ? '?sources=supermarket-v2' : ''}`, context.request.url),
+  )
   const hit = await cache?.match(cacheKey)
   if (hit) return hit
   let failure = 'network'
   try {
-    const url = new URL(`https://world.openfoodfacts.org/api/v3/product/${code}.json`)
-    url.searchParams.set(
-      'fields',
-      'code,generic_name_it,generic_name,product_name_it,product_name,brands,quantity,product_quantity,product_quantity_unit,categories_tags,categories',
-    )
-    url.searchParams.set('lc', 'it')
-    const upstream = await fetch(url, {
-      headers: {
-        Accept: 'application/json',
-        'User-Agent': 'SpesaIntelligente/0.1.0 (https://github.com/luca-gh/spesa-intelligente)',
-      },
-      redirect: 'manual',
-      signal: AbortSignal.timeout(8000),
-    })
-    failure = `upstream-${upstream.status}`
-    if (!upstream.ok && upstream.status !== 404) throw new Error('Servizio non disponibile')
-    failure = 'invalid-response'
-    const product = upstream.status === 404 ? null : parseBarcodeProduct(code, await upstream.json())
+    const deadline = Date.now() + 10000
+    let errors = false
+    async function lookup(source: BarcodeSource) {
+      let reason = 'network'
+      try {
+        const url = new URL(`/api/v3/product/${code}.json`, barcodeSources[source].origin)
+        url.searchParams.set(
+          'fields',
+          'code,product_type,generic_name_it,generic_name,product_name_it,product_name,brands,quantity,product_quantity,product_quantity_unit,categories_tags,categories',
+        )
+        url.searchParams.set('lc', 'it')
+        url.searchParams.set('product_type', source)
+        const remaining = deadline - Date.now()
+        if (remaining <= 0) throw new Error('Tempo esaurito')
+        const upstream = await fetch(url, {
+          headers: {
+            Accept: 'application/json',
+            'User-Agent': 'SpesaIntelligente/0.1.0 (https://github.com/luca-gh/spesa-intelligente)',
+          },
+          redirect: 'manual',
+          signal: AbortSignal.timeout(Math.min(8000, remaining)),
+        })
+        reason = `upstream-${upstream.status}`
+        if (!upstream.ok && upstream.status !== 404) throw new Error('Servizio non disponibile')
+        reason = 'invalid-response'
+        return upstream.status === 404 ? null : parseBarcodeProduct(code, await upstream.json(), source)
+      } catch {
+        errors = true
+        failure = reason
+        return null
+      }
+    }
+    // Preserve the food fast path. Only missing/unavailable food starts the other fixed sources.
+    let product = await lookup('food')
+    if (!product && supermarket) {
+      const alternatives = await Promise.all([lookup('beauty'), lookup('product')])
+      product = alternatives.find((candidate) => candidate !== null) ?? null
+    }
+    // A partial outage is not proof that a barcode is absent from every source.
+    if (!product && errors) throw new Error('Ricerca incompleta')
     const response = Response.json(
       { product },
       { headers: { ...headers, 'Cache-Control': `public, max-age=${product ? 86400 : 300}` } },

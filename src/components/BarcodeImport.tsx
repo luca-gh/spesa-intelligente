@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useApp } from '../data/context'
 import { validBarcode } from '../domain/math'
-import { barcodeCategory, type BarcodeProduct } from '../domain/barcodeLookup'
+import { barcodeCategory, barcodeSources, type BarcodeProduct } from '../domain/barcodeLookup'
 import { BarcodeCamera } from './BarcodeCamera'
 
 export function BarcodeImport({
@@ -88,7 +88,7 @@ export function BarcodeImport({
     const timeout = setTimeout(() => abort.abort(), 12000)
     setPending(true)
     try {
-      const response = await fetch(`/api/products/${code}`, {
+      const response = await fetch(`/api/products/${code}?scope=supermarket`, {
         signal: abort.signal,
         credentials: 'omit',
         headers: { Accept: 'application/json' },
@@ -104,7 +104,7 @@ export function BarcodeImport({
       if (!body.product) {
         onCodeOnly(
           code,
-          'Prodotto non trovato nella banca dati. Il codice è stato inserito: completa gli altri campi manualmente.',
+          'Prodotto non trovato nelle banche dati consultate. Il codice è stato inserito: completa gli altri campi manualmente.',
         )
         return
       }
@@ -191,10 +191,15 @@ export function BarcodeImport({
         </div>
       )}
       <small>
-        Dati alimentari da{' '}
-        <a href="https://world.openfoodfacts.org" target="_blank" rel="noreferrer">
-          Open Food Facts
-        </a>{' '}
+        Dati da{' '}
+        {Object.values(barcodeSources).map((source, index) => (
+          <span key={source.origin}>
+            {index > 0 && ', '}
+            <a href={source.origin} target="_blank" rel="noreferrer">
+              {source.name}
+            </a>
+          </span>
+        ))}{' '}
         (
         <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noreferrer">
           ODbL

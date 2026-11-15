@@ -392,6 +392,71 @@ const scannedProduct = {
   sourceUrl: 'https://world.openfoodfacts.org/product/8000500037560',
 }
 
+for (const example of [
+  {
+    source: 'beauty',
+    origin: 'https://world.openbeautyfacts.org',
+    sourceName: 'Open Beauty Facts',
+    barcode: '8001090662231',
+    name: 'Shampoo',
+    brand: 'Marca shampoo',
+    size: '400',
+    unit: 'ml',
+    category: 'Igiene personale',
+    categories: ['en:personal-care', 'en:shampoo'],
+  },
+  {
+    source: 'product',
+    origin: 'https://world.openproductsfacts.org',
+    sourceName: 'Open Products Facts',
+    barcode: '3760044183738',
+    name: 'Detersivo bucato',
+    brand: 'Marca casa',
+    size: '1',
+    unit: 'L',
+    category: 'Detersivi',
+    categories: ['en:laundry-detergents'],
+  },
+]) {
+  test(`barcode non alimentare: ${example.source} compila campi e arriva alla lista`, async ({ page }) => {
+    const { itemRequests, catalogSaveRequests } = await login(page, false, {
+      categories: [{ id: 'non-food-category', name: example.category, sort_order: 0 }],
+    })
+    await page.route('**/api/products/*', (route) =>
+      route.fulfill({
+        json: { product: { ...example, sourceUrl: `${example.origin}/product/${example.barcode}` } },
+      }),
+    )
+    await page.goto('/liste')
+    await page.getByText('Inserisci il barcode manualmente', { exact: true }).click()
+    await page.getByLabel('Barcode per la lista', { exact: true }).fill(example.barcode)
+    await page.getByRole('button', { name: 'Cerca barcode', exact: true }).click()
+    await page.getByRole('link', { name: 'Completa prodotto e torna alla lista' }).click()
+    await expect(page.getByLabel('Nome prodotto', { exact: true })).toHaveValue(example.name)
+    await expect(page.getByLabel('Marca (facoltativa)', { exact: true })).toHaveValue(example.brand)
+    await expect(page.getByRole('combobox', { name: 'Categoria', exact: true })).toHaveValue(
+      'non-food-category',
+    )
+    await expect(page.getByLabel('Quantità per confezione', { exact: true })).toHaveValue(example.size)
+    await expect(
+      page.getByRole('link', { name: `Fonte ${example.sourceName}`, exact: true }),
+    ).toHaveAttribute('href', `${example.origin}/product/${example.barcode}`)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+    expect(catalogSaveRequests).toHaveLength(0)
+    expect(itemRequests).toHaveLength(0)
+    await page.getByRole('button', { name: 'Salva prodotto', exact: true }).click()
+    await expect(page.getByRole('combobox', { name: /Prodotto dal catalogo/ })).toHaveValue('new-product-0')
+    await expect(page.getByLabel('Quantità', { exact: true })).toHaveValue(example.size)
+    await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
+    await expect(page.locator('.shopping-item')).toContainText(example.name)
+    expect(itemRequests[0]).toMatchObject({
+      p_specific: 'new-product-0',
+      p_quantity: example.size,
+      p_unit: example.unit,
+    })
+  })
+}
+
 test('barcode nella lista: seleziona dal catalogo e aggiunge solo dopo conferma', async ({ page }) => {
   const { itemRequests, catalogSaveRequests } = await login(page, false, productCatalog)
   let lookups = 0
@@ -1206,7 +1271,9 @@ test('scanner manuale, checksum e nessun salvataggio implicito', async ({ page }
   await expect(page.getByText('Il checksum EAN non è valido.', { exact: false })).toBeVisible()
   await page.getByLabel('Barcode manuale').fill('8000500037560')
   await page.getByRole('button', { name: 'Cerca e compila prodotto' }).click()
-  await expect(page.getByText('Prodotto non trovato nella banca dati.', { exact: false })).toBeVisible()
+  await expect(
+    page.getByText('Prodotto non trovato nelle banche dati consultate.', { exact: false }),
+  ).toBeVisible()
   await expect(page.getByLabel('EAN-8 / EAN-13 (facoltativo)', { exact: true })).toHaveValue('8000500037560')
   expect(catalogSaveRequests).toHaveLength(0)
 })

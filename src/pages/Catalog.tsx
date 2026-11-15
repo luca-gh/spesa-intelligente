@@ -2,7 +2,7 @@ import { ArchiveButton, ArchiveFilter } from '../components/ArchiveButton'
 import { useRef, useState } from 'react'
 import { BarcodeImport } from '../components/BarcodeImport'
 import { CategoryOrder } from '../components/CategoryOrder'
-import type { BarcodeProduct } from '../domain/barcodeLookup'
+import { barcodeSourceName, type BarcodeProduct } from '../domain/barcodeLookup'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Tag, Store as StoreIcon } from 'lucide-react'
 import { useApp } from '../data/context'
@@ -116,7 +116,7 @@ export function Catalog() {
               {!prefill.name && ' Nome da inserire manualmente.'}{' '}
               {prefill.sourceUrl && (
                 <a href={prefill.sourceUrl} target="_blank" rel="noreferrer">
-                  Fonte Open Food Facts
+                  Fonte {barcodeSourceName(prefill)}
                 </a>
               )}
             </p>

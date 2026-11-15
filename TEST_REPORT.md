@@ -1,5 +1,11 @@
 # Rapporto test
 
+## Tre fonti barcode, esclusi animali — 15 novembre 2026
+
+Suite browser completa 108 PASS desktop/mobile. Nuovi casi: cosmetico e prodotto per la casa, fonte/link corretti, campi e categoria già esistente, formato, ritorno dal Catalogo e aggiunta alla lista solo dopo conferma, nessun overflow mobile. I test browser usano fixture e non interrogano i provider. Suite locale corrente 79 casi; 19 test proxy/parser PASS, compresi fallback tra tre host, alimentari senza chiamate aggiuntive, guasto di una fonte con risultato da un’altra, rifiuto redirect/animali e dati mancanti, corrispondenza barcode, attribuzione e conteggi espliciti. Client senza scope restano alimentari. Lint, tipi e build verificati; prova PWA e controllo segreti eseguiti prima della pubblicazione.
+
+Verifica di connettività separata sui provider pubblici: shampoo 8001090662231 restituito da Open Beauty Facts e articolo per bucato 3178041366304 restituito da Open Products Facts, entrambi HTTP 200. Il secondo riporta quantità 52 senza unità: nessun formato dedotto. Gli host staging dedicati alle due fonti non risultavano risolvibili; prove automatizzate isolate con mock e probe pubblici limitati, senza autenticazione e senza scritture.
+
 ## Inserimento nella lista tramite barcode — 15 novembre 2026
 
 72 test locali PASS. 10 nuove prove browser mirate desktop/mobile PASS: lettura camera con stream sintetico, selezione e quantità modificabile, nessuna ricerca esterna per prodotti presenti, nessuna scrittura prima di Aggiungi, nuovo codice con ricerca/creazione Catalogo e ritorno selezionato, codici errati o assenti conservano l’articolo libero, archiviati esclusi e blocco offline. Riuso della camera nativa/ZXing già collaudata; verifica hardware iPad ancora da eseguire. Suite completa corrente: 104 casi. Nessuna modifica schema o dato reale.
@@ -36,7 +42,7 @@ supabase/tests/online_rls.sql: PASS sul progetto reale. Due membri, invito/accet
 
 Check backend reale: PASS, Auth HTTP 200; 20 tabelle PROTETTA (401/42501 riferito alla tabella richiesta). Non equivale al collaudo autenticato Auth/JWT/PostgREST o Realtime su due client, tuttora NOT RUN completo.
 
-Suite locale attuale: 72 PASS in 9 file, inclusi bootstrap completo, privilegi predefiniti, script SQL online con rollback, ricerca barcode, lista unica e ordine categorie. Suite browser corrente: 104 casi desktop/mobile. CI e pubblicazione del nuovo commit vengono verificate separatamente dai test locali.
+Suite locale corrente: 79 casi in 9 file, inclusi bootstrap completo, privilegi predefiniti, script SQL online con rollback, ricerca barcode su tre fonti, lista unica e ordine categorie. Suite browser corrente: 108 casi desktop/mobile. CI e pubblicazione del nuovo commit vengono verificate separatamente dai test locali.
 
 | Area                            | Ambiente e verifica                                                                                                  | Stato                                                                 |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |

@@ -1,5 +1,9 @@
 # Avanzamento
 
+## Barcode non alimentari — 15 novembre 2026
+
+Aggiunte Open Beauty Facts e Open Products Facts come fonti alternative a Open Food Facts, per cosmetici/igiene e altri prodotti del supermercato. Nessun collegamento a Open Pet Food Facts, nessun product_type=all e nessun redirect seguito; record dichiarati petfood ignorati. Fonte effettiva visibile e crediti aggiornati. Alimentari trovati al primo tentativo senza chiamate aggiuntive; deadline complessiva 10 secondi, niente cache negativa per guasti parziali e compatibilità dei client precedenti. Nessuna migrazione, chiave API o dipendenza. 108 test browser desktop/mobile PASS; suite locale corrente 79 casi, inclusi 19 test di normalizzazione/proxy PASS. Probe pubblici: Open Beauty Facts 8001090662231 (Herbal Essences, Coconut Milk, 400 ml) e Open Products Facts 3178041366304 (Henkel, Décolor Stop); quantità senza unità lasciata manuale. Nessun dato di famiglia consultato o scritto.
+
 ## Barcode direttamente nella lista — 15 novembre 2026
 
 Scanner EAN-8/EAN-13 nel pannello Aggiungi alla lista, con inserimento codice manuale alternativo. Corrispondenza locale nel Catalogo senza richieste esterne; selezione e formato proposto modificabili, aggiunta solo con conferma. Codici nuovi: percorso esplicito al Catalogo, riuso ricerca dati e ritorno automatico con prodotto selezionato dopo salvataggio. Prodotti archiviati mai riattivati automaticamente; errori/codici mancanti lasciano disponibili gli articoli liberi. Conservati ricerca, selezione e inserimento precedenti. Nessuna migrazione, dipendenza o scrittura di prova nel database reale. 72 test locali e 10 nuove prove browser mirate desktop/mobile PASS; suite browser corrente 104 casi.
