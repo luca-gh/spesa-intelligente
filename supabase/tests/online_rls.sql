@@ -12,8 +12,22 @@ select set_config('request.jwt.claim.sub',(select value from spesa_test_context 
 set local role authenticated;
 insert into spesa_test_context select 'home_a',public.create_household('Fixture temporanea A')::text;
 insert into spesa_test_context select 'invite',public.create_invite((select value::uuid from spesa_test_context where key='home_a'));
-with created as (insert into public.shopping_lists(household_id,title) values((select value::uuid from spesa_test_context where key='home_a'),'Lista temporanea RLS') returning id)
-insert into spesa_test_context select 'list',id::text from created;
+insert into spesa_test_context select 'list',public.ensure_shopping_list((select value::uuid from spesa_test_context where key='home_a'))::text;
+do $$ begin
+  if public.ensure_shopping_list((select value::uuid from spesa_test_context where key='home_a'))<>(select value::uuid from spesa_test_context where key='list') then
+    raise exception 'Lista unica: inizializzazione non idempotente';
+  end if;
+  begin
+    insert into public.shopping_lists(household_id,title) values((select value::uuid from spesa_test_context where key='home_a'),'Seconda lista');
+    raise exception 'Lista unica: creazione aggiuntiva consentita';
+  exception when unique_violation then null;
+  end;
+  begin
+    perform public.duplicate_list((select value::uuid from spesa_test_context where key='list'));
+    raise exception 'Lista unica: duplicazione consentita';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
 insert into spesa_test_context select 'item',public.add_list_item((select value::uuid from spesa_test_context where key='list'),'Articolo temporaneo',2,'pz')::text;
 insert into spesa_test_context select 'catalog_product',public.save_catalog_product('Prodotto temporaneo catalogo')->>'id';
 do $$

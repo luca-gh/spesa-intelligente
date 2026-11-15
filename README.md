@@ -2,11 +2,15 @@
 
 [![Verifiche](https://github.com/luca-gh/spesa-intelligente/actions/workflows/ci.yml/badge.svg)](https://github.com/luca-gh/spesa-intelligente/actions/workflows/ci.yml)
 
-PWA in italiano per organizzare la spesa di una famiglia: liste condivise, acquisti parziali, catalogo, prezzi per punto vendita, confronto con sconti personali, ricette e calendario.
+PWA in italiano per organizzare la spesa di una famiglia: una sola lista condivisa, acquisti parziali, catalogo, prezzi per punto vendita, confronto con sconti personali, ricette e calendario.
 
-**Stato: dieci migrazioni applicate e controlli SQL RLS/RPC superati sul database Supabase reale; collaudo Auth/JWT e Realtime completo ancora da eseguire.** Consultare [PROGRESS.md](PROGRESS.md) e [TEST_REPORT.md](TEST_REPORT.md). OCR, importazioni e alcune funzioni avanzate restano da completare. Nessun dato dimostrativo viene conservato in produzione.
+**Stato: undici migrazioni applicate e controlli SQL RLS/RPC superati sul database Supabase reale; collaudo Auth/JWT e Realtime completo ancora da eseguire.** Consultare [PROGRESS.md](PROGRESS.md) e [TEST_REPORT.md](TEST_REPORT.md). OCR, importazioni e alcune funzioni avanzate restano da completare. Nessun dato dimostrativo viene conservato in produzione.
 
 ## Avvio locale
+
+Una sola lista della spesa per famiglia, aperta direttamente dalla Home; **Catalogo** nella barra inferiore. Ricette, pasti e confronto prezzi usano automaticamente la lista condivisa. Nessun comando per creare, duplicare, rinominare, completare o archiviare liste; gli articoli restano gestibili con i vincoli dello storico. Inizializzazione idempotente con RLS e vincolo UNIQUE per famiglia, anche per accessi concorrenti.
+
+La migrazione `20261115115132_single_shopping_list.sql` conserva gli identificativi e i dati collegati. Nel progetto corrente nessun dato modificato; su altre installazioni con liste multiple la migrazione si interrompe prima delle modifiche, richiedendo una riconciliazione esplicita.
 
 Requisiti: Node.js 22.12+ e npm. Il lockfile contiene le versioni effettivamente verificate.
 
@@ -38,13 +42,13 @@ VITE_SUPABASE_PUBLISHABLE_KEY=LA-CHIAVE-PUBBLICA
 
 Non vengono creati bucket di immagini. Non c'è un percorso di upload attivo, quindi nessuna foto privata viene pubblicata. Non creare bucket pubblici per aggirare questa limitazione.
 
-Se il progetto è nuovo e non hai accesso alla CLI o all'integrazione, `node scripts/prepare-bootstrap.mjs` prepara `.tools/supabase-bootstrap.sql`: contiene le dieci migrazioni in un'unica transazione, senza credenziali o dati dimostrativi. Aprilo in SQL Editor ed eseguilo **una sola volta sul progetto vuoto**. Il controllo iniziale interrompe l'esecuzione se rileva lo schema dell'app. Lo script è testato su PostgreSQL locale, compresa la pubblicazione delle quattro tabelle delle liste; il servizio Realtime ospitato richiede ancora collaudo.
+Se il progetto è nuovo e non hai accesso alla CLI o all'integrazione, `node scripts/prepare-bootstrap.mjs` prepara `.tools/supabase-bootstrap.sql`: contiene le undici migrazioni in un'unica transazione, senza credenziali o dati dimostrativi. Aprilo in SQL Editor ed eseguilo **una sola volta sul progetto vuoto**. Il controllo iniziale interrompe l'esecuzione se rileva lo schema dell'app. Lo script è testato su PostgreSQL locale, compresa la pubblicazione delle quattro tabelle delle liste; il servizio Realtime ospitato richiede ancora collaudo.
 
-Il percorso SQL Editor non aggiorna la cronologia migrazioni della CLI. Prima di passare a `db push`, confrontare lo schema e riconciliare le dieci versioni applicate con `supabase migration repair --status applied VERSIONI`; non marcare applicate migrazioni non eseguite. Vedere la [documentazione ufficiale sulle migrazioni](https://supabase.com/docs/guides/deployment/database-migrations).
+Il percorso SQL Editor non aggiorna la cronologia migrazioni della CLI. Prima di passare a `db push`, confrontare lo schema e riconciliare le undici versioni applicate con `supabase migration repair --status applied VERSIONI`; non marcare applicate migrazioni non eseguite. Vedere la [documentazione ufficiale sulle migrazioni](https://supabase.com/docs/guides/deployment/database-migrations).
 
 Dopo la configurazione, `npm run check:backend` controlla Auth e la disponibilità delle 20 tabelle tramite richieste di sola lettura con `limit=0`. Il comando non registra account, non legge record familiari e non certifica RLS o sincronizzazione. Exit code: 0 se Auth risponde e tutte le tabelle risultano presenti o protette, 2 per schema incompleto/non verificato, 1 per configurazione o connessione fallita. Il file `.env` resta escluso da Git.
 
-Sul progetto corrente le dieci migrazioni sono già applicate, registrate nella cronologia standard Supabase e confrontate con i file locali: **non rieseguire il bootstrap**. La migrazione 008 rimuove esplicitamente i grant anon e le operazioni dirette non necessarie assegnate dai default del servizio. Un rifiuto anon 401/42501 che nomina la tabella richiesta viene classificato PROTETTA dal check backend ed è atteso.
+Sul progetto corrente le undici migrazioni sono già applicate, registrate nella cronologia standard Supabase e confrontate con i file locali: **non rieseguire il bootstrap**. La migrazione 008 rimuove esplicitamente i grant anon e le operazioni dirette non necessarie assegnate dai default del servizio. Un rifiuto anon 401/42501 che nomina la tabella richiesta viene classificato PROTETTA dal check backend ed è atteso.
 
 Per i controlli amministrativi è disponibile `supabase/tests/online_rls.sql`: tre identità sintetiche, due famiglie, inviti, acquisti e accesso anon, dentro una transazione annullata. Non invia email né conserva fixture. È stato eseguito con successo sul progetto reale il 14 novembre 2026; non sostituisce il collaudo Auth/JWT e Realtime tramite app.
 
@@ -52,14 +56,14 @@ Per i controlli amministrativi è disponibile `supabase/tests/online_rls.sql`: t
 
 - **Categorie:** Catalogo prodotti → Categorie della famiglia → Elimina categoria. Anche quelle già usate possono essere eliminate: i prodotti restano sotto Altri prodotti.
 - **Prodotti, punti vendita e ricette:** Elimina per i record senza vincoli; Archivia per nasconderli conservando collegamenti e storico. Mostra archiviati permette il Ripristina. I prodotti archiviati non compaiono nelle nuove selezioni; le liste esistenti conservano i riferimenti.
-- **Articoli delle liste:** Archivia è disponibile anche con acquisti registrati. Mostra articoli archiviati permette il ripristino. Le quantità archiviate non rientrano nei residui mostrati e nel confronto prezzi; acquisti e statistiche conservano lo storico. Una nuova conferma del piano o aggiunta da ricetta può ripristinare l'articolo corrispondente, come indicato nel modulo/anteprima. La duplicazione della lista esclude gli articoli archiviati.
+- **Articoli delle liste:** Archivia è disponibile anche con acquisti registrati. Mostra articoli archiviati permette il ripristino. Le quantità archiviate non rientrano nei residui mostrati e nel confronto prezzi; acquisti e statistiche conservano lo storico. Una nuova conferma del piano o aggiunta da ricetta può ripristinare l'articolo corrispondente, come indicato nel modulo/anteprima.
 - **Piani settimanali:** Archivia nasconde il calendario, mantenendo le quantità già trasferite alle liste. Nella stessa settimana è disponibile Ripristina. Pasti e modelli hanno il comando di eliminazione.
 - **Ingredienti e sconti:** gli ingredienti già salvati e le regole sconto possono essere eliminati; nel modulo ricetta si può rimuovere l'ultimo ingrediente aggiunto. Le liste e le previsioni già salvate restano invariate.
 - **Previsioni:** Archivia/Ripristina nelle Statistiche; importi e dettagli rimangono immutabili. **Prezzi e acquisti:** Annulla conserva la traccia ed esclude il record dai calcoli. Le rilevazioni annullate sono consultabili con Mostra annullate. **Inviti:** Revoca invalida il codice.
 
 ## Flussi disponibili
 
-- **Liste:** creazione, rinomina, duplicazione, archiviazione, ripristino, stato completato; articoli liberi o collegati al catalogo, ricerca, quantità manuali e note, raggruppamento per categoria e suggerimenti dagli acquisti reali. Gli acquisti restano separati dai contributi e possono essere annullati conservando la traccia.
+- **Lista della spesa unica:** articoli liberi o collegati al catalogo, ricerca, quantità manuali e note, raggruppamento per categoria e suggerimenti dagli acquisti reali. Gli acquisti restano separati dai contributi e possono essere annullati conservando la traccia.
   Il menu **Prodotto dal catalogo (facoltativo)** contiene i prodotti già salvati in Catalogo prodotti: un nome scritto liberamente nella lista non popola automaticamente il catalogo. Se è vuoto, il modulo lo spiega e permette di scrivere il nome. Scegliere un commerciale propone il contenuto di una confezione, con unità coerente; quantità e unità restano modificabili tramite conversioni compatibili. Ricerca anche per marca e barcode; un nuovo filtro annulla la selezione precedente.
 - **Acquisti:** quantità parziali e surplus; prezzo totale effettivo facoltativo, completabile dopo; negozio, prodotto commerciale e stato promozionale. Il semplice acquisto senza prezzo non genera osservazioni di prezzo. Una correzione si effettua annullando e registrando un nuovo evento.
 - **Catalogo e negozi:** un solo modulo **Nuovo prodotto**. È obbligatorio soltanto il nome; categoria, marca, EAN, variante e formato sono facoltativi e modificabili in seguito. La gestione delle categorie rimane nella stessa sezione. I prodotti sono sempre ordinati per nome A–Z, senza selettore di direzione; anche ricerca e archiviati seguono l'ordine alfabetico.

@@ -1,5 +1,11 @@
 # Rapporto test
 
+## Lista unica — 15 novembre 2026
+
+69 test in 8 file PASS. Nuovi test migrazione: conservazione articoli, contributi, acquisti e collegamenti al piano; riattivazione lista completata; unicità per famiglia, RPC idempotente SECURITY INVOKER, isolamento/anon, duplicazione revocata e arresto sicuro per liste legacy multiple. Script SQL verificato su database reale con rollback; impronte dei dati invariati prima/dopo. Nessuna fixture conservata. Advisor senza errori, avvisi precedenti per 23 RPC definer e protezione password compromesse.
+
+86 casi browser desktop/mobile: 82 PASS nella prima suite, quattro aggiornati al nuovo titolo/navigazione poi ripetuti con successo. Coperti creazione automatica idempotente e refresh, vecchi URL, apertura diretta della lista, Catalogo nella barra inferiore, assenza di creazione/duplicazione e selettore lista nel confronto. Aggiornamento PWA PASS. Suite completa corrente rieseguita in CI alla pubblicazione.
+
 ## Compilazione da barcode — 15 novembre 2026
 
 66 test locali e 82 browser desktop/mobile PASS; lint, tipi, build, aggiornamento PWA e controllo segreti PASS, zero vulnerabilità runtime rilevate da npm audit. Nuovi casi: normalizzazione nome/lingua, formato esplicito e assente, categorie ambigue, codice restituito errato, checksum/metodo/origine rifiutati, host fisso e assenza di inoltro credenziali, cache pubblica e indisponibilità provider. Browser: compilazione modificabile e salvataggio esplicito, conservazione bozza, scheda già esistente senza richiesta esterna, dati parziali, errore servizio, risposta tardiva dopo cambio EAN, permessi negati, lettura nativa e decodifica ZXing reale da canvas/video sintetico con arresto stream. Nessuna richiesta al provider reale durante questi test browser, nessuna scrittura nel catalogo reale. Probe separato al provider staging: HTTP 200, esempio pubblico 3274080005003 normalizzato come Acqua minerale, 1500 ml. Fotocamera hardware Android/iOS: NOT RUN.
@@ -16,7 +22,7 @@ supabase/tests/online_rls.sql: PASS sul progetto reale. Due membri, invito/accet
 
 Check backend reale: PASS, Auth HTTP 200; 20 tabelle PROTETTA (401/42501 riferito alla tabella richiesta). Non equivale al collaudo autenticato Auth/JWT/PostgREST o Realtime su due client, tuttora NOT RUN completo.
 
-Suite locale attuale: 66 PASS in 7 file, inclusi bootstrap completo, privilegi predefiniti, script SQL online con rollback e ricerca barcode. Suite browser: 82 PASS desktop/mobile. CI e pubblicazione del nuovo commit vengono verificate separatamente dai test locali.
+Suite locale attuale: 69 PASS in 8 file, inclusi bootstrap completo, privilegi predefiniti, script SQL online con rollback, ricerca barcode e lista unica. Suite browser corrente: 86 casi desktop/mobile. CI e pubblicazione del nuovo commit vengono verificate separatamente dai test locali.
 
 | Area                            | Ambiente e verifica                                                                                                  | Stato                                                                 |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |

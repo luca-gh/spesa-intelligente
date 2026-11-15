@@ -1,5 +1,7 @@
 # Decisioni tecniche
 
+La richiesta del 15 novembre 2026 sostituisce il requisito originario di liste multiple: una lista persistente per famiglia. UNIQUE su household_id impedisce liste aggiuntive concorrenti; inizializzazione idempotente SECURITY INVOKER con RLS. Duplicazione revocata e stato sempre attivo. Migrazione conservativa: dati e identificativi mantenuti, abort prima delle modifiche in presenza di liste multiple. Catalogo nella barra primaria/mobile; selezione della lista automatica per ricette, piani e confronto prezzi.
+
 Data: 14 novembre 2026.
 
 1. React/TypeScript/Vite e Supabase, come da specifiche. Nessuna API AI a pagamento. Node 22 LTS portatile solo per questa workstation: non serve installazione globale e non viene versionato.

@@ -414,8 +414,7 @@ export function Stores() {
 }
 export function Prices() {
   const { data, household, itemQuantity, act } = useApp()
-  const [params] = useSearchParams()
-  const [list, setList] = useState(params.get('lista') ?? '')
+  const list = data.shopping_lists[0]?.id ?? ''
   const [date, setDate] = useState(dateInZone(new Date(), household!.timezone))
   const [ruleId, setRuleId] = useState('')
   const [showVoided, setShowVoided] = useState(false)
@@ -443,21 +442,8 @@ export function Prices() {
   return (
     <>
       <SectionTitle eyebrow="PREZZI CHIARI, SCELTE CONSAPEVOLI" title="Quanto costa la vostra spesa?" />
-      <Panel title="Confronta una lista">
+      <Panel title="Confronta la tua spesa">
         <div className="grid-form">
-          <label className="field">
-            Lista
-            <select value={list} onChange={(e) => setList(e.target.value)}>
-              <option value="">Seleziona lista</option>
-              {data.shopping_lists
-                .filter((l) => l.status !== 'archived')
-                .map((l) => (
-                  <option value={l.id} key={l.id}>
-                    {l.title}
-                  </option>
-                ))}
-            </select>
-          </label>
           <label className="field">
             Data prevista della spesa
             <input

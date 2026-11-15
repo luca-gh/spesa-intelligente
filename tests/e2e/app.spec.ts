@@ -39,20 +39,25 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
     })
   }
   const collections: Record<string, unknown[]> = {
-    shopping_lists: populated ? [list] : [],
+    shopping_lists: [list],
     shopping_list_items: items,
     list_item_contributions: contributions,
     purchases,
     ...structuredClone(catalog),
   }
   const catalogSaveRequests: Record<string, unknown>[] = []
+  const ensureListRequests: Record<string, unknown>[] = []
   const itemRequests: Record<string, unknown>[] = []
   const catalogDeleteRequests: { table: string; id: string }[] = []
   await page.route('https://fixture.supabase.test/**', async (route) => {
     const url = new URL(route.request().url())
     const table = url.pathname.split('/').pop()!
     let result: unknown
-    if (table === 'households') result = home
+    if (table === 'ensure_shopping_list') {
+      ensureListRequests.push(route.request().postDataJSON())
+      if (!collections.shopping_lists.length) collections.shopping_lists.push(list)
+      result = list.id
+    } else if (table === 'households') result = home
     else if (table === 'save_catalog_product') {
       const body = route.request().postDataJSON()
       catalogSaveRequests.push(body)
@@ -189,7 +194,7 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
       }),
     )
   })
-  return { itemRequests, catalogDeleteRequests, catalogSaveRequests }
+  return { itemRequests, catalogDeleteRequests, catalogSaveRequests, ensureListRequests }
 }
 
 const productCatalog = {
@@ -813,14 +818,19 @@ test('dashboard vuota reale e navigazione', async ({ page }) => {
   await login(page)
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Le cose buone iniziano da qui.' })).toBeVisible()
-  await expect(page.getByText('La prima lista vi aspetta')).toBeVisible()
+  await expect(page.getByText('La lista è vuota')).toBeVisible()
   await expect(page.getByText('0,00 €', { exact: true })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   await page.screenshot({ path: `test-results/home-${test.info().project.name}.png`, fullPage: true })
   await page.getByRole('link', { name: 'Organizza la spesa' }).click()
-  await page.getByLabel('Titolo della lista').fill('Lista creata nel browser')
-  await page.getByRole('button', { name: 'Crea lista', exact: true }).click()
-  await expect(page.getByRole('link', { name: 'Lista creata nel browser' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'La lista della spesa.' })).toBeVisible()
+  await expect(page.getByLabel('Titolo della lista')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Crea lista', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Duplica', exact: true })).toHaveCount(0)
+  await expect(page.locator('.bottom-nav a[href="/catalogo"]')).toHaveText('Catalogo')
+  await expect(page.locator('.bottom-nav a[href="/liste"]')).toHaveCount(0)
+  await page.getByRole('link', { name: 'Catalogo', exact: true }).filter({ visible: true }).click()
+  await expect(page.getByRole('heading', { name: 'Il vostro catalogo.' })).toBeVisible()
 })
 test('Salvato scompare dopo quattro secondi e resta nascosto cambiando sezione', async ({ page }) => {
   await login(page, true)
@@ -831,9 +841,31 @@ test('Salvato scompare dopo quattro secondi e resta nascosto cambiando sezione',
   await expect(page.locator('.notice')).toHaveText('Salvato.')
   await page.clock.fastForward(4_000)
   await expect(page.locator('.notice')).toHaveCount(0)
-  await page.getByRole('link', { name: 'Home', exact: true }).filter({ visible: true }).click()
+  await page.locator('nav').getByRole('link', { name: 'Home', exact: true }).filter({ visible: true }).click()
   await expect(page.getByRole('heading', { name: 'Le cose buone iniziano da qui.' })).toBeVisible()
   await expect(page.locator('.notice')).toHaveCount(0)
+})
+
+test('lista unica: primo accesso idempotente, nessuna creazione aggiuntiva al refresh', async ({ page }) => {
+  const { ensureListRequests } = await login(page, false, { shopping_lists: [] })
+  await page.goto('/liste')
+  await expect(page.getByRole('heading', { name: 'La lista della spesa.' })).toBeVisible()
+  expect(ensureListRequests).toHaveLength(1)
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'La lista della spesa.' })).toBeVisible()
+  expect(ensureListRequests).toHaveLength(1)
+})
+
+test('lista unica: vecchi collegamenti aprono la stessa lista e mantengono gli articoli', async ({
+  page,
+}) => {
+  await login(page, true)
+  await page.goto('/liste/vecchia-lista')
+  await expect(page.getByRole('button', { name: 'Registra acquisto Latte' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Segna lista completata' })).toHaveCount(0)
+  await page.getByRole('link', { name: 'Confronta prezzi →', exact: true }).click()
+  await expect(page.getByRole('combobox', { name: 'Lista', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Confronta la tua spesa' })).toBeVisible()
 })
 
 test('un secondo salvataggio rinnova la durata della conferma', async ({ page }) => {
@@ -857,7 +889,7 @@ test('un secondo salvataggio rinnova la durata della conferma', async ({ page })
 test('aggiunta articolo e acquisto parziale senza prezzo', async ({ page }) => {
   await login(page, true)
   await page.goto('/liste/20000000-0000-4000-8000-000000000001')
-  await expect(page.getByRole('heading', { name: 'Spesa di test' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'La lista della spesa.' })).toBeVisible()
   await page.getByLabel('Nome per articolo libero').fill('Pane')
   await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
   await expect(page.getByText('Pane', { exact: true })).toBeVisible()
@@ -884,10 +916,10 @@ test('scanner manuale, checksum e nessun salvataggio implicito', async ({ page }
 test('offline informa e blocca salvataggio', async ({ page, context }) => {
   await login(page)
   await page.goto('/liste')
-  await expect(page.getByRole('heading', { name: 'Le vostre liste.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'La lista della spesa.' })).toBeVisible()
   await context.setOffline(true)
   await expect(page.getByText('Sei offline. Le modifiche richiedono una connessione.')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Crea lista', exact: true })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Aggiungi', exact: true })).toBeDisabled()
 })
 test('accessibilità essenziale della dashboard', async ({ page }) => {
   await login(page)

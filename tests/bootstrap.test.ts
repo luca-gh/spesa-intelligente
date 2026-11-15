@@ -22,7 +22,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await db.close()
 })
-it('bootstrap completo: dieci migrazioni, venti tabelle con RLS e quattro tabelle pubblicate', async () => {
+it('bootstrap completo: migrazioni correnti, venti tabelle con RLS e quattro tabelle pubblicate', async () => {
   await db.exec(sql)
   const tables = await db.query<{ name: string; rls: boolean }>(
     `select c.relname as name,c.relrowsecurity as rls from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r'`,

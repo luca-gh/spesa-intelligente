@@ -34,13 +34,13 @@ const Scanner = lazy(() => import('./pages/Account').then((m) => ({ default: m.S
 
 const primary = [
   { to: '/', label: 'Home', icon: House },
-  { to: '/liste', label: 'Liste', icon: ListChecks },
+  { to: '/catalogo', label: 'Catalogo', icon: Package },
   { to: '/ricette', label: 'Ricette', icon: BookOpen },
   { to: '/pasti', label: 'Pasti', icon: CalendarDays },
   { to: '/statistiche', label: 'Statistiche', icon: ChartNoAxesCombined },
 ]
 const secondary = [
-  { to: '/catalogo', label: 'Catalogo prodotti', icon: Package },
+  { to: '/liste', label: 'Lista della spesa', icon: ListChecks },
   { to: '/negozi', label: 'Supermercati', icon: Store },
   { to: '/prezzi', label: 'Prezzi e confronto', icon: Tags },
   { to: '/scanner', label: 'Scanner', icon: ScanLine },

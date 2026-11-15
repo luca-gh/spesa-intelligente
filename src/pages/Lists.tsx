@@ -1,9 +1,9 @@
 import { ArchiveButton } from '../components/ArchiveButton'
 import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { Plus, ArrowLeft, Check, ShoppingBasket } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { ArrowLeft, Check, ShoppingBasket } from 'lucide-react'
 import { useApp } from '../data/context'
-import { insert, remove, rpc, update } from '../data/client'
+import { rpc } from '../data/client'
 import { euro, quantity } from '../domain/math'
 import { AddListItemForm } from '../components/AddListItemForm'
 import type { Item } from '../data/types'
@@ -20,87 +20,12 @@ import {
 } from '../components/ui'
 
 export function Lists() {
-  const { '*': id } = useParams()
-  return id ? <ListDetail id={id} /> : <ListIndex />
-}
-function ListIndex() {
-  const { data, household, itemQuantity, act } = useApp()
-  const [filter, setFilter] = useState('active')
-  return (
-    <>
-      <SectionTitle eyebrow="UNA COSA IN MENO A CUI PENSARE" title="Le vostre liste." />
-      <Panel title="Crea una lista">
-        <Form
-          className="inline-form"
-          onSave={(f) => insert('shopping_lists', household!.id, { title: text(f, 'title') })}
-        >
-          <Field label="Titolo della lista" name="title" placeholder="La spesa della settimana" />
-          <Submit>
-            <Plus size={18} /> Crea lista
-          </Submit>
-        </Form>
-      </Panel>
-      <div className="tabs">
-        {[
-          ['active', 'Attive'],
-          ['completed', 'Completate'],
-          ['archived', 'Archiviate'],
-        ].map(([value, label]) => (
-          <button className={filter === value ? 'selected' : ''} key={value} onClick={() => setFilter(value)}>
-            {label}
-          </button>
-        ))}
-      </div>
-      <div className="cards">
-        {data.shopping_lists
-          .filter((l) => l.status === filter)
-          .map((list) => {
-            const items = data.shopping_list_items.filter((i) => i.list_id === list.id && !i.archived_at)
-            return (
-              <article className="panel" key={list.id}>
-                <span className="list-icon">
-                  <ShoppingBasket />
-                </span>
-                <h2>
-                  <Link to={`/liste/${list.id}`}>{list.title}</Link>
-                </h2>
-                <p>
-                  {items.filter((i) => Number(itemQuantity(i).remaining) === 0).length} di {items.length}{' '}
-                  acquistati
-                </p>
-                <div className="inline">
-                  <Link className="button secondary" to={`/liste/${list.id}`}>
-                    Apri lista
-                  </Link>
-                  <button
-                    className="text-button"
-                    onClick={() =>
-                      void act(() =>
-                        update('shopping_lists', list.id, {
-                          status: filter === 'archived' ? 'active' : 'archived',
-                        }),
-                      )
-                    }
-                  >
-                    {filter === 'archived' ? 'Ripristina' : 'Archivia'}
-                  </button>
-                  <ConfirmButton
-                    message="Eliminare questa lista? Se contiene articoli o acquisti, l’eliminazione viene bloccata per preservare lo storico."
-                    onConfirm={() => remove('shopping_lists', list.id)}
-                  >
-                    Elimina
-                  </ConfirmButton>
-                </div>
-              </article>
-            )
-          })}
-      </div>
-      {!data.shopping_lists.some((l) => l.status === filter) && (
-        <Empty title="Nessuna lista in questa sezione">
-          Crea una lista per condividere quello che serve.
-        </Empty>
-      )}
-    </>
+  const { data } = useApp()
+  const list = data.shopping_lists[0]
+  return list ? (
+    <ListDetail key={list.id} id={list.id} />
+  ) : (
+    <Empty title="Lista non disponibile">Ricarica la pagina per ritrovare la lista della spesa.</Empty>
   )
 }
 function ListDetail({ id }: { id: string }) {
@@ -116,7 +41,7 @@ function ListDetail({ id }: { id: string }) {
   if (!list)
     return (
       <Empty title="Lista non disponibile">
-        <Link to="/liste">Torna alle liste</Link>
+        <Link to="/liste">Apri la lista della spesa</Link>
       </Empty>
     )
   const items = data.shopping_list_items
@@ -336,38 +261,16 @@ function ListDetail({ id }: { id: string }) {
   }
   return (
     <>
-      <Link className="back-link" to="/liste">
-        <ArrowLeft size={17} /> Tutte le liste
+      <Link className="back-link" to="/">
+        <ArrowLeft size={17} /> Home
       </Link>
-      <SectionTitle eyebrow={`${pending.length} ARTICOLI DA ACQUISTARE`} title={list.title}>
+      <SectionTitle eyebrow={`${pending.length} ARTICOLI DA ACQUISTARE`} title="La lista della spesa.">
         <button className="button" onClick={() => setShopping(!shopping)}>
           <ShoppingBasket size={18} />
           {shopping ? 'Chiudi modalità spesa' : 'Inizia la spesa'}
         </button>
       </SectionTitle>
       <div className="inline list-toolbar">
-        <button
-          className="text-button"
-          onClick={() => {
-            const title = window.prompt('Nuovo titolo', list.title)
-            if (title?.trim()) void act(() => update('shopping_lists', id, { title: title.trim() }))
-          }}
-        >
-          Rinomina
-        </button>
-        <button className="text-button" onClick={() => void act(() => rpc('duplicate_list', { p_list: id }))}>
-          Duplica
-        </button>
-        <button
-          className="text-button"
-          onClick={() =>
-            void act(() =>
-              update('shopping_lists', id, { status: list.status === 'completed' ? 'active' : 'completed' }),
-            )
-          }
-        >
-          {list.status === 'completed' ? 'Riattiva' : 'Segna lista completata'}
-        </button>
         <Link to={`/prezzi?lista=${id}`}>Confronta prezzi →</Link>
       </div>
       {shopping && (

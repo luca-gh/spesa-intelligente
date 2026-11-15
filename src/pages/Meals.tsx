@@ -134,25 +134,16 @@ export function Recipes() {
           </div>
           <Form
             className="inline-form"
-            onSave={(f) =>
+            onSave={() =>
               rpc('add_recipe_to_list', {
                 p_recipe: recipe.id,
-                p_list: text(f, 'list'),
+                p_list: data.shopping_lists[0]?.id,
                 p_servings: servings,
                 p_operation: crypto.randomUUID(),
               })
             }
           >
-            <Select label="Aggiungi ingredienti alla lista" name="list">
-              <option value="">Scegli lista</option>
-              {data.shopping_lists
-                .filter((l) => l.status === 'active')
-                .map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.title}
-                  </option>
-                ))}
-            </Select>
+            <p className="muted">Gli ingredienti vengono aggiunti alla lista della spesa condivisa.</p>
             <Submit>Aggiungi ingredienti</Submit>
           </Form>
         </Panel>
@@ -304,7 +295,7 @@ export function Meals() {
   const [week, setWeek] = useState(monday(dateInZone(new Date(), household!.timezone)))
   const plan = data.meal_plans.find((p) => p.week_start === week)
   const entries = data.meal_entries.filter((e) => e.meal_plan_id === plan?.id)
-  const [listId, setListId] = useState('')
+  const listId = data.shopping_lists[0]?.id ?? ''
   const [preview, setPreview] = useState<{
     version: number
     planVersion: number
@@ -315,7 +306,7 @@ export function Meals() {
   } | null>(null)
   const days = Array.from({ length: 7 }, (_, i) => addDays(week, i))
   const buildPreview = () => {
-    const list = data.shopping_lists.find((l) => l.id === (listId || plan?.linked_list_id))
+    const list = data.shopping_lists.find((l) => l.id === listId)
     if (!list || !plan) return
     const amounts = new Map<string, { product_id: string; quantity: string; unit: Unit }>()
     for (const entry of entries) {
@@ -530,28 +521,10 @@ export function Meals() {
             </Form>
           </Panel>
           <Panel title="Ingredienti nella lista">
-            <label className="field">
-              Lista da collegare
-              <select
-                value={listId || plan.linked_list_id || ''}
-                onChange={(e) => {
-                  setListId(e.target.value)
-                  setPreview(null)
-                }}
-              >
-                <option value="">Scegli lista</option>
-                {data.shopping_lists
-                  .filter((l) => l.status === 'active')
-                  .map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {l.title}
-                    </option>
-                  ))}
-              </select>
-            </label>
+            <p className="muted">L’anteprima aggiorna gli ingredienti nella tua unica lista della spesa.</p>
             <button
               className="button"
-              disabled={!(listId || plan.linked_list_id)}
+              disabled={!listId}
               onClick={() =>
                 void act(async () => {
                   buildPreview()

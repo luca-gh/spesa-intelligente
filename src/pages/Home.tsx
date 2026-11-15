@@ -16,9 +16,8 @@ import { Empty, SectionTitle } from '../components/ui'
 export function Home() {
   const { data, household, itemQuantity } = useApp()
   const today = dateInZone(new Date(), household?.timezone)
-  const active = data.shopping_lists.filter((l) => l.status === 'active')
-  const activeIds = new Set(active.map((l) => l.id))
-  const items = data.shopping_list_items.filter((i) => activeIds.has(i.list_id) && !i.archived_at)
+  const list = data.shopping_lists[0]
+  const items = data.shopping_list_items.filter((i) => i.list_id === list?.id && !i.archived_at)
   const pending = items.filter((i) => Number(itemQuantity(i).remaining) > 0)
   const spend = statistics(data.purchases, today.slice(0, 7) + '-01', today, household?.timezone)
   const meals = data.meal_entries.filter(
@@ -34,7 +33,7 @@ export function Home() {
         title="Le cose buone iniziano da qui."
       >
         <Link className="button" to="/liste">
-          <Plus size={18} /> Nuova lista
+          <ShoppingBasket size={18} /> Apri la lista
         </Link>
       </SectionTitle>
       <section className="welcome">
@@ -63,17 +62,17 @@ export function Home() {
       <div className="metrics">
         <div className="metric">
           <span>
-            <ListChecks size={20} /> Liste attive
+            <ListChecks size={20} /> Articoli acquistati
           </span>
-          <strong>{active.length}</strong>
-          <small>Da organizzare insieme</small>
+          <strong>{items.length - pending.length}</strong>
+          <small>Nella lista della spesa</small>
         </div>
         <div className="metric">
           <span>
             <ShoppingBasket size={20} /> Articoli da acquistare
           </span>
           <strong>{pending.length}</strong>
-          <small>Nelle liste attive</small>
+          <small>Nella lista della spesa</small>
         </div>
         <div className="metric">
           <span>
@@ -97,39 +96,31 @@ export function Home() {
       <div className="home-columns">
         <section className="panel">
           <div className="panel-heading">
-            <h2>Le tue liste</h2>
+            <h2>La tua lista della spesa</h2>
             <Link to="/liste">
-              Vedi tutte <ArrowUpRight size={16} />
+              Apri lista <ArrowUpRight size={16} />
             </Link>
           </div>
-          {active.length ? (
-            active.slice(0, 4).map((list) => {
-              const rows = items.filter((i) => i.list_id === list.id)
-              const bought = rows.filter((i) => Number(itemQuantity(i).remaining) === 0).length
-              return (
-                <Link className="list-preview" key={list.id} to={`/liste/${list.id}`}>
-                  <span className="list-icon">
-                    <ShoppingBasket size={24} />
-                  </span>
-                  <div>
-                    <strong>{list.title}</strong>
-                    <small>
-                      {bought} di {rows.length} articoli acquistati
-                    </small>
-                    <progress
-                      max={rows.length || 1}
-                      value={bought}
-                      aria-label={`Avanzamento ${list.title}`}
-                    />
-                  </div>
-                  <ArrowUpRight size={20} />
-                </Link>
-              )
-            })
-          ) : (
-            <Empty title="La prima lista vi aspetta">
-              Pane, frutta, qualcosa di buono. <Link to="/liste">Crea una lista</Link> e inizia a
-              organizzarvi.
+          <Link className="list-preview" to="/liste">
+            <span className="list-icon">
+              <ShoppingBasket size={24} />
+            </span>
+            <div>
+              <strong>Lista della spesa</strong>
+              <small>
+                {items.length - pending.length} di {items.length} articoli acquistati
+              </small>
+              <progress
+                max={items.length || 1}
+                value={items.length - pending.length}
+                aria-label="Avanzamento lista della spesa"
+              />
+            </div>
+            <ArrowUpRight size={20} />
+          </Link>
+          {!items.length && (
+            <Empty title="La lista è vuota">
+              Aggiungi quello che serve e ritrovalo qui, insieme alla famiglia.
             </Empty>
           )}
         </section>

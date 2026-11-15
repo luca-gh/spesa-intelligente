@@ -12,7 +12,7 @@ it('migrazione catalogo: preserva prodotti, liste, acquisti e archiviazione pree
       select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000099',false);`)
     const migration = '20261114221151_unified_catalog.sql'
     for (const file of readdirSync('supabase/migrations')
-      .filter((f) => f.endsWith('.sql') && !f.includes('realtime_storage') && f !== migration)
+      .filter((f) => f.endsWith('.sql') && !f.includes('realtime_storage') && f < migration)
       .sort())
       await db.exec(readFileSync('supabase/migrations/' + file, 'utf8'))
     const scalar = async (sql: string, params: unknown[] = []) =>

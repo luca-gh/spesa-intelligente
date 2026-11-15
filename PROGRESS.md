@@ -1,5 +1,9 @@
 # Avanzamento
 
+## Lista unica e catalogo nella barra inferiore — 15 novembre 2026
+
+Una sola lista per famiglia, aperta dalla Home; Catalogo nella navigazione primaria/mobile. Rimossi i comandi per gestire liste multiple e i selettori in ricette, pasti e confronto. Migrazione `20261115115132_single_shopping_list.sql` applicata tramite plugin Supabase: vincolo univoco, stato sempre attivo, inizializzazione SECURITY INVOKER con RLS e duplicazione revocata. Impronte dati prima/dopo identiche. Collaudo SQL reale transazionale PASS, fixture annullate. 69 test locali PASS; 86 casi browser correnti, verificati con suite completa e ripetizione dei quattro casi aggiornati. PWA PASS. Advisor: zero errori; avvisi preesistenti su 23 RPC definer autorizzate e protezione password compromesse. CI/deploy del commit verificati dopo pubblicazione. Secondo account reale ancora rinviato come richiesto.
+
 ## Inserimento barcode — 15 novembre 2026
 
 Implementati lettura camera EAN-8/EAN-13 (nativa e ZXing), ricerca manuale, compilazione revisionabile del catalogo da Open Food Facts e riconoscimento prodotti già presenti. Campi incompleti restano manuali; categorie solo esistenti e univoche. Nessun salvataggio implicito o invio di immagini. Proxy Pages con cache di soli dati pubblici e attribuzione ODbL. Test locali: 66 PASS; browser desktop/mobile: 82 PASS, compresa decodifica ZXing reale su video sintetico. Richiesta al provider staging: PASS con prodotto pubblico. Fotocamera fisica Android/iOS ancora NOT RUN. Questa funzione completa la parte barcode della fase 5; OCR e altre importazioni rimangono TODO e il gate complessivo resta aperto.

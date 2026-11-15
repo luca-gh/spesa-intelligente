@@ -79,6 +79,17 @@ export function Provider({ children }: { children: ReactNode }) {
       return
     }
     const h = result.data as Household
+    // Idempotent RPC: the database enforces one list even for concurrent first access.
+    const { data: lists, error: listError } = await client
+      .from('shopping_lists')
+      .select('id')
+      .eq('household_id', h.id)
+      .limit(1)
+    if (listError) throw listError
+    if (!lists.length) {
+      const { error } = await client.rpc('ensure_shopping_list', { p_household: h.id })
+      if (error) throw error
+    }
     const rows = await Promise.all(
       Object.keys(emptyData).map(async (table) => {
         const { data: records, error } = await client!
