@@ -58,14 +58,6 @@ export function Catalog() {
   return (
     <>
       <SectionTitle eyebrow="SAPERE COSA SCEGLIERE" title="Il vostro catalogo." />
-      <label className="field search-field">
-        Cerca prodotto, marca o barcode
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Es. latte parzialmente scremato…"
-        />
-      </label>
       <Panel title={editing ? 'Modifica prodotto' : 'Nuovo prodotto'}>
         <p className="muted">
           È obbligatorio solo il nome. Puoi aggiungere o completare gli altri dettagli in seguito.
@@ -223,6 +215,14 @@ export function Catalog() {
           </Form>
         </div>
       </Panel>
+      <label className="field search-field">
+        Cerca prodotto, marca o barcode
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Es. latte parzialmente scremato…"
+        />
+      </label>
       <Panel title="Prodotti">
         <p className="muted">
           I prodotti sono sempre in ordine alfabetico per nome. Puoi eliminare quelli inutilizzati o
