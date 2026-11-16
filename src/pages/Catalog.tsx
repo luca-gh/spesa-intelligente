@@ -268,12 +268,13 @@ export function Catalog() {
           placeholder="Es. latte parzialmente scremato…"
         />
       </label>
-      <details
-        className="panel catalog-products"
-        open={productsExpanded}
-        onToggle={(event) => setProductsExpanded(event.currentTarget.open)}
-      >
-        <summary>
+      <details className="panel catalog-products" open={productsExpanded}>
+        <summary
+          onClick={(event) => {
+            event.preventDefault()
+            setProductsExpanded((expanded) => !expanded)
+          }}
+        >
           <h2>
             Prodotti <span className="count">{products.length}</span>
           </h2>

@@ -1327,6 +1327,13 @@ test('catalogo: totali prodotti e categorie, tabella richiudibile e ricerca che 
   await expect(page.locator('.catalog-products table')).toBeVisible()
   await expect(page.locator('.catalog-products tbody tr')).toHaveCount(1)
   await expect(counts.locator('dd')).toHaveText(['3', '4'])
+  // Closing and immediately typing must win over any queued native toggle event.
+  for (const query of ['Mele', 'Latte']) {
+    await toggle.press('Enter')
+    await page.getByLabel('Cerca prodotto, marca o barcode').fill(query)
+    await expect(page.locator('.catalog-products table')).toBeVisible()
+    await expect(toggle).toContainText('Riduci tabella')
+  }
   await page.getByLabel('Cerca prodotto, marca o barcode').fill('')
   await page.getByLabel('Mostra archiviati', { exact: true }).check()
   await expect(page.locator('.catalog-products tbody tr')).toHaveCount(1)

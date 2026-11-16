@@ -6,6 +6,8 @@ Nuovo test locale per conversioni decimali kg→g e L→ml, formato vuoto e cons
 
 Suite locale completa PASS: 89 test in 12 file e 136 prove browser desktop/mobile, inclusa accessibilità del Catalogo. Lint, tipi e build PASS; PWA, segreti, CI e disponibilità HTTPS verificati alla pubblicazione.
 
+La CI ha rilevato una corsa tra chiusura della tabella e ricerca immediata: il toggle nativo poteva sovrascrivere lo stato aperto richiesto dalla ricerca. Ora lo stato è aggiornato dal click/attivazione tastiera del summary, senza una seconda sincronizzazione dal toggle nativo. Aggiunta regressione su chiusura/ricerca consecutive e ripetuta la prova mobile con due worker.
+
 ## Due totali nel Catalogo — 15 novembre 2026
 
 Aggiornati i test dei conteggi e lo scenario browser desktop/mobile: soltanto Prodotti attivi e Categorie, conteggi indipendenti dai filtri, categorie vuote incluse, nessuna categoria virtuale contata e catalogo vuoto con due zeri. Mantenute le prove di riduzione/espansione, ricerca, accessibilità e assenza di overflow. Nessuna nuova migrazione o scrittura sui dati reali.
