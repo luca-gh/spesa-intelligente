@@ -674,6 +674,7 @@ for (const example of [
   },
 ]) {
   test(`barcode non alimentare: ${example.source} compila campi e arriva alla lista`, async ({ page }) => {
+    const expectedSize = example.unit === 'L' ? '1000' : example.size
     const { itemRequests, catalogSaveRequests } = await login(page, false, {
       categories: [{ id: 'non-food-category', name: example.category, sort_order: 0 }],
     })
@@ -692,7 +693,8 @@ for (const example of [
     await expect(page.getByRole('combobox', { name: 'Categoria', exact: true })).toHaveValue(
       'non-food-category',
     )
-    await expect(page.getByLabel('Quantità per confezione', { exact: true })).toHaveValue(example.size)
+    await expect(page.getByLabel('Quantità per confezione', { exact: true })).toHaveValue(expectedSize)
+    await expect(page.getByRole('combobox', { name: 'Unità del formato', exact: true })).toHaveValue('ml')
     await expect(
       page.getByRole('link', { name: `Fonte ${example.sourceName}`, exact: true }),
     ).toHaveAttribute('href', `${example.origin}/product/${example.barcode}`)
@@ -701,13 +703,13 @@ for (const example of [
     expect(itemRequests).toHaveLength(0)
     await page.getByRole('button', { name: 'Salva prodotto', exact: true }).click()
     await expect(page.locator('input[name="product"]')).toHaveValue('new-product-0')
-    await expect(page.getByLabel('Quantità', { exact: true })).toHaveValue(example.size)
+    await expect(page.getByLabel('Quantità', { exact: true })).toHaveValue(expectedSize)
     await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
     await expect(page.locator('.shopping-item')).toContainText(example.name)
     expect(itemRequests[0]).toMatchObject({
       p_specific: 'new-product-0',
-      p_quantity: example.size,
-      p_unit: example.unit,
+      p_quantity: expectedSize,
+      p_unit: 'ml',
     })
   })
 }
@@ -751,13 +753,13 @@ test('barcode nella lista: nuovo prodotto, compilazione e ritorno con selezione'
   await page.getByRole('button', { name: 'Salva prodotto', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'La lista della spesa.' })).toBeVisible()
   await expect(page.locator('input[name="product"]')).toHaveValue('new-product-0')
-  await expect(page.getByLabel('Quantità', { exact: true })).toHaveValue('1')
-  await expect(page.getByRole('combobox', { name: 'Unità', exact: true })).toHaveValue('L')
+  await expect(page.getByLabel('Quantità', { exact: true })).toHaveValue('1000')
+  await expect(page.getByRole('combobox', { name: 'Unità', exact: true })).toHaveValue('ml')
   expect(catalogSaveRequests).toHaveLength(1)
   expect(itemRequests).toHaveLength(0)
   await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
   await expect(page.locator('.shopping-item')).toContainText(scannedProduct.name)
-  expect(itemRequests[0]).toMatchObject({ p_specific: 'new-product-0', p_quantity: '1', p_unit: 'L' })
+  expect(itemRequests[0]).toMatchObject({ p_specific: 'new-product-0', p_quantity: '1000', p_unit: 'ml' })
 })
 
 test('barcode nella lista: codice assente o errato non cancella l’articolo libero', async ({ page }) => {
@@ -854,7 +856,7 @@ test('barcode: compila campi modificabili e salva solo dopo conferma', async ({ 
   await expect(page.getByLabel('Nome prodotto', { exact: true })).toHaveValue(scannedProduct.name)
   await expect(page.getByLabel('Marca (facoltativa)', { exact: true })).toHaveValue('Abit')
   await expect(page.getByRole('combobox', { name: 'Categoria', exact: true })).toHaveValue('milk-category')
-  await expect(page.getByLabel('Quantità per confezione', { exact: true })).toHaveValue('1')
+  await expect(page.getByLabel('Quantità per confezione', { exact: true })).toHaveValue('1000')
   expect(catalogSaveRequests).toHaveLength(0)
   await page.getByLabel('Nome prodotto', { exact: true }).fill('Latte corretto')
   await page.getByRole('button', { name: 'Salva prodotto', exact: true }).click()
@@ -862,8 +864,8 @@ test('barcode: compila campi modificabili e salva solo dopo conferma', async ({ 
   expect(catalogSaveRequests[0]).toMatchObject({
     p_name: 'Latte corretto',
     p_brand: 'Abit',
-    p_unit: 'L',
-    p_quantity: '1',
+    p_unit: 'ml',
+    p_quantity: '1000',
   })
 })
 
@@ -1111,12 +1113,17 @@ test('catalogo unico: aggiunta successiva del formato e rimozione dei dettagli f
   })
   await page.goto('/catalogo')
   await page.locator('tbody tr').getByRole('button', { name: 'Modifica', exact: true }).click()
-  await page.getByText('Formato della confezione (facoltativo)', { exact: true }).click()
-  await page.getByLabel('Quantità per confezione', { exact: true }).fill('1')
-  await page.getByRole('combobox', { name: 'Unità del formato', exact: true }).selectOption('L')
+  await expect(page.getByLabel('Nome prodotto', { exact: true })).toBeFocused()
+  await expect(page.getByLabel('Nome prodotto', { exact: true })).toBeInViewport()
+  await expect(page.getByRole('group', { name: 'Formato della confezione', exact: true })).toBeVisible()
+  await expect(
+    page.getByRole('combobox', { name: 'Unità del formato', exact: true }).locator('option'),
+  ).toHaveText(['Non indicata', 'g', 'ml', 'pz', 'conf'])
+  await page.getByLabel('Quantità per confezione', { exact: true }).fill('1000')
+  await page.getByRole('combobox', { name: 'Unità del formato', exact: true }).selectOption('ml')
   await page.getByRole('button', { name: 'Salva prodotto', exact: true }).click()
   await expect(page.locator('tbody tr')).toHaveCount(1)
-  await expect(page.locator('tbody tr')).toContainText('1 L')
+  await expect(page.locator('tbody tr')).toContainText('1000 ml')
   await page.locator('tbody tr').getByRole('button', { name: 'Modifica', exact: true }).click()
   await page.getByLabel('Marca (facoltativa)', { exact: true }).fill('')
   await page.getByLabel('Quantità per confezione', { exact: true }).fill('')
@@ -1132,6 +1139,66 @@ test('catalogo unico: aggiunta successiva del formato e rimozione dei dettagli f
   })
 })
 
+for (const legacy of [
+  { unit: 'kg', size: '1.25', expectedUnit: 'g', expectedSize: '1250' },
+  { unit: 'L', size: '0.75', expectedUnit: 'ml', expectedSize: '750' },
+]) {
+  test(`catalogo: modifica un formato precedente in ${legacy.unit}, scorre ai campi e salva la quantità equivalente`, async ({
+    page,
+  }) => {
+    if (legacy.unit === 'kg') await page.emulateMedia({ reducedMotion: 'reduce' })
+    const { catalogSaveRequests } = await login(page, false, {
+      generic_products: [
+        {
+          id: 'group',
+          name: 'Prodotto precedente',
+          canonical_unit: legacy.unit,
+          category_id: null,
+          is_catalog_group: true,
+        },
+      ],
+      specific_products: [
+        {
+          id: 'legacy-card',
+          name: 'Prodotto precedente',
+          generic_product_id: 'group',
+          brand: 'Marca test',
+          variant: '',
+          barcode: null,
+          package_quantity: legacy.size,
+          package_unit: legacy.unit,
+        },
+      ],
+    })
+    await page.goto('/catalogo')
+    const edit = page
+      .getByRole('row', { name: /^Prodotto precedente/ })
+      .getByRole('button', { name: 'Modifica', exact: true })
+    await edit.click()
+    const name = page.getByLabel('Nome prodotto', { exact: true })
+    await expect(name).toBeFocused()
+    await expect(name).toBeInViewport()
+    await expect(page.getByLabel('Quantità per confezione', { exact: true })).toHaveValue(legacy.expectedSize)
+    await expect(page.getByRole('combobox', { name: 'Unità del formato', exact: true })).toHaveValue(
+      legacy.expectedUnit,
+    )
+    await edit.click()
+    await expect(name).toBeFocused()
+    await expect(name).toBeInViewport()
+    await page.getByRole('button', { name: 'Salva prodotto', exact: true }).click()
+    await expect.poll(() => catalogSaveRequests.length).toBe(1)
+    expect(catalogSaveRequests[0]).toMatchObject({
+      p_id: 'legacy-card',
+      p_specific: true,
+      p_quantity: legacy.expectedSize,
+      p_unit: legacy.expectedUnit,
+    })
+    await expect(page.getByRole('row', { name: /^Prodotto precedente/ })).toContainText(
+      `${legacy.expectedSize} ${legacy.expectedUnit}`,
+    )
+  })
+}
+
 test('catalogo unico: EAN errato e formato incompleto non inviano salvataggi', async ({ page }) => {
   const { catalogSaveRequests } = await login(page)
   await page.goto('/catalogo')
@@ -1140,7 +1207,7 @@ test('catalogo unico: EAN errato e formato incompleto non inviano salvataggi', a
   await page.getByRole('button', { name: 'Salva prodotto', exact: true }).click()
   await expect(page.getByRole('status').filter({ hasText: 'checksum' })).toBeVisible()
   await page.getByLabel('EAN-8 / EAN-13 (facoltativo)', { exact: true }).fill('')
-  await page.getByText('Formato della confezione (facoltativo)', { exact: true }).click()
+  await expect(page.getByLabel('Quantità per confezione', { exact: true })).toBeVisible()
   await page.getByLabel('Quantità per confezione', { exact: true }).fill('1')
   await page.getByRole('button', { name: 'Salva prodotto', exact: true }).click()
   await expect(page.getByRole('status').filter({ hasText: 'completa quantità' })).toBeVisible()

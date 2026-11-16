@@ -1,5 +1,14 @@
 import type { Category, Data } from './types'
 import type { Product } from '../domain/prices'
+import { convert, type Unit } from '../domain/math'
+
+export function catalogFormatFields(size: string | null | undefined, unit: Unit | '' | null | undefined) {
+  if (unit === 'kg' || unit === 'L') {
+    const base = unit === 'kg' ? 'g' : 'ml'
+    return { size: size ? convert(size, unit, base).toString() : '', unit: base }
+  }
+  return { size: size ?? '', unit: unit ?? '' }
+}
 
 export function orderedCategories(categories: Category[]) {
   return [...categories].sort(

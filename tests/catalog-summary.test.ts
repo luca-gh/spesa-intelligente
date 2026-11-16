@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { catalogTotals } from '../src/data/catalog'
+import { catalogTotals, catalogFormatFields } from '../src/data/catalog'
 import { emptyData, type Data } from '../src/data/types'
 
 const data: Data = {
@@ -56,6 +56,14 @@ const data: Data = {
     },
   ],
 }
+
+it('mostra kg e L in g e ml senza perdere quantità o alterare bozze nelle altre unità', () => {
+  expect(catalogFormatFields('1,25', 'kg')).toEqual({ size: '1250', unit: 'g' })
+  expect(catalogFormatFields('0.75', 'L')).toEqual({ size: '750', unit: 'ml' })
+  expect(catalogFormatFields('1.234', 'kg')).toEqual({ size: '1234', unit: 'g' })
+  expect(catalogFormatFields(null, null)).toEqual({ size: '', unit: '' })
+  expect(catalogFormatFields('bozza', 'g')).toEqual({ size: 'bozza', unit: 'g' })
+})
 
 it('conta prodotti attivi senza duplicare i gruppi e tutte le categorie, anche vuote', () => {
   expect(catalogTotals(data)).toEqual({ products: 5, categories: 3 })

@@ -1,5 +1,11 @@
 # Avanzamento
 
+## Modifica guidata e formato sempre visibile — 16 novembre 2026
+
+Nel modulo Catalogo rimossi kg e L dalle scelte del formato; restano g, ml, pz e conf. Formati esistenti e da barcode convertiti nel modulo con aritmetica decimale, conservando il contenuto della confezione; persistenza solo dopo Salva prodotto. Unità storiche e conversioni nelle altre sezioni conservate, nessuna migrazione. Formato ancora opzionale ma sempre visibile in un fieldset, senza espandi/riduci né etichetta facoltativo. Modifica scorre al campo Nome prodotto dopo il montaggio del form e lo focalizza; funziona anche ripremendo Modifica sullo stesso prodotto e rispetta il movimento ridotto.
+
+Suite completa PASS: 89 test locali in 12 file e 136 prove browser desktop/mobile; lint, tipi e build verificati. Aggiornamento PWA, segreti, CI e pubblicazione HTTPS controllati prima di concludere. Nessuna prova hardware iPad aggiuntiva.
+
 ## Riepilogo catalogo con due totali — 15 novembre 2026
 
 Su richiesta successiva, la dashboard per categoria è sostituita da due soli numeri: prodotti attivi complessivi e categorie effettivamente presenti, incluse quelle vuote. Nessun dettaglio per singola categoria o categoria virtuale nel totale. Ricerca e vista archiviati non cambiano i totali; gruppi interni e prodotti archiviati esclusi dal conteggio prodotti come prima. Nessuna modifica ai dati.

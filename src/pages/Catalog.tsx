@@ -1,5 +1,5 @@
 import { ArchiveButton, ArchiveFilter } from '../components/ArchiveButton'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { BarcodeImport } from '../components/BarcodeImport'
 import { CategoryOrder } from '../components/CategoryOrder'
 import { barcodeSourceName, type BarcodeProduct } from '../domain/barcodeLookup'
@@ -9,7 +9,13 @@ import { useApp } from '../data/context'
 import { insert, remove, removeCatalogProduct, rpc, update } from '../data/client'
 import { convert, dateInZone, euro, quantity, units, validBarcode, type Unit } from '../domain/math'
 import { estimate, rank } from '../domain/prices'
-import { catalogProducts, productFormat, orderedCategories, catalogTotals } from '../data/catalog'
+import {
+  catalogProducts,
+  productFormat,
+  orderedCategories,
+  catalogTotals,
+  catalogFormatFields,
+} from '../data/catalog'
 import {
   ConfirmButton,
   Empty,
@@ -36,6 +42,15 @@ export function Catalog() {
   const fromList = catalogParams.get('origine') === 'lista'
   const [revision, setRevision] = useState(0)
   const editor = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!selected) return
+    const name = editor.current?.querySelector<HTMLInputElement>('input[name="name"]')
+    name?.focus({ preventScroll: true })
+    name?.scrollIntoView({
+      block: 'center',
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+    })
+  }, [selected, revision])
   const readDraft = () => new FormData(editor.current!.querySelector('form')!)
   const selectProduct = (key: string) => {
     setSelected(key)
@@ -48,6 +63,10 @@ export function Catalog() {
   const editing = allProducts.find((entry) => entry.kind + ':' + entry.product.id === selected)
   const product = editing?.product
   const details = editing?.kind === 'specific' ? editing.product : undefined
+  const format = catalogFormatFields(
+    prefill?.size ?? details?.package_quantity,
+    prefill?.unit ?? details?.package_unit,
+  )
   const query = search.trim().toLocaleLowerCase('it')
   const products = allProducts.filter(
     (entry) =>
@@ -203,8 +222,8 @@ export function Catalog() {
                 required={false}
               />
             </div>
-            <details open={!!(prefill?.size ?? details?.package_quantity)}>
-              <summary>Formato della confezione (facoltativo)</summary>
+            <fieldset>
+              <legend>Formato della confezione</legend>
               <p className="muted">
                 Indicalo quando lo conosci: serve per confrontare quantità e prezzi. Se manca, la stima
                 segnala il prezzo come non disponibile.
@@ -213,23 +232,20 @@ export function Catalog() {
                 <Field
                   label="Quantità per confezione"
                   name="size"
-                  value={prefill?.size ?? details?.package_quantity ?? ''}
+                  value={format.size}
                   required={false}
                   placeholder="Es. 1 oppure 500"
                 />
-                <Select
-                  label="Unità del formato"
-                  name="unit"
-                  value={prefill?.unit ?? details?.package_unit ?? ''}
-                  required={false}
-                >
+                <Select label="Unità del formato" name="unit" value={format.unit} required={false}>
                   <option value="">Non indicata</option>
-                  {units.map((unit) => (
-                    <option key={unit}>{unit}</option>
-                  ))}
+                  {units
+                    .filter((unit) => unit !== 'kg' && unit !== 'L')
+                    .map((unit) => (
+                      <option key={unit}>{unit}</option>
+                    ))}
                 </Select>
               </div>
-            </details>
+            </fieldset>
             <div className="inline">
               <Submit>Salva prodotto</Submit>
               {editing && (
