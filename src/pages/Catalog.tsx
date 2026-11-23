@@ -9,7 +9,8 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Store as StoreIcon } from 'lucide-react'
 import { useApp } from '../data/context'
 import { insert, remove, removeCatalogProduct, rpc, update } from '../data/client'
-import { convert, quantity, units, validBarcode, type Unit } from '../domain/math'
+import { convert, euro, quantity, units, validBarcode, type Unit } from '../domain/math'
+import { unitPriceLabel } from '../domain/catalogPrices'
 import {
   catalogProducts,
   productFormat,
@@ -30,7 +31,8 @@ import {
 } from '../components/ui'
 
 export function Catalog() {
-  const { data } = useApp()
+  const { data, act, busy, online } = useApp()
+  const stores = data.stores.filter((s) => !s.archived_at).sort((a, b) => a.name.localeCompare(b.name, 'it'))
   const [search, setSearch] = useState('')
   const [archived, setArchived] = useState(false)
   const [productsExpanded, setProductsExpanded] = useState(true)
@@ -295,15 +297,16 @@ export function Catalog() {
           anche i dati collegati e i prezzi. Archivia conserva tutti i dati.
         </p>
         <ArchiveFilter value={archived} onChange={setArchived} />
-        <div className="table-wrap">
+        <div className="table-wrap" tabIndex={0} role="region" aria-label="Prodotti del catalogo">
           <table>
             <thead>
               <tr>
                 <th aria-sort="ascending">Prodotto</th>
-                <th>Categoria</th>
                 <th>Marca</th>
-                <th>EAN</th>
                 <th>Formato</th>
+                <th>Prezzi</th>
+                <th>Categoria</th>
+                <th>EAN</th>
                 <th>Azioni</th>
               </tr>
             </thead>
@@ -319,13 +322,62 @@ export function Catalog() {
                       <strong>{p.name}</strong>
                       {specific?.variant && <small>{specific.variant}</small>}
                     </td>
+                    <td>{specific?.brand || '—'}</td>
+                    <td>{specific ? productFormat(specific) : 'Non indicato'}</td>
+                    <td>
+                      <dl className="catalog-store-prices">
+                        {stores.map((store) => {
+                          const price =
+                            specific &&
+                            data.product_prices.find(
+                              (price) =>
+                                price.specific_product_id === specific.id && price.store_id === store.id,
+                            )
+                          return (
+                            <div key={store.id}>
+                              <dt>{store.name}</dt>
+                              <dd>
+                                {price ? euro(price.price_amount) : '-'}
+                                {price && specific && (
+                                  <small>{unitPriceLabel(price.price_amount, specific)}</small>
+                                )}
+                              </dd>
+                            </div>
+                          )
+                        })}
+                      </dl>
+                      {!stores.length && <span>-</span>}
+                    </td>
                     <td>
                       {data.categories.find((c) => c.id === entry.categoryId)?.name ?? 'Altri prodotti'}
                     </td>
-                    <td>{specific?.brand || '—'}</td>
                     <td>{specific?.barcode || '—'}</td>
-                    <td>{specific ? productFormat(specific) : 'Non indicato'}</td>
                     <td>
+                      {!p.archived_at && (
+                        <button
+                          className="text-button"
+                          disabled={busy || !online || !data.shopping_lists[0]}
+                          onClick={() =>
+                            void act(
+                              () =>
+                                rpc('add_shopping_product', {
+                                  p_list: data.shopping_lists[0].id,
+                                  p_name: p.name,
+                                  p_quantity: '1',
+                                  p_unit: 'conf',
+                                  p_generic: specific ? null : p.id,
+                                  p_specific: specific?.id ?? null,
+                                  p_brand: null,
+                                  p_package_quantity: null,
+                                  p_package_unit: null,
+                                }),
+                              'Prodotto aggiunto alla lista.',
+                            )
+                          }
+                        >
+                          Aggiungi alla lista
+                        </button>
+                      )}
                       <button className="text-button" onClick={() => selectProduct(key)}>
                         Modifica
                       </button>
@@ -375,6 +427,14 @@ export function Stores() {
   const [compareOpen, setCompareOpen] = useState(() => params.get('confronto') === '1')
   const { data, household } = useApp()
   const [editing, setEditing] = useState('')
+  const [editRevision, setEditRevision] = useState(0)
+  const storeEditor = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!editing) return
+    const input = storeEditor.current?.querySelector<HTMLInputElement>('input[name="name"]')
+    input?.focus({ preventScroll: true })
+    input?.scrollIntoView({ block: 'center', behavior: 'instant' })
+  }, [editing, editRevision])
   const [archived, setArchived] = useState(false)
   const [categoryStoreId, setCategoryStoreId] = useState('')
   const categoryStore =
@@ -396,27 +456,29 @@ export function Stores() {
         {compareOpen && <CurrentPriceComparison />}
       </details>
       <Panel title={store ? 'Modifica punto vendita' : 'Aggiungi un punto vendita'}>
-        <Form
-          key={editing}
-          className="grid-form"
-          onSave={async (f) => {
-            const values = {
-              name: text(f, 'name'),
-              chain: text(f, 'chain'),
-              address: text(f, 'address'),
-              city: text(f, 'city'),
-            }
-            if (store) await update('stores', store.id, values)
-            else await insert('stores', household!.id, values)
-            setEditing('')
-          }}
-        >
-          <Field label="Nome del punto vendita" name="name" value={store?.name} />
-          <Field label="Catena" name="chain" required={false} value={store?.chain} />
-          <Field label="Indirizzo" name="address" value={store?.address} />
-          <Field label="Città" name="city" value={store?.city} />
-          <Submit />
-        </Form>
+        <div ref={storeEditor}>
+          <Form
+            key={editing}
+            className="grid-form"
+            onSave={async (f) => {
+              const values = {
+                name: text(f, 'name'),
+                chain: text(f, 'chain'),
+                address: text(f, 'address'),
+                city: text(f, 'city'),
+              }
+              if (store) await update('stores', store.id, values)
+              else await insert('stores', household!.id, values)
+              setEditing('')
+            }}
+          >
+            <Field label="Nome del punto vendita" name="name" value={store?.name} />
+            <Field label="Catena" name="chain" required={false} value={store?.chain} />
+            <Field label="Indirizzo" name="address" value={store?.address} />
+            <Field label="Città" name="city" value={store?.city} />
+            <Submit />
+          </Form>
+        </div>
         <p className="muted">
           I prezzi sono specifici del singolo negozio. Non vengono trasferiti tra punti vendita della stessa
           catena.
@@ -436,7 +498,13 @@ export function Stores() {
               </p>
               {s.archived_at && <span className="pill">Archiviato</span>}
               <div className="inline">
-                <button className="text-button" onClick={() => setEditing(s.id)}>
+                <button
+                  className="text-button"
+                  onClick={() => {
+                    setEditing(s.id)
+                    setEditRevision((value) => value + 1)
+                  }}
+                >
                   Modifica
                 </button>
                 <ArchiveButton

@@ -1,5 +1,11 @@
 # Rapporto test
 
+## Tabella catalogo, inserimento diretto e prezzi modificabili dalla lista — 23 novembre 2026
+
+103 test locali in 15 file. Suite browser 187 casi: 83 desktop, 83 mobile Chromium, 21 WebKit iPad. Quattro nuove prove su ciascun profilo: ordine delle sette colonne, prezzi negozi impilati e trattini, aggiunta esatta di una confezione dal Catalogo; modifica prezzo dalla lista con supermercato selezionato, focus, punto respinto, quantità due confezioni e corretta unità €/kg; scelta esplicita formato senza confondere altre marche, retry dopo errore e contrasto; €/l, blocco offline, articolo libero senza prezzi inventati e persistenza al refresh. Prova dedicata al focus e allo scorrimento di Modifica supermercato, anche ripetendo il clic.
+
+Editor ProductPrices riutilizzato: nessuna modifica a RPC, RLS o schema. Endpoint preesistenti set_product_price e add_shopping_product verificati nei flussi browser con fixture isolate; nessuna scrittura nei dati familiari reali. Lint, tipi, build, segreti, PWA, CI e disponibilità pubblica verificati per la release. Nessun nuovo test su iPad fisico o a due account.
+
 ## Marca nella ricerca e prezzi sempre disponibili nella lista — 23 novembre 2026
 
 103 casi locali in 15 file. Quattro nuovi test puri: ricerca generica distinta da marca esatta, formati multipli senza risultati duplicati, termini misti nome/marca, accenti/maiuscole e omonimi senza collisioni tra ID; marche archiviate escluse; aggregazione prezzi condivisa che rispetta la marca ed esclude rimossi, quantità completate e supermercati archiviati. Totali e costi articolo provengono dallo stesso calcolo.

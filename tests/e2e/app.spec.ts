@@ -742,7 +742,7 @@ test('catalogo prezzi: modifica recuperabile, calcolo litro e rimozione senza ri
   await expect(price).toHaveCount(0)
 })
 
-test('catalogo prezzi: formato sconosciuto mostra trattino, nessuna gestione prezzi nella lista', async ({
+test('catalogo prezzi: formato sconosciuto mostra trattino, editor lista solo su richiesta', async ({
   page,
 }) => {
   await login(page, true, {
@@ -769,6 +769,211 @@ test('catalogo prezzi: formato sconosciuto mostra trattino, nessuna gestione pre
   await expect(page.getByRole('textbox', { name: /pagato|Prezzo|Lordo/ })).toHaveCount(0)
   await page.goto('/prezzi')
   await expect(page.getByRole('textbox', { name: 'Prezzo per confezione (€)', exact: true })).toHaveCount(0)
+})
+
+test('catalogo prezzi: colonne ordinate, supermercati impilati e aggiunta diretta del prodotto esatto', async ({
+  page,
+}) => {
+  const { itemRequests, priceRequests } = await login(page, false, spreadCatalog)
+  await page.goto('/catalogo')
+  const table = page.getByRole('region', { name: 'Prodotti del catalogo', exact: true })
+  await expect(table.getByRole('columnheader')).toHaveText([
+    'Prodotto',
+    'Marca',
+    'Formato',
+    'Prezzi',
+    'Categoria',
+    'EAN',
+    'Azioni',
+  ])
+  const row = table.locator('tr[data-product-id="nut-small"]')
+  const prices = row.locator('.catalog-store-prices')
+  await expect(prices.locator('dt')).toHaveText(['Negozio A', 'Negozio B', 'Negozio C'])
+  await expect(prices.locator('dd').first()).toContainText(/4,00\s*€/)
+  await expect(prices.locator('dd small').first()).toHaveText(/10,00\s*€\/kg/)
+  await expect(prices.locator('dd').last()).toHaveText('-')
+  const positions = await prices
+    .locator('dt')
+    .evaluateAll((nodes) => nodes.map((n) => n.getBoundingClientRect().top))
+  expect(positions[1]).toBeGreaterThan(positions[0])
+  await row.getByRole('button', { name: 'Aggiungi alla lista', exact: true }).click()
+  await expect.poll(() => itemRequests.length).toBe(1)
+  expect(itemRequests[0]).toMatchObject({
+    p_name: 'Crema spalmabile',
+    p_specific: 'nut-small',
+    p_quantity: '1',
+    p_unit: 'conf',
+  })
+  await page.goto('/liste')
+  const article = page.getByRole('article', { name: 'Crema spalmabile · Nutella', exact: true })
+  await expect(article).toContainText('400 g')
+  const editQuantity = await article
+    .getByRole('button', { name: 'Modifica quantità', exact: true })
+    .boundingBox()
+  const editPrice = await article.getByRole('button', { name: 'Modifica prezzo', exact: true }).boundingBox()
+  expect(Math.abs(editQuantity!.y - editPrice!.y)).toBeLessThan(1)
+  const priceA = article.locator('.item-prices > div').filter({ hasText: 'Negozio A' })
+  await expect(priceA.locator('small')).toHaveText(/10,00\s*€\/kg/)
+  await page.getByRole('combobox', { name: 'Supermercato per la spesa', exact: true }).selectOption('a')
+  await article.getByRole('button', { name: 'Modifica quantità', exact: true }).click()
+  await article.getByLabel('Quantità manuale', { exact: true }).fill('2')
+  await article.getByRole('button', { name: 'Salva', exact: true }).click()
+  await article.getByRole('button', { name: 'Modifica prezzo', exact: true }).click()
+  const input = article.getByRole('textbox', { name: 'Prezzo per confezione (€)', exact: true })
+  await expect(input).toHaveValue('4,00')
+  await expect(input).toBeFocused()
+  await input.fill('2.50')
+  await article.getByRole('button', { name: 'Salva prezzo', exact: true }).click()
+  expect(priceRequests).toHaveLength(0)
+  await input.fill('2,50')
+  await article.getByRole('button', { name: 'Salva prezzo', exact: true }).click()
+  await expect.poll(() => priceRequests.length).toBe(1)
+  expect(priceRequests[0]).toMatchObject({ p_product: 'nut-small', p_store: 'a', p_amount: '2.50' })
+  await expect(priceA.locator('dd')).toContainText(/5,00\s*€/)
+  await expect(priceA.locator('small')).toHaveText(/6,25\s*€\/kg/)
+  await expect(
+    page
+      .getByRole('table', { name: 'Confronto supermercati' })
+      .getByRole('row')
+      .filter({ hasText: 'Negozio A' }),
+  ).toContainText(/5,00\s*€/)
+  await page.goto('/catalogo')
+  await expect(row.locator('.catalog-store-prices dd').first()).toContainText(/2,50\s*€/)
+  await expect(row.locator('.catalog-store-prices small').first()).toHaveText(/6,25\s*€\/kg/)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+})
+
+test('lista prezzi: scelta esplicita del formato, recupero errore e nessuna modifica alle altre marche', async ({
+  page,
+}) => {
+  const { priceRequests, collections } = await login(page, false, spreadCatalog)
+  await page.goto('/liste')
+  await chooseListProduct(page, 'Crema spalmabile · Nutella', 'Nutella')
+  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
+  const article = page.getByRole('article', { name: 'Crema spalmabile · Nutella', exact: true })
+  await article.getByRole('button', { name: 'Modifica prezzo', exact: true }).click()
+  const product = article.getByRole('combobox', { name: 'Prodotto di cui modificare il prezzo', exact: true })
+  await expect(product).toHaveValue('')
+  await expect(product.locator('option')).toHaveCount(3)
+  await expect(product).not.toContainText('Altra marca')
+  await product.selectOption('nut-big')
+  await article
+    .getByRole('row', { name: 'Prezzo presso Negozio A', exact: true })
+    .getByRole('button', { name: 'Modifica prezzo', exact: true })
+    .click()
+  const input = article.getByRole('textbox', { name: 'Prezzo per confezione (€)', exact: true })
+  await expect(input).toHaveValue('6,00')
+  let fail = true
+  await page.route('**/rest/v1/rpc/set_product_price', async (route) => {
+    if (fail) {
+      fail = false
+      await route.fulfill({ status: 503, json: { message: 'Fixture unavailable' } })
+    } else await route.fallback()
+  })
+  await input.fill('2,00')
+  await article.getByRole('button', { name: 'Salva prezzo', exact: true }).click()
+  await expect(page.locator('.notice')).toContainText('Operazione non riuscita')
+  await expect(input).toHaveValue('2,00')
+  await article.getByRole('button', { name: 'Salva prezzo', exact: true }).click()
+  await expect.poll(() => priceRequests.length).toBe(1)
+  expect(priceRequests[0]).toMatchObject({ p_product: 'nut-big', p_store: 'a', p_amount: '2.00' })
+  expect(collections.product_prices).toContainEqual({
+    specific_product_id: 'private',
+    store_id: 'a',
+    price_amount: '1.00',
+  })
+  const priceA = article.locator('.item-prices > div').filter({ hasText: 'Negozio A' })
+  await expect(priceA.locator('small')).toHaveText(/2,67\s*€\/kg/)
+  const accessibility = await new AxeBuilder({ page })
+    .include('main.content')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+    .analyze()
+  expect(
+    accessibility.violations.map((v) => ({
+      id: v.id,
+      nodes: v.nodes.map((n) => ({ target: n.target, summary: n.failureSummary })),
+    })),
+  ).toEqual([])
+})
+
+test('supermercato modifica: raggiunge e mette a fuoco i campi anche cliccando di nuovo lo stesso negozio', async ({
+  page,
+}) => {
+  await login(page, false, {
+    stores: Array.from({ length: 12 }, (_, index) => ({
+      id: 'store-' + index,
+      name: 'Negozio ' + index,
+      chain: '',
+      address: 'Via Test',
+      city: 'Roma',
+    })),
+  })
+  await page.goto('/negozi')
+  const card = page
+    .getByRole('article')
+    .filter({ has: page.getByRole('heading', { name: 'Negozio 11', exact: true }) })
+  await card.getByRole('button', { name: 'Modifica', exact: true }).click()
+  const input = page.getByRole('textbox', { name: 'Nome del punto vendita', exact: true })
+  await expect(input).toHaveValue('Negozio 11')
+  await expect(input).toBeFocused()
+  await expect(input).toBeInViewport()
+  await card.getByRole('button', { name: 'Modifica', exact: true }).click()
+  await expect(input).toBeFocused()
+  await expect(input).toBeInViewport()
+})
+
+test('lista prezzi: euro al litro, salvataggio offline bloccato e articolo libero senza prezzo inventato', async ({
+  page,
+  context,
+}) => {
+  const { priceRequests } = await login(page, true, {
+    generic_products: [
+      { id: 'milk-g', name: 'Latte test', canonical_unit: 'ml', category_id: null, is_catalog_group: true },
+    ],
+    specific_products: [
+      {
+        id: 'milk',
+        generic_product_id: 'milk-g',
+        name: 'Latte test',
+        brand: 'Abit',
+        package_quantity: '750',
+        package_unit: 'ml',
+        barcode: null,
+        variant: '',
+      },
+    ],
+    stores: [{ id: 'a', name: 'Negozio A' }],
+    product_prices: [{ specific_product_id: 'milk', store_id: 'a', price_amount: '1.50' }],
+  })
+  await page.goto('/liste')
+  const free = page.getByRole('article', { name: 'Latte', exact: true })
+  await free.getByRole('button', { name: 'Modifica prezzo', exact: true }).click()
+  await expect(free).toContainText('Per registrare un prezzo aggiungi prima il prodotto')
+  await expect(free.locator('.item-prices dd')).toHaveText('-')
+  await chooseListProduct(page, 'Latte test', 'Latte test')
+  await page.getByRole('textbox', { name: 'Quantità', exact: true }).fill('2')
+  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
+  const article = page.getByRole('article', { name: 'Latte test', exact: true })
+  await expect(article.locator('.item-prices dd')).toContainText(/3,00\s*€/)
+  await expect(article.locator('.item-prices small')).toHaveText(/2,00\s*€\/l/)
+  await article.getByRole('button', { name: 'Modifica prezzo', exact: true }).click()
+  await article
+    .getByRole('row', { name: 'Prezzo presso Negozio A', exact: true })
+    .getByRole('button', { name: 'Modifica prezzo', exact: true })
+    .click()
+  const input = article.getByRole('textbox', { name: 'Prezzo per confezione (€)', exact: true })
+  await input.fill('1,20')
+  await context.setOffline(true)
+  await expect(article.getByRole('button', { name: 'Salva prezzo', exact: true })).toBeDisabled()
+  expect(priceRequests).toHaveLength(0)
+  await context.setOffline(false)
+  await expect(article.getByRole('button', { name: 'Salva prezzo', exact: true })).toBeEnabled()
+  await article.getByRole('button', { name: 'Salva prezzo', exact: true }).click()
+  await expect.poll(() => priceRequests.length).toBe(1)
+  await expect(article.locator('.item-prices dd')).toContainText(/2,40\s*€/)
+  await expect(article.locator('.item-prices small')).toHaveText(/1,60\s*€\/l/)
+  await page.reload()
+  await expect(article.locator('.item-prices small')).toHaveText(/1,60\s*€\/l/)
 })
 
 test('lista preferenze: nomi unici, marca e formato indipendenti, cambio prodotto pulisce le scelte', async ({

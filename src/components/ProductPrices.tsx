@@ -9,10 +9,17 @@ import { euro, parsePrice, priceInputError, priceInputValue } from '../domain/ma
 import { PriceField } from './PriceField'
 import { ConfirmButton, Form, Panel, Submit, text } from './ui'
 
-export function ProductPrices({ product }: { product: Specific }) {
+export function ProductPrices({ product, initialStore = '' }: { product: Specific; initialStore?: string }) {
   const { data, busy, online } = useApp()
-  const [editor, setEditor] = useState<string | null>(null)
-  const [draft, setDraft] = useState('')
+  const [editor, setEditor] = useState<string | null>(() =>
+    data.stores.some((s) => s.id === initialStore && !s.archived_at) ? initialStore : null,
+  )
+  const [draft, setDraft] = useState(() => {
+    const price = data.product_prices.find(
+      (p) => p.specific_product_id === product.id && p.store_id === initialStore,
+    )
+    return price ? priceInputValue(price.price_amount) : ''
+  })
   const [revision, setRevision] = useState(0)
   const editorRoot = useRef<HTMLDivElement>(null)
   useEffect(() => {

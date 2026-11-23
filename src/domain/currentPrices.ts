@@ -3,6 +3,31 @@ import { convert, money, packages } from './math'
 import type { Product, RequestItem } from './prices'
 import type { CurrentPrice } from '../data/types'
 
+export function matchesShoppingProduct(item: RequestItem, product: Product) {
+  if (
+    item.specific_product_id
+      ? product.id !== item.specific_product_id
+      : !item.generic_product_id || product.generic_product_id !== item.generic_product_id
+  )
+    return false
+  if (item.preferred_brand && product.brand !== item.preferred_brand) return false
+  try {
+    return (
+      !item.preferred_package_quantity ||
+      !item.preferred_package_unit ||
+      !!(
+        product.package_quantity &&
+        product.package_unit &&
+        convert(product.package_quantity, product.package_unit, item.preferred_package_unit).eq(
+          item.preferred_package_quantity,
+        )
+      )
+    )
+  } catch {
+    return false
+  }
+}
+
 export function compareCurrentPrices(
   storeId: string,
   items: RequestItem[],
@@ -14,26 +39,10 @@ export function compareCurrentPrices(
     .map((item) => {
       const candidates: { productId: string; productName: string; packs: number; amount: string }[] = []
       for (const product of products) {
-        if (
-          item.specific_product_id
-            ? product.id !== item.specific_product_id
-            : !item.generic_product_id || product.generic_product_id !== item.generic_product_id
-        )
-          continue
-        if (item.preferred_brand && product.brand !== item.preferred_brand) continue
+        if (!matchesShoppingProduct(item, product)) continue
         const price = prices.find((p) => p.store_id === storeId && p.specific_product_id === product.id)
         if (!price) continue
         try {
-          if (item.preferred_package_quantity && item.preferred_package_unit) {
-            if (
-              !product.package_quantity ||
-              !product.package_unit ||
-              !convert(product.package_quantity, product.package_unit, item.preferred_package_unit).eq(
-                item.preferred_package_quantity,
-              )
-            )
-              continue
-          }
           let packs: number
           if (item.unit === 'conf') packs = new Decimal(item.quantity).ceil().toNumber()
           else {

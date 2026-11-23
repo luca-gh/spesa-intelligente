@@ -1,5 +1,13 @@
 # Avanzamento
 
+## Prezzi nella tabella e modifica dalla lista — 23 novembre 2026
+
+Catalogo con colonne Prodotto, Marca, Formato, Prezzi, Categoria, EAN, Azioni. Prezzi per negozio impilati nella tabella con €/kg/l sottostante, trattini per dati assenti e negozi archiviati esclusi. Nuova azione Aggiungi alla lista: una confezione della scheda esatta, senza cambiare pagina. Modifica supermercato raggiunge il campo nome e lo mette a fuoco anche al secondo clic.
+
+Nella lista, Modifica prezzo accanto a Modifica quantità apre la stessa gestione del Catalogo. Con più prodotti compatibili si sceglie esplicitamente la scheda; nessuna modifica attribuita automaticamente alla marca o confezione più economica. Prezzo per confezione, salvataggio in sostituzione e rimozione condivisi; totali, costi articolo e €/kg/l si aggiornano. Il valore unitario usa il prezzo della singola confezione, non il costo moltiplicato per la quantità. Nessuna migrazione, nuova dipendenza o scrittura di record familiari reali durante i test.
+
+Verifiche: 103 test locali, suite browser di 187 prove (83 desktop, 83 mobile Chromium, 21 WebKit iPad), incluse quattro nuove prove per profilo. Controlli di contrasto dell’editor riutilizzato nella lista, virgola, retry, offline, scelta formato, aggiornamento condiviso e focus/scorrimento. CI e pubblicazione controllate sul commit finale.
+
 ## Ricerca per marca e prezzi nella lista — 23 novembre 2026
 
 Ricerca del prodotto per nome oppure marca, con risultati espliciti nome generico · marca. La scelta per marca salva preferred_brand già esistente e lascia libero il formato; scelta generica, barcode e articoli liberi conservati. Una sola voce per nome/marca anche con più formati; marche di prodotti archiviati escluse. Nome e marca visibili insieme nella lista e nei rimossi, filtro articoli esteso alla marca.

@@ -6,6 +6,8 @@ import { euro, quantity } from '../domain/math'
 import { AddListItemForm } from '../components/AddListItemForm'
 import { CurrentPriceComparison } from '../components/CurrentPriceComparison'
 import { shoppingPrices } from '../data/shoppingPrices'
+import { unitPriceLabel } from '../domain/catalogPrices'
+import { ListItemPrices } from '../components/ListItemPrices'
 import type { Item } from '../data/types'
 import { productFormat, storeCategories } from '../data/catalog'
 import { Empty, Field, Form, Panel, SectionTitle, Submit, text } from '../components/ui'
@@ -27,6 +29,7 @@ function ListDetail({ id }: { id: string }) {
   const store = data.stores.find((s) => s.id === storeId && !s.archived_at)
   const [search, setSearch] = useState('')
   const [edit, setEdit] = useState<string | null>(null)
+  const [priceEdit, setPriceEdit] = useState<string | null>(null)
   const list = data.shopping_lists.find((l) => l.id === id)!
   const items = data.shopping_list_items
     .filter((i) => i.list_id === id && !i.archived_at)
@@ -58,6 +61,7 @@ function ListDetail({ id }: { id: string }) {
           p_version: list.version,
         })
         setEdit(null)
+        setPriceEdit(null)
       },
       removed ? 'Articolo rimosso dalla lista.' : 'Articolo rimesso nella lista.',
     )
@@ -92,13 +96,23 @@ function ListDetail({ id }: { id: string }) {
         {Number(q.remaining) > 0 && !!stores.length && (
           <dl className="item-prices" aria-label={`Prezzi previsti per ${item.name}`}>
             {stores.map((store) => {
-              const price = estimates
+              const line = estimates
                 .find((estimate) => estimate.storeId === store.id)
-                ?.lines.find((line) => line.itemId === item.id)?.amount
+                ?.lines.find((line) => line.itemId === item.id)
+              const price = line?.amount
+              const pricedProduct = data.specific_products.find((p) => p.id === line?.productId)
+              const catalogPrice = data.product_prices.find(
+                (p) => p.specific_product_id === pricedProduct?.id && p.store_id === store.id,
+              )
               return (
                 <div key={store.id}>
                   <dt>{store.name}</dt>
-                  <dd>{price === null || price === undefined ? '-' : euro(price)}</dd>
+                  <dd>
+                    {price === null || price === undefined ? '-' : euro(price)}
+                    {pricedProduct && catalogPrice && (
+                      <small>{unitPriceLabel(catalogPrice.price_amount, pricedProduct)}</small>
+                    )}
+                  </dd>
                 </div>
               )
             })}
@@ -114,14 +128,25 @@ function ListDetail({ id }: { id: string }) {
           >
             Rimuovi dalla lista
           </button>
-          <button
-            type="button"
-            className="text-button"
-            onClick={() => setEdit(edit === item.id ? null : item.id)}
-          >
-            Modifica quantità
-          </button>
+          <div className="inline item-edit-actions">
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => setEdit(edit === item.id ? null : item.id)}
+            >
+              Modifica quantità
+            </button>
+            <button
+              type="button"
+              className="text-button"
+              aria-expanded={priceEdit === item.id}
+              onClick={() => setPriceEdit(priceEdit === item.id ? null : item.id)}
+            >
+              Modifica prezzo
+            </button>
+          </div>
         </div>
+        {priceEdit === item.id && <ListItemPrices item={item} storeId={store?.id ?? ''} />}
         {edit === item.id && (
           <Form
             onSave={async (f) => {
@@ -177,7 +202,7 @@ function ListDetail({ id }: { id: string }) {
       </label>
       <p className="muted">
         Aggiungi ciò che serve e rimuovi ciò che hai preso. Puoi rimettere gli articoli rimossi nella lista.
-        Aggiorna i prezzi dal <Link to="/catalogo">Catalogo</Link> quando sei a casa.
+        Puoi aggiornare i prezzi qui oppure dal <Link to="/catalogo">Catalogo</Link>.
       </p>
       <Panel title="Prezzi previsti per supermercato">
         <CurrentPriceComparison compact estimates={estimates} />
