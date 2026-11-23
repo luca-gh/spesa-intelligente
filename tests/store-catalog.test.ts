@@ -5,6 +5,7 @@ import { unitPrice, latestProductPrice } from '../src/domain/catalogPrices'
 import { emptyData } from '../src/data/types'
 import { listProductGroups } from '../src/data/catalog'
 import { estimate, type Observation } from '../src/domain/prices'
+import { compareCurrentPrices } from '../src/domain/currentPrices'
 
 const db = new PGlite()
 beforeAll(async () => {
@@ -21,6 +22,37 @@ beforeAll(async () => {
     await db.exec(readFileSync('supabase/migrations/' + file, 'utf8'))
 }, 60000)
 afterAll(() => db.close())
+it('prezzi attuali: sostituzione senza storico, rimozione senza ripristino, RLS e cascata', async () => {
+  const result = await db.exec(readFileSync('supabase/tests/current_prices.sql', 'utf8'))
+  expect(result.at(-1)?.rows[0]).toMatchObject({ status: 'PASS' })
+  expect((await db.query('select id from households')).rows).toHaveLength(0)
+}, 60000)
+it('confronta solo gli importi attuali, senza date, classificazioni o sconti', () => {
+  const request = {
+    id: 'item',
+    generic_product_id: 'g',
+    specific_product_id: null,
+    quantity: '2',
+    unit: 'conf' as const,
+  }
+  const prices = [
+    { specific_product_id: 'p0', store_id: 's', price_amount: '2.50' },
+    { specific_product_id: 'p1', store_id: 's', price_amount: '1.20' },
+  ]
+  expect(compareCurrentPrices('s', [request], products, prices).total).toBe('2.40')
+  expect(compareCurrentPrices('s', [{ ...request, preferred_brand: 'A' }], products, prices).total).toBe(
+    '5.00',
+  )
+  expect(
+    compareCurrentPrices(
+      's',
+      [{ ...request, preferred_package_quantity: '1', preferred_package_unit: 'L' }],
+      products,
+      prices,
+    ).complete,
+  ).toBe(false)
+  expect(compareCurrentPrices('missing', [request], products, prices).lines[0].amount).toBeNull()
+})
 it('ordini, preferenze e correzioni prezzi rispettano isolamento e atomicità PostgreSQL', async () => {
   const result = await db.exec(readFileSync('supabase/tests/store_catalog.sql', 'utf8'))
   expect(result.at(-1)?.rows[0]).toMatchObject({ status: 'PASS' })

@@ -124,6 +124,9 @@ function ListDetail({ id }: { id: string }) {
   return (
     <>
       <SectionTitle eyebrow={`${pending.length} ARTICOLI DA ACQUISTARE`} title="La lista della spesa." />
+      <p>
+        <Link to="/negozi?confronto=1">Confronta supermercati →</Link>
+      </p>
       <label className="field">
         Supermercato per la spesa
         <select

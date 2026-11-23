@@ -3,12 +3,10 @@ import { Link, Navigate, NavLink, Route, Routes } from 'react-router-dom'
 import {
   BookOpen,
   CalendarDays,
-  ChartNoAxesCombined,
   ListChecks,
   ShoppingBasket,
   Settings,
   Store,
-  Tags,
   ScanLine,
   ArrowUpRight,
   Leaf,
@@ -23,23 +21,19 @@ import { Field, Form, Submit, text } from './components/ui'
 const Lists = lazy(() => import('./pages/Lists').then((m) => ({ default: m.Lists })))
 const Catalog = lazy(() => import('./pages/Catalog').then((m) => ({ default: m.Catalog })))
 const Stores = lazy(() => import('./pages/Catalog').then((m) => ({ default: m.Stores })))
-const Prices = lazy(() => import('./pages/Catalog').then((m) => ({ default: m.Prices })))
 const Recipes = lazy(() => import('./pages/Meals').then((m) => ({ default: m.Recipes })))
 const Meals = lazy(() => import('./pages/Meals').then((m) => ({ default: m.Meals })))
-const Stats = lazy(() => import('./pages/Account').then((m) => ({ default: m.Stats })))
 const Account = lazy(() => import('./pages/Account').then((m) => ({ default: m.Account })))
 const Scanner = lazy(() => import('./pages/Account').then((m) => ({ default: m.Scanner })))
 
 const primary = [
+  { to: '/liste', label: 'Lista della spesa', icon: ListChecks },
   { to: '/catalogo', label: 'Catalogo', icon: Package },
   { to: '/ricette', label: 'Ricette', icon: BookOpen },
-  { to: '/liste', label: 'Lista della spesa', icon: ListChecks },
   { to: '/pasti', label: 'Pasti', icon: CalendarDays },
-  { to: '/statistiche', label: 'Statistiche', icon: ChartNoAxesCombined },
+  { to: '/negozi', label: 'Supermercati', icon: Store },
 ]
 const secondary = [
-  { to: '/negozi', label: 'Supermercati', icon: Store },
-  { to: '/prezzi', label: 'Prezzi e confronto', icon: Tags },
   { to: '/scanner', label: 'Scanner', icon: ScanLine },
   { to: '/impostazioni', label: 'Impostazioni', icon: Settings },
 ]
@@ -314,10 +308,10 @@ export function App() {
                   <Route path="/liste/*" element={<Lists />} />
                   <Route path="/catalogo" element={<Catalog />} />
                   <Route path="/negozi" element={<Stores />} />
-                  <Route path="/prezzi" element={<Prices />} />
+                  <Route path="/prezzi" element={<Navigate to="/negozi?confronto=1" replace />} />
                   <Route path="/ricette" element={<Recipes />} />
                   <Route path="/pasti" element={<Meals />} />
-                  <Route path="/statistiche" element={<Stats />} />
+                  <Route path="/statistiche" element={<Navigate to="/liste" replace />} />
                   <Route path="/impostazioni" element={<Account />} />
                   <Route path="/scanner" element={<Scanner />} />
                   <Route

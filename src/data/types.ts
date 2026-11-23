@@ -1,5 +1,5 @@
 import type { Unit } from '../domain/math'
-import type { Product, Observation, DiscountRule } from '../domain/prices'
+import type { Product } from '../domain/prices'
 export interface Household {
   id: string
   name: string
@@ -15,6 +15,11 @@ export interface StoreCategoryOrder {
   store_id: string
   category_id: string
   sort_order: number
+}
+export interface CurrentPrice {
+  specific_product_id: string
+  store_id: string
+  price_amount: string
 }
 export interface Generic {
   is_catalog_group?: boolean
@@ -138,6 +143,7 @@ export interface Invite {
   revoked_at: string | null
 }
 export interface Data {
+  product_prices: CurrentPrice[]
   store_category_order: StoreCategoryOrder[]
   categories: Category[]
   generic_products: Generic[]
@@ -147,17 +153,15 @@ export interface Data {
   shopping_list_items: Item[]
   list_item_contributions: Contribution[]
   purchases: Purchase[]
-  price_observations: Observation[]
-  store_discount_rules: DiscountRule[]
   recipes: Recipe[]
   recipe_ingredients: Ingredient[]
   meal_plans: Plan[]
   meal_entries: Meal[]
   meal_templates: Template[]
-  price_estimate_snapshots: Snapshot[]
   household_invites: Invite[]
 }
 export const emptyData: Data = {
+  product_prices: [],
   store_category_order: [],
   categories: [],
   generic_products: [],
@@ -167,13 +171,10 @@ export const emptyData: Data = {
   shopping_list_items: [],
   list_item_contributions: [],
   purchases: [],
-  price_observations: [],
-  store_discount_rules: [],
   recipes: [],
   recipe_ingredients: [],
   meal_plans: [],
   meal_entries: [],
   meal_templates: [],
-  price_estimate_snapshots: [],
   household_invites: [],
 }

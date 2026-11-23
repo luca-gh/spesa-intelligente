@@ -19,6 +19,7 @@ const expectedTables = [
   'specific_products',
   'stores',
   'price_observations',
+  'product_prices',
   'store_discount_rules',
   'shopping_lists',
   'shopping_list_items',

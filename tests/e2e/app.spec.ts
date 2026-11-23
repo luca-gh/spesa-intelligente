@@ -130,6 +130,7 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
         'shopping_list_items',
         'purchases',
         'price_observations',
+        'product_prices',
         'list_item_contributions',
         'recipe_ingredients',
         'meal_entries',
@@ -188,6 +189,27 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
       completionRequests.push(body)
       const purchase = (collections.purchases as Record<string, unknown>[]).find((p) => p.id === body.p_id)
       if (purchase) purchase.total_paid = body.p_total
+      result = null
+    } else if (table === 'set_product_price') {
+      const body = route.request().postDataJSON()
+      priceRequests.push(body)
+      const prices = (collections.product_prices ??= []) as Record<string, unknown>[]
+      const previous = prices.find(
+        (p) => p.specific_product_id === body.p_product && p.store_id === body.p_store,
+      )
+      if (previous) previous.price_amount = body.p_amount
+      else
+        prices.push({
+          specific_product_id: body.p_product,
+          store_id: body.p_store,
+          price_amount: body.p_amount,
+        })
+      result = null
+    } else if (table === 'clear_product_price') {
+      const body = route.request().postDataJSON()
+      collections.product_prices = ((collections.product_prices ?? []) as Record<string, unknown>[]).filter(
+        (p) => !(p.specific_product_id === body.p_product && p.store_id === body.p_store),
+      )
       result = null
     } else if (table === 'add_price' || table === 'correct_catalog_price') {
       const body = route.request().postDataJSON()
@@ -376,8 +398,10 @@ const productCatalog = {
   ],
 }
 
-test('catalogo prezzi: riepilogo negozi, virgola, calcolo kg e nuovo prezzo', async ({ page }) => {
-  const { priceRequests } = await login(page, false, {
+test('catalogo prezzi: riepilogo negozi, virgola, calcolo kg e sostituzione del prezzo attuale', async ({
+  page,
+}) => {
+  const { priceRequests, collections } = await login(page, false, {
     ...productCatalog,
     stores: [
       { id: 'store', name: 'Negozio test' },
@@ -413,17 +437,22 @@ test('catalogo prezzi: riepilogo negozi, virgola, calcolo kg e nuovo prezzo', as
   expect(priceRequests[0]).toMatchObject({ p_amount: '2.50', p_product: 'specific-flour', p_store: 'store' })
   await expect(row.getByRole('cell').nth(1)).toContainText(/2,50\s*€/)
   await expect(missing.getByRole('cell').nth(1)).toHaveText('-')
-  await row.getByRole('button', { name: 'Aggiorna prezzo', exact: true }).click()
+  await row.getByRole('button', { name: 'Modifica prezzo', exact: true }).click()
   await price.fill('0')
   await page.getByRole('button', { name: 'Salva prezzo', exact: true }).click()
   await expect.poll(() => priceRequests.length).toBe(2)
   expect(priceRequests[1].p_amount).toBe('0.00')
+  expect(collections.product_prices).toHaveLength(1)
+  expect(Object.keys(priceRequests[1]).sort()).toEqual(['p_amount', 'p_product', 'p_store'])
+  await expect(page.getByText('Storico prezzi del prodotto')).toHaveCount(0)
+  await expect(page.getByLabel('Data rilevazione')).toHaveCount(0)
+  await expect(page.getByLabel('Tipo di prezzo accertato')).toHaveCount(0)
 })
 
-test('catalogo prezzi: correzione con errore recuperabile, storico annullato e prezzo al litro', async ({
+test('catalogo prezzi: modifica recuperabile, calcolo litro e rimozione senza ritorno del prezzo precedente', async ({
   page,
 }) => {
-  const { priceRequests } = await login(page, false, {
+  const { priceRequests, collections } = await login(page, false, {
     generic_products: [
       { id: 'g', name: 'Latte', canonical_unit: 'ml', category_id: null, is_catalog_group: true },
     ],
@@ -440,20 +469,10 @@ test('catalogo prezzi: correzione con errore recuperabile, storico annullato e p
       },
     ],
     stores: [{ id: 'store', name: 'Negozio' }],
-    price_observations: [
-      {
-        id: 'old',
-        specific_product_id: 'milk',
-        store_id: 'store',
-        price_amount: '1.50',
-        kind: 'regular',
-        observed_at: '2026-11-20T12:00:00Z',
-        voided_at: null,
-      },
-    ],
+    product_prices: [{ specific_product_id: 'milk', store_id: 'store', price_amount: '1.50' }],
   })
   let fail = true
-  await page.route('**/rest/v1/rpc/correct_catalog_price', async (route) => {
+  await page.route('**/rest/v1/rpc/set_product_price', async (route) => {
     if (fail) {
       fail = false
       await route.fulfill({ status: 503, json: { message: 'Fixture unavailable' } })
@@ -464,9 +483,13 @@ test('catalogo prezzi: correzione con errore recuperabile, storico annullato e p
     .getByRole('row', { name: /^Latte/ })
     .getByRole('button', { name: 'Prezzi', exact: true })
     .click()
-  await page.getByRole('button', { name: 'Correggi prezzo', exact: true }).click()
+  await page.getByRole('button', { name: 'Modifica prezzo', exact: true }).click()
   const price = page.getByRole('textbox', { name: 'Prezzo per confezione (€)', exact: true })
   await expect(price).toHaveValue('1,50')
+  await price.fill('9,00')
+  await page.getByRole('button', { name: 'Modifica prezzo', exact: true }).click()
+  await expect(price).toHaveValue('1,50')
+  await expect(price).toBeFocused()
   await price.fill('1,20')
   await expect(page.getByRole('status').filter({ hasText: 'Prezzo al kg/l' })).toContainText(/1,60\s*€\/l/)
   await page.getByRole('button', { name: 'Salva prezzo', exact: true }).click()
@@ -474,9 +497,16 @@ test('catalogo prezzi: correzione con errore recuperabile, storico annullato e p
   await expect(price).toHaveValue('1,20')
   await page.getByRole('button', { name: 'Salva prezzo', exact: true }).click()
   await expect.poll(() => priceRequests.length).toBe(1)
-  expect(priceRequests[0]).toMatchObject({ p_id: 'old', p_amount: '1.20' })
-  await page.getByText('Storico prezzi del prodotto', { exact: true }).click()
-  await expect(page.getByText(/1,50.*ANNULLATO/)).toBeVisible()
+  expect(priceRequests[0]).toMatchObject({ p_product: 'milk', p_store: 'store', p_amount: '1.20' })
+  expect(collections.product_prices).toHaveLength(1)
+  page.on('dialog', (dialog) => dialog.accept())
+  await page.getByRole('button', { name: 'Modifica prezzo', exact: true }).click()
+  await page.getByRole('button', { name: 'Rimuovi prezzo', exact: true }).click()
+  await expect(
+    page.getByRole('row', { name: 'Prezzo presso Negozio', exact: true }).getByRole('cell').nth(1),
+  ).toHaveText('-')
+  expect(collections.product_prices).toHaveLength(0)
+  await expect(price).toHaveCount(0)
 })
 
 test('catalogo prezzi: formato sconosciuto mostra trattino, nessuna gestione prezzi nella lista', async ({
@@ -587,44 +617,70 @@ test('lista preferenze: nomi unici, marca e formato indipendenti, cambio prodott
   await expect(page.locator('input[name="product"]')).toHaveValue('')
 })
 
-test('sconti: importi esistenti con virgola e punti bloccati su soglia e massimo', async ({ page }) => {
-  const { discountRequests } = await login(page, false, {
-    stores: [{ id: 'store', name: 'Negozio test' }],
-    store_discount_rules: [
+test('confronto attuale: prezzi di catalogo sempre validi, nessuna promozione o storico caricato', async ({
+  page,
+}) => {
+  const legacyRequests: string[] = []
+  await login(page, false, {
+    ...productCatalog,
+    stores: [
+      { id: 'a', name: 'Supermercato A' },
+      { id: 'b', name: 'Supermercato B' },
+    ],
+    shopping_list_items: [
       {
-        id: 'rule',
-        name: 'Tessera test',
-        store_id: 'store',
-        percentage: '10',
-        weekdays: [1],
-        valid_from: '2026-01-01',
-        minimum_total: '12.50',
-        maximum_discount: '2.25',
-        excluded_product_ids: [],
-        active: true,
-        confirmed: true,
-        priority: 0,
+        id: 'flour',
+        list_id: '20000000-0000-4000-8000-000000000001',
+        name: 'Farina',
+        generic_product_id: 'generic-flour',
+        specific_product_id: null,
+        unit: 'g',
       },
     ],
+    list_item_contributions: [
+      {
+        id: 'contribution',
+        item_id: 'flour',
+        requested_quantity: '1000',
+        origin_type: 'manual',
+        origin_id: 'flour',
+      },
+    ],
+    product_prices: [
+      { specific_product_id: 'specific-flour', store_id: 'a', price_amount: '2.50' },
+      { specific_product_id: 'specific-flour', store_id: 'b', price_amount: '1.20' },
+    ],
+    price_observations: [
+      {
+        id: 'promo',
+        specific_product_id: 'specific-flour',
+        store_id: 'a',
+        price_amount: '0.01',
+        kind: 'promotion',
+        observed_at: '2099-01-01T00:00:00Z',
+        voided_at: null,
+      },
+    ],
+    store_discount_rules: [{ id: 'rule', store_id: 'a', percentage: '99', active: true, confirmed: true }],
   })
-  await page.goto('/prezzi')
-  await page.getByRole('button', { name: 'Modifica', exact: true }).click()
-  const minimum = page.getByRole('textbox', { name: 'Soglia minima per riga (€)', exact: true })
-  const maximum = page.getByRole('textbox', { name: 'Sconto massimo per riga (€), facoltativo', exact: true })
-  await expect(minimum).toHaveValue('12,50')
-  await expect(maximum).toHaveValue('2,25')
-  await minimum.fill('12.50')
-  await maximum.fill('2.25')
-  await page.getByRole('button', { name: 'Salva regola', exact: true }).click()
-  expect(discountRequests).toHaveLength(0)
-  await minimum.fill('12,50')
-  await page.getByRole('button', { name: 'Salva regola', exact: true }).click()
-  expect(discountRequests).toHaveLength(0)
-  await expect(maximum).toHaveAttribute('aria-invalid', 'true')
-  await maximum.fill('2,25')
-  await page.getByRole('button', { name: 'Salva regola', exact: true }).click()
-  await expect.poll(() => discountRequests.length).toBe(1)
-  expect(discountRequests[0]).toMatchObject({ minimum_total: '12.50', maximum_discount: '2.25' })
+  page.on('request', (request) => {
+    if (/\/(price_observations|store_discount_rules|price_estimate_snapshots)(\?|$)/.test(request.url()))
+      legacyRequests.push(request.url())
+  })
+  await page.goto('/liste')
+  await page.getByRole('link', { name: 'Confronta supermercati →', exact: true }).click()
+  const table = page.getByRole('table', { name: 'Confronto supermercati', exact: true })
+  await expect(table.getByRole('row').nth(1)).toContainText('Supermercato B')
+  await expect(table.getByRole('row').filter({ hasText: 'Supermercato B' })).toContainText(/2,40\s*€/)
+  await expect(table.getByRole('row').filter({ hasText: 'Supermercato A' })).toContainText(/5,00\s*€/)
+  const accessibility = await new AxeBuilder({ page })
+    .include('.current-comparison')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+    .analyze()
+  expect(accessibility.violations.map((v) => v.id)).toEqual([])
+  await expect(page.getByLabel('Data prevista della spesa')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /Salva previsione|Salva regola/ })).toHaveCount(0)
+  expect(legacyRequests).toHaveLength(0)
 })
 
 async function chooseListProduct(page: Page, name: string | RegExp, query = '') {
@@ -1800,7 +1856,7 @@ test('catalogo: annullare la conferma definitiva conserva il prodotto senza chia
   await page.goto('/catalogo')
   page.once('dialog', async (dialog) => {
     expect(dialog.message()).toContain('Latte intero')
-    expect(dialog.message()).toContain('storico prezzi')
+    expect(dialog.message()).toContain('prezzi')
     expect(dialog.message()).toContain('ricette')
     expect(dialog.message()).toContain('Non è possibile annullare')
     await dialog.dismiss()
@@ -2246,7 +2302,7 @@ test('schermata iniziale lista della spesa e ordine dei cinque collegamenti prin
   await expect(page).toHaveURL(/\/liste$/)
   await expect(page.getByRole('heading', { name: 'La lista della spesa.' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'La lista è vuota.' })).toBeVisible()
-  const labels = ['Catalogo', 'Ricette', 'Lista della spesa', 'Pasti', 'Statistiche']
+  const labels = ['Lista della spesa', 'Catalogo', 'Ricette', 'Pasti', 'Supermercati']
   await expect(page.locator('.sidebar nav[aria-label="Navigazione principale"] a')).toHaveText(labels)
   await expect(page.locator('.bottom-nav a')).toHaveText(labels)
   await expect(page.getByRole('link', { name: 'Home', exact: true })).toHaveCount(0)
@@ -2268,7 +2324,7 @@ test('schermata iniziale lista della spesa e ordine dei cinque collegamenti prin
     ['Ricette', 'Il vostro ricettario.'],
     ['Lista della spesa', 'La lista della spesa.'],
     ['Pasti', 'La settimana a tavola.'],
-    ['Statistiche', 'Uno sguardo alle abitudini.'],
+    ['Supermercati', 'I vostri supermercati.'],
   ]) {
     await nav.getByRole('link', { name: label, exact: true }).click()
     await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible()
@@ -2324,7 +2380,7 @@ test('lista unica: vecchi collegamenti aprono la stessa lista e mantengono gli a
   await expect(page.getByRole('button', { name: 'Segna lista completata' })).toHaveCount(0)
   await page.goto('/prezzi')
   await expect(page.getByRole('combobox', { name: 'Lista', exact: true })).toHaveCount(0)
-  await expect(page.getByRole('heading', { name: 'Confronta la tua spesa' })).toBeVisible()
+  await expect(page.getByText('Confronta il costo della lista', { exact: true })).toBeVisible()
 })
 
 test('un secondo salvataggio rinnova la durata della conferma', async ({ page }) => {
@@ -2493,34 +2549,12 @@ test('rimuovi dalla lista: offline e errore conservano articolo', async ({ page,
   await expect(remove).toBeDisabled()
 })
 
-test('previsioni salvate: archiviazione ripristinabile mantiene importi', async ({ page }) => {
-  await login(page, true, {
-    price_estimate_snapshots: [
-      {
-        id: 'snapshot',
-        list_id: '20000000-0000-4000-8000-000000000001',
-        store_id: 'store',
-        estimated_total: '12.34',
-        coverage: 1,
-        shopping_date: '2026-11-14',
-        created_at: '2026-11-14T12:00:00Z',
-        detail_json: {},
-        archived_at: null,
-      },
-    ],
-  })
+test('statistiche rimosse: vecchi collegamenti aprono la lista', async ({ page }) => {
+  await login(page)
   await page.goto('/statistiche')
-  page.on('dialog', (dialog) => dialog.accept())
-  await page.locator('details').last().locator('summary').click()
-  await expect(page.locator('details').last()).toContainText('12,34')
-  await page.getByRole('button', { name: 'Archivia', exact: true }).click()
-  await expect(page.locator('details')).toHaveCount(0)
-  await page.getByLabel('Mostra archiviati', { exact: true }).check()
-  await page.locator('details').last().locator('summary').click()
-  await expect(page.locator('details').last()).toContainText('12,34')
-  await page.getByRole('button', { name: 'Ripristina', exact: true }).click()
-  await page.getByLabel('Mostra archiviati', { exact: true }).uncheck()
-  await expect(page.locator('details')).toHaveCount(1)
+  await expect(page).toHaveURL(/\/liste$/)
+  await expect(page.getByRole('heading', { name: 'La lista della spesa.', exact: true })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Statistiche', exact: true })).toHaveCount(0)
 })
 
 test('ricette: rimozione ingrediente, archiviazione e ripristino', async ({ page }) => {
@@ -2704,17 +2738,14 @@ test('piano settimanale archiviato nasconde il calendario ed è ripristinabile',
   await expect(page.locator('.week-grid')).toBeVisible()
 })
 
-test('sconti: una regola configurata può essere eliminata', async ({ page }) => {
-  await login(page, false, {
-    store_discount_rules: [
-      { id: 'rule', name: 'Sconto Test', percentage: '10', active: true, confirmed: true, store_id: 'store' },
-    ],
-  })
+test('confronto attuale: prezzo mancante resta trattino e totale parziale', async ({ page }) => {
+  await login(page, true, { stores: [{ id: 's', name: 'Negozio senza prezzi' }] })
   await page.goto('/prezzi')
-  page.on('dialog', (dialog) => dialog.accept())
-  const row = page.locator('.data-row').filter({ hasText: 'Sconto Test' })
-  await row.getByRole('button', { name: 'Elimina', exact: true }).click()
-  await expect(row).toHaveCount(0)
+  await expect(page).toHaveURL(/\/negozi\?confronto=1$/)
+  const table = page.getByRole('table', { name: 'Confronto supermercati', exact: true })
+  await expect(table).toContainText('Parziale')
+  await expect(table.getByRole('row').nth(1).getByRole('cell').nth(1)).toContainText('-')
+  await expect(page.getByLabel('Valido dal')).toHaveCount(0)
 })
 
 test('permesso fotocamera negato offre inserimento manuale', async ({ page }) => {

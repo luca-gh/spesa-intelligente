@@ -1,5 +1,13 @@
 # Avanzamento
 
+## Prezzo unico attuale e cinque pagine — 23 novembre 2026
+
+Menu principale e barra mobile: Lista della spesa, Catalogo, Ricette, Pasti, Supermercati. Statistiche rimosse; vecchio indirizzo reindirizzato alla lista. Confronto costi integrato nei Supermercati e raggiungibile dalla lista, senza una pagina aggiuntiva.
+
+Nuovo product_prices con un solo importo per prodotto/negozio: aggiornamento in sostituzione, rimozione senza ripristino di importi vecchi, niente classificazione o date. Calcolo €/kg/l e virgola conservati. Confronto basato sempre sui valori attuali, senza promozioni, periodi di validità, sconti personali o previsioni salvate. Frontend non carica più le collezioni di rilevazioni, sconti e snapshot; nessun nuovo storico generato. Dati precedenti conservati nel backend per compatibilità, senza interfaccia di consultazione.
+
+Migrazione 20261123142201 applicata: sedici complessive, 22 tabelle RLS e otto pubblicate. Copia dell’ultimo importo disponibile, senza applicare classificazioni promozionali. Probe SQL reale PASS con fixture annullate: sostituzione, zero, errori senza modifiche parziali, rimozione, isolamento e cascata. Nessuna nuova segnalazione di sicurezza; solo INFO dell’indice appena creato ancora inutilizzato. Suite corrente 99 casi locali in 14 file e 166 browser, inclusi 14 WebKit iPad. CI e pubblicazione HTTPS verificate sul commit finale.
+
 ## Catalogo prezzi, percorsi dei negozi e lista rapida — 23 novembre 2026
 
 Scheda Prezzi per ogni prodotto del Catalogo: riepilogo dell’ultima rilevazione di ciascun supermercato attivo, trattini per dati mancanti, calcolo automatico €/kg o €/l anche durante l’inserimento, date e tipo del prezzo. Nuova rilevazione e correzione distinte; la correzione è atomica e conserva l’originale annullato. Input con virgola mantenuto. Prezzi e storico spostati dal confronto al Catalogo; il confronto e gli sconti personali restano disponibili.

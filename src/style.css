@@ -584,7 +584,8 @@ small {
   text-align: right;
 }
 .catalog-products th,
-.product-prices th {
+.product-prices th,
+.current-comparison th {
   color: #607254;
 }
 .plan-actions {

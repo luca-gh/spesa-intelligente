@@ -4,42 +4,30 @@ import { useApp } from '../data/context'
 import { rpc } from '../data/client'
 import type { Specific } from '../data/types'
 import { productFormat } from '../data/catalog'
-import { latestProductPrice, unitPriceLabel } from '../domain/catalogPrices'
-import { dateInZone, euro, parsePrice, priceInputError, priceInputValue } from '../domain/math'
-import type { Observation } from '../domain/prices'
+import { unitPriceLabel } from '../domain/catalogPrices'
+import { euro, parsePrice, priceInputError, priceInputValue } from '../domain/math'
 import { PriceField } from './PriceField'
-import { ConfirmButton, Field, Form, Panel, Select, Submit, text } from './ui'
+import { ConfirmButton, Form, Panel, Submit, text } from './ui'
 
 export function ProductPrices({ product }: { product: Specific }) {
-  const { data, household, busy, online } = useApp()
-  const [editor, setEditor] = useState<{ store: string; previous?: Observation } | null>(null)
+  const { data, busy, online } = useApp()
+  const [editor, setEditor] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
+  const [revision, setRevision] = useState(0)
   const editorRoot = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!editor) return
     const input = editorRoot.current?.querySelector<HTMLInputElement>('input[name="amount"]')
     input?.focus({ preventScroll: true })
     input?.scrollIntoView({ block: 'center', behavior: 'instant' })
-  }, [editor])
+  }, [editor, revision])
   const stores = data.stores.filter((s) => !s.archived_at).sort((a, b) => a.name.localeCompare(b.name, 'it'))
-  const history = data.price_observations
-    .filter((o) => o.specific_product_id === product.id)
-    .sort(
-      (a, b) =>
-        b.observed_at.localeCompare(a.observed_at) ||
-        (b.created_at ?? '').localeCompare(a.created_at ?? '') ||
-        b.id.localeCompare(a.id),
-    )
-  function edit(store: string, previous?: Observation) {
-    setDraft(previous ? priceInputValue(previous.price_amount) : '')
-    setEditor({ store, previous })
-  }
   return (
     <Panel title={`Prezzi di ${product.name}`}>
       <p>{[product.brand, product.variant, productFormat(product)].filter(Boolean).join(' · ')}</p>
       <p className="muted">
-        Ultimo prezzo registrato per ogni supermercato. Il trattino indica un dato non disponibile; la data
-        indica quando è stato rilevato.
+        Un prezzo attuale per ogni supermercato. Quando lo modifichi, sostituisci il precedente. Il trattino
+        indica un dato non disponibile.
       </p>
       <div className="table-wrap">
         <table>
@@ -48,54 +36,42 @@ export function ProductPrices({ product }: { product: Specific }) {
               <th>Supermercato</th>
               <th>Prezzo confezione</th>
               <th>Prezzo al kg/l</th>
-              <th>Rilevato il</th>
               <th>Azioni</th>
             </tr>
           </thead>
           <tbody>
             {stores.map((store) => {
-              const price = latestProductPrice(history, product.id, store.id)
+              const price = data.product_prices.find(
+                (p) => p.specific_product_id === product.id && p.store_id === store.id,
+              )
               return (
                 <tr key={store.id} aria-label={`Prezzo presso ${store.name}`}>
                   <td>{store.name}</td>
-                  <td>
-                    {price ? euro(price.price_amount) : '-'}
-                    {price && (
-                      <small>
-                        {price.kind === 'promotion'
-                          ? 'Promozione'
-                          : price.kind === 'unknown'
-                            ? 'Tipo non determinato'
-                            : 'Ordinario'}
-                      </small>
-                    )}
-                  </td>
+                  <td>{price ? euro(price.price_amount) : '-'}</td>
                   <td>{price ? unitPriceLabel(price.price_amount, product) : '-'}</td>
-                  <td>
-                    {price
-                      ? new Date(price.observed_at).toLocaleDateString('it-IT', {
-                          timeZone: household!.timezone,
-                        })
-                      : '-'}
-                  </td>
                   <td>
                     <button
                       type="button"
                       className="text-button"
                       disabled={busy || !online || !!product.archived_at}
-                      onClick={() => edit(store.id)}
+                      onClick={() => {
+                        setDraft(price ? priceInputValue(price.price_amount) : '')
+                        setEditor(store.id)
+                        setRevision((value) => value + 1)
+                      }}
                     >
-                      {price ? 'Aggiorna prezzo' : 'Inserisci prezzo'}
+                      {price ? 'Modifica prezzo' : 'Inserisci prezzo'}
                     </button>
                     {price && (
-                      <button
-                        type="button"
-                        className="text-button"
-                        disabled={busy || !online || !!product.archived_at}
-                        onClick={() => edit(store.id, price)}
+                      <ConfirmButton
+                        message="Rimuovere il prezzo di questo supermercato? Potrai inserirlo nuovamente."
+                        onConfirm={async () => {
+                          await rpc('clear_product_price', { p_product: product.id, p_store: store.id })
+                          if (editor === store.id) setEditor(null)
+                        }}
                       >
-                        Correggi prezzo
-                      </button>
+                        Rimuovi prezzo
+                      </ConfirmButton>
                     )}
                   </td>
                 </tr>
@@ -112,33 +88,24 @@ export function ProductPrices({ product }: { product: Specific }) {
       <div ref={editorRoot}>
         {editor && (
           <Form
-            key={`${editor.store}:${editor.previous?.id ?? 'new'}`}
+            key={`${editor}:${revision}`}
             onSave={async (f) => {
-              const values = {
+              await rpc('set_product_price', {
+                p_product: product.id,
+                p_store: editor,
                 p_amount: parsePrice(text(f, 'amount')),
-                p_kind: text(f, 'kind'),
-                p_observed: new Date(text(f, 'date') + 'T12:00:00').toISOString(),
-                p_start: text(f, 'start') || null,
-                p_end: text(f, 'end') || null,
-              }
-              if (editor.previous) await rpc('correct_catalog_price', { ...values, p_id: editor.previous.id })
-              else await rpc('add_price', { ...values, p_product: product.id, p_store: editor.store })
+              })
               setEditor(null)
             }}
           >
-            <h3>
-              {editor.previous ? 'Correggi prezzo' : 'Nuovo prezzo'} ·{' '}
-              {stores.find((s) => s.id === editor.store)?.name}
-            </h3>
-            <p className="muted">
-              {editor.previous
-                ? 'La rilevazione precedente rimane nello storico come annullata.'
-                : 'Il nuovo prezzo si aggiunge allo storico, conservando i prezzi precedenti.'}
-            </p>
+            <h3>Prezzo attuale · {stores.find((s) => s.id === editor)?.name}</h3>
             <PriceField
               label="Prezzo per confezione (€)"
               name="amount"
-              value={editor.previous?.price_amount}
+              value={
+                data.product_prices.find((p) => p.specific_product_id === product.id && p.store_id === editor)
+                  ?.price_amount
+              }
               onChange={setDraft}
             />
             <p role="status">
@@ -153,35 +120,6 @@ export function ProductPrices({ product }: { product: Specific }) {
                 prezzo per confezione può comunque essere salvato.
               </p>
             ) : null}
-            <Select label="Tipo di prezzo accertato" name="kind" value={editor.previous?.kind ?? 'regular'}>
-              <option value="regular">Ordinario</option>
-              <option value="promotion">Promozione</option>
-              <option value="unknown">Non determinato (escluso dalla stima)</option>
-            </Select>
-            <Field
-              label="Data rilevazione"
-              name="date"
-              type="date"
-              value={
-                editor.previous
-                  ? dateInZone(new Date(editor.previous.observed_at), household!.timezone)
-                  : dateInZone(new Date(), household!.timezone)
-              }
-            />
-            <Field
-              label="Inizio promo"
-              name="start"
-              type="date"
-              required={false}
-              value={editor.previous?.promotion_starts_at ?? ''}
-            />
-            <Field
-              label="Fine promo"
-              name="end"
-              type="date"
-              required={false}
-              value={editor.previous?.promotion_ends_at ?? ''}
-            />
             <div className="inline">
               <Submit>Salva prezzo</Submit>
               <button type="button" className="text-button" onClick={() => setEditor(null)}>
@@ -191,29 +129,6 @@ export function ProductPrices({ product }: { product: Specific }) {
           </Form>
         )}
       </div>
-      {!!history.length && (
-        <details>
-          <summary>Storico prezzi del prodotto</summary>
-          {history.map((price) => (
-            <div className="data-row" key={price.id}>
-              <span>
-                {data.stores.find((s) => s.id === price.store_id)?.name ?? '-'} · {euro(price.price_amount)} ·{' '}
-                {unitPriceLabel(price.price_amount, product)} ·{' '}
-                {new Date(price.observed_at).toLocaleDateString('it-IT', { timeZone: household!.timezone })}
-                {price.voided_at && ' · ANNULLATO'}
-              </span>
-              {!price.voided_at && (
-                <ConfirmButton
-                  message="Annullare questa rilevazione? Resterà nello storico ma sarà esclusa dal riepilogo e dai confronti."
-                  onConfirm={() => rpc('void_price', { p_id: price.id })}
-                >
-                  Annulla rilevazione
-                </ConfirmButton>
-              )}
-            </div>
-          ))}
-        </details>
-      )}
     </Panel>
   )
 }

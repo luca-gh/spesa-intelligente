@@ -1,5 +1,13 @@
 # Rapporto test
 
+## Prezzi attuali senza promozioni, statistiche o storico — 23 novembre 2026
+
+99 casi locali in 14 file. Test di migrazione dedicato: ultimo importo attivo copiato una volta, comprese rilevazioni prima classificate promozionali e ormai scadute; annullate escluse. Probe SQL locale e Supabase reale, interamente annullato: update conserva una sola riga per prodotto/negozio e non inserisce osservazioni storiche, zero valido, importi negativi respinti senza alterare il precedente, cancellazione senza riemersione di valori vecchi, RLS e FK tra famiglie, cascata alla cancellazione prodotto, niente accesso anon o definer pubblico. Confronto nuovo indipendente da date e sconti, con quantità, marca/formato e copertura parziale.
+
+Suite browser 166 casi: 76 desktop Chromium, 76 mobile Chromium e 14 WebKit iPad. Prezzo precompilato con virgola, salvataggio in sostituzione, recupero dopo errore, rimozione, nessun campo data/tipo/promozione o storico; calcolo kg/l e accessibilità conservati. Confronto con importi attuali, dati promozionali precedenti ignorati, nessuna richiesta alle tre collezioni dismesse dal frontend, valori mancanti e totali parziali. Navigazione e collegamenti precedenti verificati; test degli sconti/previsioni sostituiti dalle prove della loro rimozione e del confronto corrente.
+
+Migrazione remota 20261123142201 allineata al file locale. Advisor: nessuna nuova segnalazione di sicurezza; indice store/household nuovo ancora inutilizzato come INFO, oltre ai rilievi preesistenti. Lint, tipi, build, segreti, PWA, API e CI verificati separatamente alla pubblicazione. Nessun nuovo test su hardware iPad o Auth/Realtime a due account.
+
 ## Catalogo prezzi, preferenze indipendenti e ordine per negozio — 23 novembre 2026
 
 96 casi locali in 13 file. Nuovo probe SQL eseguito sia con tutte le migrazioni in PGlite sia sul database Supabase reale: replica categorie per negozi già presenti e creati dopo, riordino indipendente, rifiuto ordini incompleti/obsoleti, preferenze marca/formato indipendenti, rollback di inserimenti invalidi, correzione prezzo atomica con originale annullato, rifiuto correzioni negative/obsolete, RLS e FK tra famiglie, divieti anon, cancellazioni categorie/negozi senza orfani. Fixture e utenti sintetici interamente annullati. Nessuna modifica a prezzi, prodotti o acquisti familiari.

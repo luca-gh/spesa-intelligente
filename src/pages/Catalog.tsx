@@ -3,23 +3,13 @@ import { useEffect, useRef, useState } from 'react'
 import { BarcodeImport } from '../components/BarcodeImport'
 import { CategoryOrder } from '../components/CategoryOrder'
 import { ProductPrices } from '../components/ProductPrices'
+import { CurrentPriceComparison } from '../components/CurrentPriceComparison'
 import { barcodeSourceName, type BarcodeProduct } from '../domain/barcodeLookup'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Plus, Tag, Store as StoreIcon } from 'lucide-react'
+import { Plus, Store as StoreIcon } from 'lucide-react'
 import { useApp } from '../data/context'
 import { insert, remove, removeCatalogProduct, rpc, update } from '../data/client'
-import {
-  convert,
-  dateInZone,
-  euro,
-  quantity,
-  parsePrice,
-  units,
-  validBarcode,
-  type Unit,
-} from '../domain/math'
-import { PriceField } from '../components/PriceField'
-import { estimate, rank } from '../domain/prices'
+import { convert, quantity, units, validBarcode, type Unit } from '../domain/math'
 import {
   catalogProducts,
   productFormat,
@@ -241,8 +231,7 @@ export function Catalog() {
             <fieldset>
               <legend>Formato della confezione</legend>
               <p className="muted">
-                Indicalo quando lo conosci: serve per confrontare quantità e prezzi. Se manca, la stima
-                segnala il prezzo come non disponibile.
+                Serve per calcolare il prezzo al kg/l e confrontare quantità diverse. Puoi lasciarlo vuoto.
               </p>
               <div className="grid-form">
                 <Field
@@ -303,7 +292,7 @@ export function Catalog() {
         </summary>
         <p className="muted">
           I prodotti sono sempre in ordine alfabetico per nome. Rimuovi dal catalogo elimina definitivamente
-          anche i dati collegati e lo storico prezzi. Archivia conserva tutti i dati.
+          anche i dati collegati e i prezzi. Archivia conserva tutti i dati.
         </p>
         <ArchiveFilter value={archived} onChange={setArchived} />
         <div className="table-wrap">
@@ -353,7 +342,7 @@ export function Catalog() {
                         }}
                       />
                       <ConfirmButton
-                        message={`Eliminare definitivamente «${p.name}»${specific?.brand ? ` (${specific.brand})` : ''}? Verranno cancellati anche gli articoli collegati nella lista, gli acquisti, lo storico prezzi e le previsioni che li contengono. Se non restano altre marche o varianti dello stesso alimento, verrà tolto anche dagli ingredienti delle ricette, dai pasti e dai modelli. Le ricette e gli altri prodotti resteranno. Non è possibile annullare questa operazione.`}
+                        message={`Eliminare definitivamente «${p.name}»${specific?.brand ? ` (${specific.brand})` : ''}? Verranno cancellati anche gli articoli collegati nella lista, gli acquisti, i prezzi e i collegamenti. Se non restano altre marche o varianti dello stesso alimento, verrà tolto anche dagli ingredienti delle ricette, dai pasti e dai modelli. Le ricette e gli altri prodotti resteranno. Non è possibile annullare questa operazione.`}
                         success="Prodotto e dati collegati eliminati definitivamente."
                         onConfirm={async () => {
                           await removeCatalogProduct(table, p.id)
@@ -382,6 +371,8 @@ export function Catalog() {
   )
 }
 export function Stores() {
+  const [params] = useSearchParams()
+  const [compareOpen, setCompareOpen] = useState(() => params.get('confronto') === '1')
   const { data, household } = useApp()
   const [editing, setEditing] = useState('')
   const [archived, setArchived] = useState(false)
@@ -392,7 +383,18 @@ export function Stores() {
   const store = data.stores.find((s) => s.id === editing)
   return (
     <>
-      <SectionTitle eyebrow="OGNI NEGOZIO HA LA SUA STORIA" title="I vostri supermercati." />
+      <SectionTitle eyebrow="SCEGLI DOVE FARE LA SPESA" title="I vostri supermercati." />
+      <details className="panel" open={compareOpen}>
+        <summary
+          onClick={(event) => {
+            event.preventDefault()
+            setCompareOpen((open) => !open)
+          }}
+        >
+          Confronta il costo della lista
+        </summary>
+        {compareOpen && <CurrentPriceComparison />}
+      </details>
       <Panel title={store ? 'Modifica punto vendita' : 'Aggiungi un punto vendita'}>
         <Form
           key={editing}
@@ -416,8 +418,8 @@ export function Stores() {
           <Submit />
         </Form>
         <p className="muted">
-          I prezzi e gli sconti sono specifici del singolo negozio. Non vengono trasferiti tra punti vendita
-          della stessa catena.
+          I prezzi sono specifici del singolo negozio. Non vengono trasferiti tra punti vendita della stessa
+          catena.
         </p>
       </Panel>
       <div className="cards">
@@ -445,7 +447,7 @@ export function Stores() {
                   }}
                 />
                 <ConfirmButton
-                  message={`Eliminare il punto vendita «${s.name}»? Se ha dati collegati, usa Archivia per conservare lo storico.`}
+                  message={`Eliminare il punto vendita «${s.name}»? Verranno rimossi anche i suoi prezzi attuali. Puoi usare Archivia per nasconderlo senza eliminarlo.`}
                   success="Punto vendita eliminato."
                   onConfirm={async () => {
                     await remove('stores', s.id)
@@ -502,290 +504,5 @@ export function Stores() {
     </>
   )
 }
-export function Prices() {
-  const { data, household, itemQuantity, act } = useApp()
-  const list = data.shopping_lists[0]?.id ?? ''
-  const [date, setDate] = useState(dateInZone(new Date(), household!.timezone))
-  const [ruleId, setRuleId] = useState('')
-  const rule = data.store_discount_rules.find((r) => r.id === ruleId)
-  const requested = data.shopping_list_items
-    .filter((i) => i.list_id === list && !i.archived_at)
-    .map((i) => ({ ...i, quantity: itemQuantity(i).remaining }))
-  const estimates = rank(
-    data.stores
-      .filter((s) => !s.archived_at)
-      .map((s) =>
-        estimate(
-          s.id,
-          requested,
-          data.specific_products.filter(
-            (p) => !p.archived_at || requested.some((i) => i.specific_product_id === p.id),
-          ),
-          data.price_observations,
-          data.store_discount_rules,
-          date,
-          household!.timezone,
-        ),
-      ),
-  )
-  return (
-    <>
-      <SectionTitle eyebrow="PREZZI CHIARI, SCELTE CONSAPEVOLI" title="Quanto costa la vostra spesa?" />
-      <Panel title="Confronta la tua spesa">
-        <div className="grid-form">
-          <label className="field">
-            Data prevista della spesa
-            <input
-              type="date"
-              required
-              value={date}
-              onChange={(e) => {
-                if (e.target.value) setDate(e.target.value)
-              }}
-            />
-          </label>
-        </div>
-        <p className="muted">
-          Stima per un solo supermercato alla volta, sulle quantità residue e sulle confezioni intere. Un
-          prezzo storico non garantisce disponibilità né prezzo attuale. Sconti arrotondati per riga al
-          centesimo.
-        </p>
-      </Panel>
-      {list && (
-        <div className="estimates">
-          {estimates.map((e) => (
-            <section className="panel" key={e.storeId}>
-              <div className="panel-heading">
-                <h2>{data.stores.find((s) => s.id === e.storeId)?.name}</h2>
-                <span className={`pill ${e.complete ? '' : 'warning'}`}>
-                  {e.complete ? 'Copertura completa' : `Parziale · ${e.known}/${e.totalItems}`}
-                </span>
-              </div>
-              <div className="estimate-total">
-                {euro(e.total)} <small>{e.complete ? 'totale stimato' : 'solo articoli con prezzo'}</small>
-              </div>
-              <p>
-                Risparmio personale: {euro(e.savings)} · Rilevazione più vecchia:{' '}
-                {e.oldest
-                  ? new Date(e.oldest).toLocaleDateString('it-IT', { timeZone: household!.timezone })
-                  : 'non disponibile'}
-              </p>
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Articolo</th>
-                      <th>Confezioni</th>
-                      <th>Base</th>
-                      <th>Sconto</th>
-                      <th>Finale</th>
-                      <th>Rilevazione</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {e.lines.map((l) => (
-                      <tr key={l.itemId}>
-                        <td>
-                          {l.productName ?? requested.find((i) => i.id === l.itemId)?.name}
-                          {l.promotional && <small>In promozione</small>}
-                          {l.ruleName && <small>{l.ruleName}</small>}
-                          {l.uncertain && <small>Altre rilevazioni incerte: verifica in negozio</small>}
-                        </td>
-                        <td>{l.packs || '—'}</td>
-                        <td>{l.gross !== null ? euro(l.gross) : 'Prezzo sconosciuto'}</td>
-                        <td>{euro(l.discount)}</td>
-                        <td>{l.net !== null ? euro(l.net) : '—'}</td>
-                        <td>
-                          {l.observedAt
-                            ? new Date(l.observedAt).toLocaleDateString('it-IT', {
-                                timeZone: household!.timezone,
-                              })
-                            : '—'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <button
-                className="button secondary"
-                disabled={!e.totalItems}
-                onClick={() =>
-                  void act(() =>
-                    rpc('save_estimate', {
-                      p_list: list,
-                      p_store: e.storeId,
-                      p_total: e.total,
-                      p_coverage: e.totalItems ? e.known / e.totalItems : 0,
-                      p_date: date,
-                      p_detail: e,
-                    }),
-                  )
-                }
-              >
-                Salva previsione datata
-              </button>
-            </section>
-          ))}
-        </div>
-      )}
-      <div className="price-settings">
-        <Panel title={rule ? 'Modifica sconto personale' : 'Sconto personale ricorrente'}>
-          <Form
-            key={ruleId}
-            onSave={async (f) => {
-              const values = {
-                store_id: text(f, 'store'),
-                name: text(f, 'name'),
-                percentage: quantity(text(f, 'percent')).toString(),
-                weekdays: f.getAll('days').map(Number),
-                valid_from: text(f, 'start'),
-                valid_to: text(f, 'end') || null,
-                exclude_promotional_items: !f.has('stack'),
-                confirmed: f.has('confirmed'),
-                minimum_total: parsePrice(text(f, 'minimum') || '0'),
-                maximum_discount: text(f, 'maximum') ? parsePrice(text(f, 'maximum')) : null,
-                conditions_note: text(f, 'notes'),
-                excluded_product_ids: f.getAll('excluded').map(String),
-                priority: Number(text(f, 'priority')),
-              }
-              if (rule) await update('store_discount_rules', rule.id, values)
-              else await insert('store_discount_rules', household!.id, values)
-              setRuleId('')
-            }}
-          >
-            <Field
-              label="Nome della regola"
-              name="name"
-              value={rule?.name}
-              placeholder="Sconto tessera del mercoledì"
-            />
-            <Select label="Solo in questo punto vendita" name="store" value={rule?.store_id}>
-              <option value="">Seleziona negozio</option>
-              {data.stores
-                .filter((s) => !s.archived_at)
-                .map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-            </Select>
-            <Field label="Percentuale (%)" name="percent" value={rule?.percentage ?? '10'} />
-            <fieldset>
-              <legend>Giorni della settimana</legend>
-              <div className="inline wrap">
-                {['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'].map((day, i) => (
-                  <label className="checkbox" key={day}>
-                    <input
-                      type="checkbox"
-                      name="days"
-                      value={i}
-                      defaultChecked={rule?.weekdays.includes(i) ?? false}
-                    />
-                    {day}
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-            <Field label="Valido dal" name="start" type="date" value={rule?.valid_from ?? date} />
-            <Field
-              label="Valido fino al (facoltativo)"
-              name="end"
-              type="date"
-              required={false}
-              value={rule?.valid_to ?? ''}
-            />
-            <PriceField
-              label="Soglia minima per riga (€)"
-              name="minimum"
-              value={rule?.minimum_total ?? '0'}
-            />
-            <PriceField
-              label="Sconto massimo per riga (€), facoltativo"
-              name="maximum"
-              required={false}
-              value={rule?.maximum_discount ?? ''}
-            />
-            <Field
-              label="Priorità (si applica una sola regola per riga)"
-              name="priority"
-              type="number"
-              value={rule?.priority ?? 0}
-            />
-            <label className="field">
-              Prodotti esclusi
-              <select multiple name="excluded" defaultValue={rule?.excluded_product_ids ?? []}>
-                {data.specific_products.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <Field label="Condizioni, tessera ed esclusioni" name="notes" required={false} />
-            <label className="checkbox">
-              <input
-                type="checkbox"
-                name="stack"
-                defaultChecked={rule ? !rule.exclude_promotional_items : false}
-              />{' '}
-              Condizioni verificate: cumulabile con prodotti in promozione
-            </label>
-            <label className="checkbox">
-              <input type="checkbox" name="confirmed" defaultChecked={rule?.confirmed ?? false} /> Ho
-              verificato le condizioni effettive del negozio
-            </label>
-            <Submit>Salva regola</Submit>
-          </Form>
-          <p className="muted">
-            Le regole non confermate restano inattive nei calcoli. Ogni regola va configurata e confermata
-            manualmente. Le soglie e i massimali attuali si riferiscono alla singola riga, non allo scontrino.
-          </p>
-        </Panel>
-      </div>
-      <Panel title="Regole configurate">
-        {data.store_discount_rules.map((r) => (
-          <div className="data-row" key={r.id}>
-            <Tag size={18} />
-            <div>
-              <strong>
-                {r.name} · {r.percentage}%
-              </strong>
-              <small>
-                {data.stores.find((s) => s.id === r.store_id)?.name} · {r.active ? 'Attiva' : 'Disattivata'} ·{' '}
-                {r.confirmed ? 'Confermata' : 'Da verificare'}
-              </small>
-            </div>
-            <button className="text-button" onClick={() => setRuleId(r.id)}>
-              Modifica
-            </button>
-            <button
-              className="text-button"
-              onClick={() => void act(() => update('store_discount_rules', r.id, { active: !r.active }))}
-            >
-              {r.active ? 'Disattiva' : 'Attiva'}
-            </button>
-            <ConfirmButton
-              message={`Eliminare la regola «${r.name}»? Le previsioni già salvate non cambieranno.`}
-              onConfirm={async () => {
-                await remove('store_discount_rules', r.id)
-                if (ruleId === r.id) setRuleId('')
-              }}
-            >
-              Elimina
-            </ConfirmButton>
-          </div>
-        ))}
-        {!data.store_discount_rules.length && (
-          <p className="muted">Nessuna regola. Nessuno sconto personale viene presunto.</p>
-        )}
-      </Panel>
-      <p>
-        <Link to="/catalogo">Inserisci, correggi e consulta i prezzi dei prodotti nel Catalogo →</Link>
-      </p>
-    </>
-  )
-}
-
 // Explicitly reusable when importing ingredient quantities with compatible units.
 export { convert }
