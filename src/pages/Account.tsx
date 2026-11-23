@@ -1,10 +1,8 @@
-import { BarcodeCamera } from '../components/BarcodeCamera'
-import { useNavigate } from 'react-router-dom'
 import { useState } from 'react'
-import { Download, KeyRound, ScanLine } from 'lucide-react'
+import { Download, KeyRound } from 'lucide-react'
 import { useApp } from '../data/context'
 import { requireClient, rpc, update } from '../data/client'
-import { dateInZone, validBarcode } from '../domain/math'
+import { dateInZone } from '../domain/math'
 import { ConfirmButton, Field, Form, Panel, SectionTitle, Submit, text } from '../components/ui'
 
 function download(name: string, body: string, type = 'application/json') {
@@ -194,66 +192,6 @@ export function Account() {
           La cancellazione dell’identità Auth va richiesta al gestore del progetto Supabase dopo l’uscita o la
           cancellazione della famiglia. Non è ancora disponibile un endpoint self-service di cancellazione
           account.
-        </p>
-      </Panel>
-    </>
-  )
-}
-export function Scanner() {
-  const navigate = useNavigate()
-  const [code, setCode] = useState('')
-  const [error, setError] = useState('')
-  const open = (barcode: string) => {
-    if (!validBarcode(barcode)) {
-      setError('Il checksum EAN non è valido. Ricontrolla le cifre.')
-      return
-    }
-    navigate('/catalogo?barcode=' + encodeURIComponent(barcode))
-  }
-  return (
-    <>
-      <SectionTitle eyebrow="RITROVA IL PRODOTTO, AL VOLO" title="Scanner barcode." />
-      <Panel title="Scansiona o inserisci il codice">
-        <p>
-          Leggi un EAN-8 o EAN-13: apriremo il modulo prodotto con i dati disponibili. Il salvataggio richiede
-          la tua conferma.
-        </p>
-        <BarcodeCamera onDetected={open} />
-        <form
-          className="form"
-          onSubmit={(e) => {
-            e.preventDefault()
-            open(code.trim())
-          }}
-        >
-          <label className="field">
-            <span>Barcode manuale</span>
-            <input
-              inputMode="numeric"
-              pattern="[0-9]{8}|[0-9]{13}"
-              required
-              value={code}
-              onChange={(e) => {
-                setCode(e.target.value)
-                setError('')
-              }}
-            />
-          </label>
-          <button className="button secondary" type="submit">
-            <ScanLine size={18} />
-            Cerca e compila prodotto
-          </button>
-        </form>
-        {error && (
-          <p className="callout" role="status">
-            {error}
-          </p>
-        )}
-      </Panel>
-      <Panel title="Foto, ricette e scontrini">
-        <p>
-          La lettura dei barcode non carica foto. Le importazioni OCR di ricette e scontrini non sono ancora
-          attive.
         </p>
       </Panel>
     </>

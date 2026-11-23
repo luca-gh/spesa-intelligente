@@ -4,6 +4,7 @@ import { useApp } from '../data/context'
 import { rpc } from '../data/client'
 import type { Specific } from '../data/types'
 import { productFormat } from '../data/catalog'
+import { pamDiscount, storePrice } from '../domain/storePrices'
 import { unitPriceLabel } from '../domain/catalogPrices'
 import { euro, parsePrice, priceInputError, priceInputValue } from '../domain/math'
 import { PriceField } from './PriceField'
@@ -53,9 +54,14 @@ export function ProductPrices({ product, initialStore = '' }: { product: Specifi
               )
               return (
                 <tr key={store.id} aria-label={`Prezzo presso ${store.name}`}>
-                  <td>{store.name}</td>
-                  <td>{price ? euro(price.price_amount) : '-'}</td>
-                  <td>{price ? unitPriceLabel(price.price_amount, product) : '-'}</td>
+                  <td>
+                    {store.name}
+                    {pamDiscount(store) && <small>Sconto PAM 10%</small>}
+                  </td>
+                  <td>{price ? euro(storePrice(price.price_amount, store)) : '-'}</td>
+                  <td>
+                    {price ? unitPriceLabel(storePrice(price.price_amount, store, false), product) : '-'}
+                  </td>
                   <td>
                     <button
                       type="button"
@@ -106,6 +112,12 @@ export function ProductPrices({ product, initialStore = '' }: { product: Specifi
             }}
           >
             <h3>Prezzo attuale · {stores.find((s) => s.id === editor)?.name}</h3>
+            {stores.some((s) => s.id === editor && pamDiscount(s)) && (
+              <p className="muted">
+                Inserisci il prezzo prima dello sconto PAM. Il 10% viene applicato automaticamente alle stime,
+                senza cambiare il prezzo salvato.
+              </p>
+            )}
             <PriceField
               label="Prezzo per confezione (€)"
               name="amount"

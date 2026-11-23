@@ -1872,3 +1872,10 @@ details p {
 .list-price-editor {
   margin-top: 16px;
 }
+.ingredient-alternatives {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+.ingredients li {
+  flex-wrap: wrap;
+}

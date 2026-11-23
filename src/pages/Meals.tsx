@@ -5,7 +5,13 @@ import { CalendarDays, Star, Plus, ArrowLeft, ArrowRight } from 'lucide-react'
 import { useApp } from '../data/context'
 import { insert, remove, rpc, update } from '../data/client'
 import { ingredientProducts } from '../data/catalog'
+import { chosenIngredient } from '../data/recipeChoices'
 import { SearchSelect } from '../components/SearchSelect'
+import {
+  AlternativeFields,
+  IngredientAlternatives,
+  IngredientChoices,
+} from '../components/RecipeAlternatives'
 import { convert, dateInZone, quantity, scale, units, type Unit } from '../domain/math'
 import { previewDiff, type Contribution } from '../domain/planning'
 import {
@@ -29,6 +35,7 @@ export function Recipes() {
   const [selected, setSelected] = useState('')
   const [servings, setServings] = useState(2)
   const [ingredientCount, setIngredientCount] = useState(1)
+  const [ingredientChoices, setIngredientChoices] = useState<Record<string, string>>({})
   const recipe = data.recipes.find((r) => r.id === selected)
   const ingredients = data.recipe_ingredients.filter((i) => i.recipe_id === selected)
   return (
@@ -77,6 +84,7 @@ export function Recipes() {
                   {i.unit}
                 </strong>{' '}
                 {data.generic_products.find((p) => p.id === i.generic_product_id)?.name}
+                <IngredientAlternatives ingredient={i} />
                 <ConfirmButton
                   message="Rimuovere questo ingrediente dalla ricetta? Le liste già create non cambieranno; i piani richiederanno una nuova anteprima."
                   onConfirm={() => remove('recipe_ingredients', i.id)}
@@ -136,15 +144,23 @@ export function Recipes() {
           <Form
             className="inline-form"
             onSave={() =>
-              rpc('add_recipe_to_list', {
+              rpc('add_recipe_choices_to_list', {
                 p_recipe: recipe.id,
                 p_list: data.shopping_lists[0]?.id,
                 p_servings: servings,
                 p_operation: crypto.randomUUID(),
+                p_choices: Object.fromEntries(
+                  ingredients.map((i) => [i.id, chosenIngredient(data, i, ingredientChoices)]),
+                ),
               })
             }
           >
             <p className="muted">Gli ingredienti vengono aggiunti alla lista della spesa condivisa.</p>
+            <IngredientChoices
+              ingredients={ingredients}
+              choices={ingredientChoices}
+              onChange={(id, product) => setIngredientChoices((current) => ({ ...current, [id]: product }))}
+            />
             <Submit>Aggiungi ingredienti</Submit>
           </Form>
         </Panel>
@@ -159,10 +175,17 @@ export function Recipes() {
                 data.recipe_ingredients
                   .filter((i) => i.recipe_id === r.id)
                   .some((i) =>
-                    data.generic_products
-                      .find((p) => p.id === i.generic_product_id)
-                      ?.name.toLowerCase()
-                      .includes(search.toLowerCase()),
+                    [
+                      i.generic_product_id,
+                      ...data.recipe_ingredient_alternatives
+                        .filter((a) => a.ingredient_id === i.id)
+                        .map((a) => a.generic_product_id),
+                    ].some((id) =>
+                      data.generic_products
+                        .find((p) => p.id === id)
+                        ?.name.toLowerCase()
+                        .includes(search.toLowerCase()),
+                    ),
                   )),
           )
           .map((r) => (
@@ -221,6 +244,9 @@ export function Recipes() {
                 product_id: text(f, `product${i}`),
                 quantity: quantity(text(f, `quantity${i}`)).toString(),
                 unit: text(f, `unit${i}`),
+                ...(f.getAll(`alternative${i}`).length
+                  ? { alternatives: f.getAll(`alternative${i}`).map(String).filter(Boolean) }
+                  : {}),
               })),
             })
           }
@@ -244,6 +270,7 @@ export function Recipes() {
                     <option key={u}>{u}</option>
                   ))}
                 </Select>
+                <AlternativeFields index={i} />
               </div>
             ))}
             <button
@@ -294,6 +321,10 @@ export function Meals() {
   const plan = data.meal_plans.find((p) => p.week_start === week)
   const entries = data.meal_entries.filter((e) => e.meal_plan_id === plan?.id)
   const listId = data.shopping_lists[0]?.id ?? ''
+  const [ingredientChoices, setIngredientChoices] = useState<Record<string, string>>({})
+  const weekIngredients = data.recipe_ingredients.filter((i) =>
+    entries.some((e) => e.recipe_id === i.recipe_id),
+  )
   const [preview, setPreview] = useState<{
     version: number
     planVersion: number
@@ -314,6 +345,7 @@ export function Meals() {
             .filter((i) => i.recipe_id === recipe.id)
             .map((i) => ({
               ...i,
+              generic_product_id: chosenIngredient(data, i, ingredientChoices),
               quantity: scale(
                 i.quantity,
                 recipe.base_servings,
@@ -523,6 +555,14 @@ export function Meals() {
             </Form>
           </Panel>
           <Panel title="Ingredienti nella lista">
+            <IngredientChoices
+              ingredients={weekIngredients}
+              choices={ingredientChoices}
+              onChange={(id, product) => {
+                setIngredientChoices((current) => ({ ...current, [id]: product }))
+                setPreview(null)
+              }}
+            />
             <p className="muted">L’anteprima aggiorna gli ingredienti nella tua unica lista della spesa.</p>
             <button
               className="button"

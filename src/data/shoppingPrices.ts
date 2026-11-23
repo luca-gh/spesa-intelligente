@@ -1,6 +1,7 @@
 import Decimal from 'decimal.js'
 import { compareCurrentPrices } from '../domain/currentPrices'
 import type { Data, Item } from './types'
+import { storePrice } from '../domain/storePrices'
 
 export function shoppingPrices(data: Data, listId: string, remaining: (item: Item) => string) {
   const items = data.shopping_list_items
@@ -11,7 +12,18 @@ export function shoppingPrices(data: Data, listId: string, remaining: (item: Ite
   )
   return data.stores
     .filter((s) => !s.archived_at)
-    .map((store) => compareCurrentPrices(store.id, items, products, data.product_prices))
+    .map((store) =>
+      compareCurrentPrices(
+        store.id,
+        items,
+        products,
+        data.product_prices.map((price) =>
+          price.store_id === store.id
+            ? { ...price, price_amount: storePrice(price.price_amount, store, false) }
+            : price,
+        ),
+      ),
+    )
     .sort(
       (a, b) =>
         Number(b.complete) - Number(a.complete) ||

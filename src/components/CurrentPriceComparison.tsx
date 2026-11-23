@@ -1,6 +1,7 @@
 import { useApp } from '../data/context'
 import { shoppingPrices } from '../data/shoppingPrices'
 import { euro } from '../domain/math'
+import { pamDiscount } from '../domain/storePrices'
 
 export function CurrentPriceComparison({
   compact = false,
@@ -39,7 +40,12 @@ export function CurrentPriceComparison({
           <tbody>
             {estimates.map((estimate) => (
               <tr key={estimate.storeId}>
-                <td>{data.stores.find((s) => s.id === estimate.storeId)?.name}</td>
+                <td>
+                  {data.stores.find((s) => s.id === estimate.storeId)?.name}
+                  {data.stores.some((s) => s.id === estimate.storeId && pamDiscount(s)) && (
+                    <small>Sconto PAM 10%</small>
+                  )}
+                </td>
                 <td>
                   {estimate.known ? euro(estimate.total) : '-'}
                   {!estimate.complete && <small>Parziale</small>}

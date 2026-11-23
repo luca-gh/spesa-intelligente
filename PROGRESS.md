@@ -1,5 +1,13 @@
 # Avanzamento
 
+## Ordinamento prezzi, PAM e alternative ricette — 23 novembre 2026
+
+Lista ordinabile per categoria oppure costo decrescente nel supermercato selezionato, con dati mancanti in fondo. Opzione PAM 10% persistente per negozio, disattivata inizialmente, visibile solo se nome/catena contengono PAM: applicata a Catalogo, lista, €/kg/l e confronto senza alterare prezzi originali. Arrotondamento dopo la quantità della voce; nessuna promozione datata. Scheda Scanner rimossa e route precedente reindirizzata al Catalogo, scansioni integrate conservate.
+
+Alternative strutturate per ingrediente, aggiungibili durante la creazione o nelle ricette salvate, rimovibili e incluse nella duplicazione e nella ricerca. Stessa quantità/unità, massimo 20, unità compatibili. Scelta singola al trasferimento da ricetta o anteprima pasti, mai aggiunta di tutte le alternative insieme. Modifiche alle alternative invalidano la versione dei piani; cambiare scelta annulla l’anteprima locale.
+
+Migrazione 20261123154538 applicata e allineata: diciassette totali, 23 tabelle con RLS e nove pubblicate. Probe SQL locale e remoto PASS con fixture annullate, nessun dato familiare modificato. Nuova tabella con FK composite, indici e policy di appartenenza; wrapper pubblico invoker e workflow privato validato per le scritture protette della lista. Due RPC precedenti convertite a invoker: advisor pubblici definer da 23 a 21, nessun nuovo avviso di sicurezza. Normali INFO degli indici nuovi non ancora utilizzati. 107 test locali in 16 file; suite browser 200 casi (87 desktop, 87 mobile, 26 WebKit iPad). CI e pubblicazione controllate sul commit finale.
+
 ## Prezzi nella tabella e modifica dalla lista — 23 novembre 2026
 
 Catalogo con colonne Prodotto, Marca, Formato, Prezzi, Categoria, EAN, Azioni. Prezzi per negozio impilati nella tabella con €/kg/l sottostante, trattini per dati assenti e negozi archiviati esclusi. Nuova azione Aggiungi alla lista: una confezione della scheda esatta, senza cambiare pagina. Modifica supermercato raggiunge il campo nome e lo mette a fuoco anche al secondo clic.

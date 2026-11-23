@@ -27,6 +27,7 @@ const expectedTables = [
   'purchases',
   'recipes',
   'recipe_ingredients',
+  'recipe_ingredient_alternatives',
   'meal_plans',
   'meal_entries',
   'meal_templates',

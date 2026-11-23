@@ -22,6 +22,11 @@ beforeAll(async () => {
     await db.exec(readFileSync('supabase/migrations/' + file, 'utf8'))
 }, 60000)
 afterAll(() => db.close())
+it('alternative ricette e opzione PAM: salvataggio, duplicazione, scelta, RLS e cascata', async () => {
+  const result = await db.exec(readFileSync('supabase/tests/recipe_alternatives.sql', 'utf8'))
+  expect(result.at(-1)?.rows[0]).toMatchObject({ status: 'PASS' })
+  expect((await db.query('select id from households')).rows).toHaveLength(0)
+}, 60000)
 it('prezzi attuali: sostituzione senza storico, rimozione senza ripristino, RLS e cascata', async () => {
   const result = await db.exec(readFileSync('supabase/tests/current_prices.sql', 'utf8'))
   expect(result.at(-1)?.rows[0]).toMatchObject({ status: 'PASS' })

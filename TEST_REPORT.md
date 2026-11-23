@@ -1,5 +1,13 @@
 # Rapporto test
 
+## Ordinamento per negozio, PAM, alternative e rimozione Scanner — 23 novembre 2026
+
+107 test locali in 16 file. Nuovi test puri per riconoscimento PAM senza falsi positivi, disattivazione, zero e centesimi, prezzo originario immutato, quantità prima dell’arrotondamento e fallback quando un’alternativa viene rimossa. Probe SQL su PostgreSQL locale e Supabase reale con rollback completo: salvataggio atomico, duplicazione, singola alternativa trasferita e scalata, idempotenza, rifiuto scelte estranee/uguali al principale, vincolo PAM, invalidazione piani, FK/RLS e ruoli anon.
+
+200 prove browser: 87 desktop, 87 mobile Chromium, 26 WebKit iPad. Nuovi flussi per ordinamento decrescente e cambio negozio, dati mancanti in fondo e ritorno categorie; PAM attivabile/disattivabile, persistenza e netto coerente fra catalogo/lista/confronto; creazione e gestione alternative salvate con ricerca, scelta e trasferimento di un solo prodotto; anteprima pasti invalidata al cambio scelta. Vecchio percorso Scanner reindirizzato al Catalogo e scansione manuale/checksum/fotocamera integrati conservati. Accessibilità delle alternative verificata con Axe; regressioni precedenti mantenute.
+
+Backend: 17 migrazioni allineate, 23 tabelle protette, nove pubblicate. Nessun nuovo avviso di sicurezza; due definer pubblici in meno, soli INFO normali per indici appena creati. Lint, tipi, build, segreti, PWA, CI e pubblicazione verificati. Nessun nuovo collaudo hardware o a due account.
+
 ## Tabella catalogo, inserimento diretto e prezzi modificabili dalla lista — 23 novembre 2026
 
 103 test locali in 15 file. Suite browser 187 casi: 83 desktop, 83 mobile Chromium, 21 WebKit iPad. Quattro nuove prove su ciascun profilo: ordine delle sette colonne, prezzi negozi impilati e trattini, aggiunta esatta di una confezione dal Catalogo; modifica prezzo dalla lista con supermercato selezionato, focus, punto respinto, quantità due confezioni e corretta unità €/kg; scelta esplicita formato senza confondere altre marche, retry dopo errore e contrasto; €/l, blocco offline, articolo libero senza prezzi inventati e persistenza al refresh. Prova dedicata al focus e allo scorrimento di Modifica supermercato, anche ripetendo il clic.

@@ -7,7 +7,6 @@ import {
   ShoppingBasket,
   Settings,
   Store,
-  ScanLine,
   ArrowUpRight,
   Leaf,
   WifiOff,
@@ -24,7 +23,6 @@ const Stores = lazy(() => import('./pages/Catalog').then((m) => ({ default: m.St
 const Recipes = lazy(() => import('./pages/Meals').then((m) => ({ default: m.Recipes })))
 const Meals = lazy(() => import('./pages/Meals').then((m) => ({ default: m.Meals })))
 const Account = lazy(() => import('./pages/Account').then((m) => ({ default: m.Account })))
-const Scanner = lazy(() => import('./pages/Account').then((m) => ({ default: m.Scanner })))
 
 const primary = [
   { to: '/liste', label: 'Lista della spesa', icon: ListChecks },
@@ -33,10 +31,7 @@ const primary = [
   { to: '/pasti', label: 'Pasti', icon: CalendarDays },
   { to: '/negozi', label: 'Supermercati', icon: Store },
 ]
-const secondary = [
-  { to: '/scanner', label: 'Scanner', icon: ScanLine },
-  { to: '/impostazioni', label: 'Impostazioni', icon: Settings },
-]
+const secondary = [{ to: '/impostazioni', label: 'Impostazioni', icon: Settings }]
 function Access() {
   const { session, act } = useApp()
   const [mode, setMode] = useState<'login' | 'register' | 'reset'>('login')
@@ -313,7 +308,7 @@ export function App() {
                   <Route path="/pasti" element={<Meals />} />
                   <Route path="/statistiche" element={<Navigate to="/liste" replace />} />
                   <Route path="/impostazioni" element={<Account />} />
-                  <Route path="/scanner" element={<Scanner />} />
+                  <Route path="/scanner" element={<Navigate to="/catalogo" replace />} />
                   <Route
                     path="*"
                     element={

@@ -36,6 +36,7 @@ export interface Specific extends Product {
   barcode: string | null
 }
 export interface Store {
+  pam_discount_enabled?: boolean
   id: string
   name: string
   chain: string
@@ -102,6 +103,11 @@ export interface Ingredient {
   quantity: string
   unit: Unit
 }
+export interface IngredientAlternative {
+  id: string
+  ingredient_id: string
+  generic_product_id: string
+}
 export interface Plan {
   archived_at?: string | null
   id: string
@@ -155,6 +161,7 @@ export interface Data {
   purchases: Purchase[]
   recipes: Recipe[]
   recipe_ingredients: Ingredient[]
+  recipe_ingredient_alternatives: IngredientAlternative[]
   meal_plans: Plan[]
   meal_entries: Meal[]
   meal_templates: Template[]
@@ -173,6 +180,7 @@ export const emptyData: Data = {
   purchases: [],
   recipes: [],
   recipe_ingredients: [],
+  recipe_ingredient_alternatives: [],
   meal_plans: [],
   meal_entries: [],
   meal_templates: [],

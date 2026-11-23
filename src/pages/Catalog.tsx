@@ -11,6 +11,8 @@ import { useApp } from '../data/context'
 import { insert, remove, removeCatalogProduct, rpc, update } from '../data/client'
 import { convert, euro, quantity, units, validBarcode, type Unit } from '../domain/math'
 import { unitPriceLabel } from '../domain/catalogPrices'
+import { isPam, pamDiscount, storePrice } from '../domain/storePrices'
+import { PamDiscountToggle } from '../components/PamDiscountToggle'
 import {
   catalogProducts,
   productFormat,
@@ -335,11 +337,16 @@ export function Catalog() {
                             )
                           return (
                             <div key={store.id}>
-                              <dt>{store.name}</dt>
+                              <dt>
+                                {store.name}
+                                {pamDiscount(store) && ' · −10%'}
+                              </dt>
                               <dd>
-                                {price ? euro(price.price_amount) : '-'}
+                                {price ? euro(storePrice(price.price_amount, store)) : '-'}
                                 {price && specific && (
-                                  <small>{unitPriceLabel(price.price_amount, specific)}</small>
+                                  <small>
+                                    {unitPriceLabel(storePrice(price.price_amount, store, false), specific)}
+                                  </small>
                                 )}
                               </dd>
                             </div>
@@ -467,7 +474,11 @@ export function Stores() {
                 address: text(f, 'address'),
                 city: text(f, 'city'),
               }
-              if (store) await update('stores', store.id, values)
+              if (store)
+                await update('stores', store.id, {
+                  ...values,
+                  pam_discount_enabled: isPam(values) && !!store.pam_discount_enabled,
+                })
               else await insert('stores', household!.id, values)
               setEditing('')
             }}
@@ -497,6 +508,7 @@ export function Stores() {
                 {s.address}, {s.city}
               </p>
               {s.archived_at && <span className="pill">Archiviato</span>}
+              <PamDiscountToggle store={s} />
               <div className="inline">
                 <button
                   className="text-button"

@@ -22,12 +22,12 @@ beforeAll(async () => {
 afterAll(async () => {
   await db.close()
 })
-it('bootstrap completo: migrazioni correnti, ventidue tabelle con RLS e otto tabelle pubblicate', async () => {
+it('bootstrap completo: migrazioni correnti, ventitre tabelle con RLS e nove tabelle pubblicate', async () => {
   await db.exec(sql)
   const tables = await db.query<{ name: string; rls: boolean }>(
     `select c.relname as name,c.relrowsecurity as rls from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r'`,
   )
-  expect(tables.rows).toHaveLength(22)
+  expect(tables.rows).toHaveLength(23)
   expect(tables.rows.every((t) => t.rls)).toBe(true)
   const publication = await db.query<{ tablename: string }>(
     "select tablename from pg_publication_tables where pubname='supabase_realtime' order by tablename",
@@ -38,6 +38,7 @@ it('bootstrap completo: migrazioni correnti, ventidue tabelle con RLS e otto tab
     'price_observations',
     'product_prices',
     'purchases',
+    'recipe_ingredient_alternatives',
     'shopping_list_items',
     'shopping_lists',
     'store_category_order',

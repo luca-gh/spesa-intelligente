@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import Decimal from 'decimal.js'
 import { Link } from 'react-router-dom'
 import { useApp } from '../data/context'
 import { rpc } from '../data/client'
@@ -8,6 +9,8 @@ import { CurrentPriceComparison } from '../components/CurrentPriceComparison'
 import { shoppingPrices } from '../data/shoppingPrices'
 import { unitPriceLabel } from '../domain/catalogPrices'
 import { ListItemPrices } from '../components/ListItemPrices'
+import { PamDiscountToggle } from '../components/PamDiscountToggle'
+import { pamDiscount, storePrice } from '../domain/storePrices'
 import type { Item } from '../data/types'
 import { productFormat, storeCategories } from '../data/catalog'
 import { Empty, Field, Form, Panel, SectionTitle, Submit, text } from '../components/ui'
@@ -30,6 +33,7 @@ function ListDetail({ id }: { id: string }) {
   const [search, setSearch] = useState('')
   const [edit, setEdit] = useState<string | null>(null)
   const [priceEdit, setPriceEdit] = useState<string | null>(null)
+  const [sort, setSort] = useState('category')
   const list = data.shopping_lists.find((l) => l.id === id)!
   const items = data.shopping_list_items
     .filter((i) => i.list_id === id && !i.archived_at)
@@ -106,11 +110,16 @@ function ListDetail({ id }: { id: string }) {
               )
               return (
                 <div key={store.id}>
-                  <dt>{store.name}</dt>
+                  <dt>
+                    {store.name}
+                    {pamDiscount(store) && ' · −10%'}
+                  </dt>
                   <dd>
                     {price === null || price === undefined ? '-' : euro(price)}
                     {pricedProduct && catalogPrice && (
-                      <small>{unitPriceLabel(catalogPrice.price_amount, pricedProduct)}</small>
+                      <small>
+                        {unitPriceLabel(storePrice(catalogPrice.price_amount, store, false), pricedProduct)}
+                      </small>
                     )}
                   </dd>
                 </div>
@@ -200,6 +209,21 @@ function ListDetail({ id }: { id: string }) {
             ))}
         </select>
       </label>
+      {store && <PamDiscountToggle key={store.id} store={store} />}
+      <label className="field">
+        Ordina la lista
+        <select value={store ? sort : 'category'} onChange={(event) => setSort(event.target.value)}>
+          <option value="category">Per categoria</option>
+          <option value="price" disabled={!store}>
+            Prezzo dal più caro al meno caro
+          </option>
+        </select>
+      </label>
+      {sort === 'price' && store && (
+        <p className="muted">
+          Ordine per costo della quantità in lista presso {store.name}. Prodotti senza prezzo in fondo.
+        </p>
+      )}
       <p className="muted">
         Aggiungi ciò che serve e rimuovi ciò che hai preso. Puoi rimettere gli articoli rimossi nella lista.
         Puoi aggiornare i prezzi qui oppure dal <Link to="/catalogo">Catalogo</Link>.
@@ -219,25 +243,47 @@ function ListDetail({ id }: { id: string }) {
         <h2>
           Da acquistare <span className="count">{pending.length}</span>
         </h2>
-        {groups.map((group) => {
-          const rows = pending.filter(
-            (i) =>
-              (categoryFor(i)?.id ?? '') === group &&
-              [i.name, brandFor(i)]
-                .filter(Boolean)
-                .join(' ')
-                .toLocaleLowerCase('it')
-                .includes(search.toLocaleLowerCase('it')),
-          )
-          return (
-            !!rows.length && (
-              <div className="category-group" key={group}>
-                <h3>{data.categories.find((c) => c.id === group)?.name ?? 'Altri prodotti'}</h3>
-                {rows.map(renderItem)}
-              </div>
-            )
-          )
-        })}
+        {sort === 'price' && store
+          ? pending
+              .filter((item) =>
+                [item.name, brandFor(item)]
+                  .filter(Boolean)
+                  .join(' ')
+                  .toLocaleLowerCase('it')
+                  .includes(search.toLocaleLowerCase('it')),
+              )
+              .sort((a, b) => {
+                const lines = estimates.find((estimate) => estimate.storeId === store.id)?.lines ?? []
+                const left = lines.find((line) => line.itemId === a.id)?.amount ?? null
+                const right = lines.find((line) => line.itemId === b.id)?.amount ?? null
+                return left === null
+                  ? right === null
+                    ? 0
+                    : 1
+                  : right === null
+                    ? -1
+                    : new Decimal(right).cmp(left)
+              })
+              .map(renderItem)
+          : groups.map((group) => {
+              const rows = pending.filter(
+                (i) =>
+                  (categoryFor(i)?.id ?? '') === group &&
+                  [i.name, brandFor(i)]
+                    .filter(Boolean)
+                    .join(' ')
+                    .toLocaleLowerCase('it')
+                    .includes(search.toLocaleLowerCase('it')),
+              )
+              return (
+                !!rows.length && (
+                  <div className="category-group" key={group}>
+                    <h3>{data.categories.find((c) => c.id === group)?.name ?? 'Altri prodotti'}</h3>
+                    {rows.map(renderItem)}
+                  </div>
+                )
+              )
+            })}
         {!pending.length && <Empty title="La lista è vuota.">Aggiungi un articolo per cominciare.</Empty>}
       </section>
       <Panel title="Aggiungi alla lista">

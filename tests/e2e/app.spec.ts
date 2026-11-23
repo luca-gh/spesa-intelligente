@@ -49,6 +49,7 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
   const ensureListRequests: Record<string, unknown>[] = []
   const categoryOrderRequests: Record<string, unknown>[] = []
   const recipeSaveRequests: Record<string, unknown>[] = []
+  const recipeAddRequests: Record<string, unknown>[] = []
   const mealRequests: Record<string, unknown>[] = []
   const itemRequests: Record<string, unknown>[] = []
   const priceRequests: Record<string, unknown>[] = []
@@ -248,6 +249,51 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
       if (rule) Object.assign(rule, body)
       else rules.push({ id: `rule-${rules.length}`, active: true, ...body })
       result = rule ?? rules.at(-1)
+    } else if (table === 'stores' && route.request().method() === 'PATCH') {
+      const store = (collections.stores as Record<string, unknown>[]).find(
+        (s) => s.id === url.searchParams.get('id')?.replace(/^eq\./, ''),
+      )!
+      Object.assign(store, route.request().postDataJSON())
+      result = store
+    } else if (table === 'recipe_ingredient_alternatives' && route.request().method() === 'POST') {
+      result = {
+        id: 'alternative-new-' + (collections.recipe_ingredient_alternatives ?? []).length,
+        ...route.request().postDataJSON(),
+      }
+      ;(collections.recipe_ingredient_alternatives ??= []).push(result)
+    } else if (table === 'add_recipe_choices_to_list') {
+      const body = route.request().postDataJSON()
+      recipeAddRequests.push(body)
+      const recipe = (collections.recipes as Record<string, unknown>[]).find((r) => r.id === body.p_recipe)!
+      for (const ingredient of (collections.recipe_ingredients as Record<string, unknown>[]).filter(
+        (i) => i.recipe_id === body.p_recipe,
+      )) {
+        const productId = body.p_choices[ingredient.id as string] ?? ingredient.generic_product_id
+        const product = (collections.generic_products as Record<string, unknown>[]).find(
+          (p) => p.id === productId,
+        )!
+        const id = 'recipe-item-' + collections.shopping_list_items.length
+        collections.shopping_list_items.push({
+          id,
+          list_id: body.p_list,
+          name: product.name,
+          generic_product_id: productId,
+          specific_product_id: null,
+          unit: ingredient.unit,
+          note: '',
+          created_at: '2026-11-23',
+        })
+        collections.list_item_contributions.push({
+          id: 'c-' + id,
+          item_id: id,
+          origin_type: 'recipe',
+          origin_id: body.p_operation,
+          requested_quantity: String(
+            (Number(ingredient.quantity) * body.p_servings) / Number(recipe.base_servings),
+          ),
+        })
+      }
+      result = null
     } else if (table === 'save_recipe') {
       const body = route.request().postDataJSON()
       recipeSaveRequests.push(body)
@@ -259,14 +305,21 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
         instructions: body.p_instructions,
         is_favorite: false,
       })
-      for (const [index, ingredient] of body.p_ingredients.entries())
-        (collections.recipe_ingredients ??= []).push({
+      for (const [index, ingredient] of body.p_ingredients.entries()) {
+        ;(collections.recipe_ingredients ??= []).push({
           id: `${id}-${index}`,
           recipe_id: id,
           generic_product_id: ingredient.product_id,
           quantity: ingredient.quantity,
           unit: ingredient.unit,
         })
+        for (const [n, product] of (ingredient.alternatives ?? []).entries())
+          (collections.recipe_ingredient_alternatives ??= []).push({
+            id: `${id}-${index}-alt-${n}`,
+            ingredient_id: `${id}-${index}`,
+            generic_product_id: product,
+          })
+      }
       result = id
     } else if (table === 'meal_entries' && route.request().method() === 'POST') {
       const body = route.request().postDataJSON()
@@ -330,6 +383,7 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
         'store_discount_rules',
         'recipes',
         'recipe_ingredients',
+        'recipe_ingredient_alternatives',
         'meal_templates',
         'meal_plans',
       ].includes(table) &&
@@ -386,6 +440,7 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
     ensureListRequests,
     categoryOrderRequests,
     recipeSaveRequests,
+    recipeAddRequests,
     mealRequests,
   }
 }
@@ -466,6 +521,240 @@ const spreadCatalog = {
     { specific_product_id: 'private', store_id: 'c', price_amount: '0.40' },
   ],
 }
+
+test('opzioni lista: ordinamento decrescente per negozio, categoria e prezzi assenti in fondo', async ({
+  page,
+}) => {
+  await login(page, false, {
+    categories: [
+      { id: 'fruit', name: 'Frutta', sort_order: 0 },
+      { id: 'dairy', name: 'Latticini', sort_order: 1 },
+    ],
+    generic_products: [
+      { id: 'g1', name: 'Mele', category_id: 'fruit', canonical_unit: 'g', is_catalog_group: true },
+      { id: 'g2', name: 'Latte', category_id: 'dairy', canonical_unit: 'ml', is_catalog_group: true },
+    ],
+    specific_products: [
+      {
+        id: 'p1',
+        generic_product_id: 'g1',
+        name: 'Mele',
+        brand: '',
+        package_quantity: '500',
+        package_unit: 'g',
+      },
+      {
+        id: 'p2',
+        generic_product_id: 'g2',
+        name: 'Latte',
+        brand: '',
+        package_quantity: '1000',
+        package_unit: 'ml',
+      },
+    ],
+    stores: [
+      { id: 'a', name: 'Negozio A' },
+      { id: 'b', name: 'Negozio B' },
+    ],
+    product_prices: [
+      { specific_product_id: 'p1', store_id: 'a', price_amount: '2' },
+      { specific_product_id: 'p2', store_id: 'a', price_amount: '4' },
+      { specific_product_id: 'p1', store_id: 'b', price_amount: '6' },
+      { specific_product_id: 'p2', store_id: 'b', price_amount: '1' },
+    ],
+  })
+  await page.goto('/liste')
+  for (const name of ['Mele', 'Latte']) {
+    await chooseListProduct(page, name, name)
+    await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
+  }
+  await page.getByLabel('Nome per articolo libero', { exact: true }).fill('Sale')
+  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
+  await expect(page.getByLabel('Ordina la lista').locator('option[value="price"]')).toBeDisabled()
+  await page.getByLabel('Supermercato per la spesa', { exact: true }).selectOption('a')
+  await page.getByLabel('Ordina la lista').selectOption('price')
+  await expect(page.locator('.shopping-item .item-text strong')).toHaveText(['Latte', 'Mele', 'Sale'])
+  await page.getByLabel('Supermercato per la spesa', { exact: true }).selectOption('b')
+  await expect(page.locator('.shopping-item .item-text strong')).toHaveText(['Mele', 'Latte', 'Sale'])
+  await page.getByLabel('Ordina la lista').selectOption('category')
+  await expect(page.locator('.category-group > h3')).toHaveText(['Frutta', 'Latticini', 'Altri prodotti'])
+})
+
+test('opzioni lista: sconto PAM condiviso, reversibile, prezzi e kg coerenti senza alterare il prezzo salvato', async ({
+  page,
+}) => {
+  test.setTimeout(60000)
+  const { collections } = await login(page, false, {
+    ...spreadCatalog,
+    stores: [
+      { id: 'a', name: 'PAM Centro', chain: 'PAM', pam_discount_enabled: false },
+      { id: 'b', name: 'Negozio B' },
+    ],
+  })
+  await page.goto('/catalogo')
+  await page
+    .locator('tr[data-product-id="nut-small"]')
+    .getByRole('button', { name: 'Aggiungi alla lista', exact: true })
+    .click()
+  await page.goto('/liste')
+  await page.getByLabel('Supermercato per la spesa', { exact: true }).selectOption('a')
+  const toggle = page.getByRole('checkbox', { name: 'Calcola sconto PAM del 10% · PAM Centro', exact: true })
+  await toggle.check()
+  await expect(toggle).toBeChecked()
+  const article = page.getByRole('article', { name: 'Crema spalmabile · Nutella', exact: true })
+  await expect(article.locator('.item-prices > div').filter({ hasText: 'PAM Centro' })).toContainText(
+    /3,60\s*€/,
+  )
+  await expect(
+    article.locator('.item-prices > div').filter({ hasText: 'PAM Centro' }).locator('small'),
+  ).toHaveText(/9,00\s*€\/kg/)
+  await expect(
+    page
+      .getByRole('table', { name: 'Confronto supermercati' })
+      .getByRole('row')
+      .filter({ hasText: 'PAM Centro' }),
+  ).toContainText(/3,60\s*€/)
+  expect(collections.product_prices).toContainEqual({
+    specific_product_id: 'nut-small',
+    store_id: 'a',
+    price_amount: '4.00',
+  })
+  await article.screenshot({ path: `test-results/pam-${test.info().project.name}.png` })
+  await page.reload()
+  await expect(toggle).toBeChecked()
+  await page.goto('/catalogo')
+  await expect(page.locator('tr[data-product-id="nut-small"] .catalog-store-prices')).toContainText(
+    /3,60\s*€/,
+  )
+  await page.goto('/negozi')
+  await expect(toggle).toBeChecked()
+  await toggle.uncheck()
+  await page.goto('/liste')
+  await expect(article.locator('.item-prices > div').filter({ hasText: 'PAM Centro' })).toContainText(
+    /4,00\s*€/,
+  )
+  await page.getByLabel('Supermercato per la spesa', { exact: true }).selectOption('b')
+  await expect(toggle).toHaveCount(0)
+})
+
+test('alternative ricetta: crea penne oppure fusilli, scegli fusilli e rimuovi solo alternativa', async ({
+  page,
+}) => {
+  test.setTimeout(60000)
+  const { recipeSaveRequests, recipeAddRequests } = await login(page, false, {
+    generic_products: [
+      { id: 'penne', name: 'Penne', canonical_unit: 'g', category_id: null },
+      { id: 'fusilli', name: 'Fusilli', canonical_unit: 'g', category_id: null },
+      { id: 'passata', name: 'Passata di pomodoro', canonical_unit: 'g', category_id: null },
+    ],
+  })
+  await page.goto('/ricette')
+  await page.getByLabel('Titolo', { exact: true }).fill('Pasta al sugo')
+  const select = async (label: string, value: string) => {
+    const input = page.getByRole('combobox', { name: label, exact: true })
+    await input.fill(value)
+    await input.press('ArrowDown')
+    await input.press('Enter')
+  }
+  await select('Ingrediente 1', 'Penne')
+  await page.locator('input[name="quantity0"]').fill('200')
+  await page.locator('select[name="unit0"]').selectOption('g')
+  await page.getByRole('button', { name: 'Aggiungi alternativa', exact: true }).click()
+  await select('Alternativa 1 per ingrediente 1', 'Fusilli')
+  await page.getByRole('button', { name: 'Altro ingrediente', exact: true }).click()
+  await select('Ingrediente 2', 'Passata')
+  await page.locator('input[name="quantity1"]').fill('100')
+  await page.locator('select[name="unit1"]').selectOption('g')
+  await page.getByLabel('Procedimento', { exact: true }).fill('Cuoci la pasta e aggiungi la passata.')
+  await page.getByRole('button', { name: 'Salva ricetta', exact: true }).click()
+  await expect.poll(() => recipeSaveRequests.length).toBe(1)
+  expect(recipeSaveRequests[0].p_ingredients).toEqual([
+    { product_id: 'penne', quantity: '200', unit: 'g', alternatives: ['fusilli'] },
+    { product_id: 'passata', quantity: '100', unit: 'g' },
+  ])
+  await page.reload()
+  await page.getByRole('button', { name: 'Apri ricetta →', exact: true }).click()
+  await expect(page.getByText('oppure Fusilli', { exact: true })).toBeVisible()
+  await page.getByLabel('Usa per ingrediente Penne', { exact: true }).selectOption('fusilli')
+  await page.getByRole('button', { name: 'Aggiungi ingredienti', exact: true }).click()
+  await expect.poll(() => recipeAddRequests.length).toBe(1)
+  expect(recipeAddRequests[0].p_choices).toMatchObject({ 'recipe-new-1-0': 'fusilli' })
+  await page.getByRole('button', { name: 'Rimuovi alternativa', exact: true }).click()
+  await expect(page.getByText('oppure Fusilli', { exact: true })).toHaveCount(0)
+  await expect(page.locator('.ingredients li').first()).toContainText('Penne')
+  await page.locator('.ingredients li').first().getByText('Gestisci alternative', { exact: true }).click()
+  const alternative = page.getByRole('combobox', { name: 'Prodotto alternativo', exact: true }).first()
+  await alternative.fill('Fusilli')
+  await alternative.press('ArrowDown')
+  await alternative.press('Enter')
+  await page
+    .locator('.ingredients li')
+    .first()
+    .getByRole('button', { name: 'Aggiungi alternativa', exact: true })
+    .click()
+  await expect(page.getByText('oppure Fusilli', { exact: true })).toBeVisible()
+  const accessibility = await new AxeBuilder({ page })
+    .include('.ingredients')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+    .analyze()
+  expect(accessibility.violations.map((v) => ({ id: v.id, nodes: v.nodes.map((n) => n.target) }))).toEqual([])
+  await page
+    .locator('.ingredients')
+    .screenshot({ path: `test-results/alternatives-${test.info().project.name}.png` })
+  await page.goto('/liste')
+  await expect(page.getByRole('article', { name: 'Fusilli', exact: true })).toContainText('200 g')
+  await expect(page.getByRole('article', { name: 'Penne', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('article', { name: 'Passata di pomodoro', exact: true })).toBeVisible()
+})
+
+test('alternative ricetta: piano pasti usa una sola scelta e invalida l’anteprima quando cambia', async ({
+  page,
+}) => {
+  await page.clock.install({ time: new Date('2026-11-23T12:00:00Z') })
+  await login(page, false, {
+    generic_products: [
+      { id: 'penne', name: 'Penne', canonical_unit: 'g', category_id: null },
+      { id: 'fusilli', name: 'Fusilli', canonical_unit: 'g', category_id: null },
+    ],
+    recipes: [
+      { id: 'r', title: 'Pasta', base_servings: 2, instructions: 'Cuoci', notes: '', is_favorite: false },
+    ],
+    recipe_ingredients: [
+      { id: 'i', recipe_id: 'r', generic_product_id: 'penne', quantity: '200', unit: 'g' },
+    ],
+    recipe_ingredient_alternatives: [{ id: 'alt', ingredient_id: 'i', generic_product_id: 'fusilli' }],
+    meal_plans: [{ id: 'plan', week_start: '2026-11-23', version: 1, archived_at: null }],
+    meal_entries: [
+      {
+        id: 'meal',
+        meal_plan_id: 'plan',
+        meal_date: '2026-11-23',
+        meal_slot: 'pranzo',
+        recipe_id: 'r',
+        generic_product_id: null,
+        servings_override: 4,
+      },
+    ],
+  })
+  const requests: Record<string, unknown>[] = []
+  await page.route('**/rest/v1/rpc/apply_plan_diff', async (route) => {
+    requests.push(route.request().postDataJSON())
+    await route.fulfill({ json: null })
+  })
+  await page.goto('/pasti')
+  const choice = page.getByLabel('Usa per ingrediente Penne', { exact: true })
+  await choice.selectOption('fusilli')
+  await page.getByRole('button', { name: 'Calcola anteprima delle differenze', exact: true }).click()
+  await expect(page.locator('.diff')).toContainText('Fusilli: 0 → 400')
+  await expect(page.locator('.diff')).not.toContainText('Penne')
+  await choice.selectOption('penne')
+  await expect(page.locator('.diff')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Calcola anteprima delle differenze', exact: true }).click()
+  await expect(page.locator('.diff')).toContainText('Penne: 0 → 400')
+  await page.getByRole('button', { name: 'Conferma modifiche alla lista', exact: true }).click()
+  await expect.poll(() => requests.length).toBe(1)
+  expect(requests[0].p_rows).toEqual([{ product_id: 'penne', quantity: '400', unit: 'g' }])
+})
 
 test('lista marca: cerca Nutella, salva nome e marca esatta senza imporre il formato', async ({ page }) => {
   const { itemRequests } = await login(page, false, spreadCatalog)
@@ -2850,15 +3139,19 @@ test('aggiunta articolo libero senza registrare acquisti', async ({ page }) => {
   expect(itemRequests[0]).toMatchObject({ p_name: 'Pane', p_unit: 'pz' })
   expect(purchaseRequests).toHaveLength(0)
 })
-test('scanner manuale, checksum e nessun salvataggio implicito', async ({ page }) => {
+test('scanner rimosso dal menu: vecchio collegamento apre il catalogo, barcode manuale e checksum conservati', async ({
+  page,
+}) => {
   const { catalogSaveRequests } = await login(page)
   await page.route('**/api/products/*', (route) => route.fulfill({ json: { product: null } }))
   await page.goto('/scanner')
-  await page.getByLabel('Barcode manuale').fill('12345678')
-  await page.getByRole('button', { name: 'Cerca e compila prodotto' }).click()
+  await expect(page).toHaveURL(/\/catalogo$/)
+  await expect(page.getByRole('link', { name: 'Scanner', exact: true })).toHaveCount(0)
+  await page.getByLabel('EAN-8 / EAN-13 (facoltativo)', { exact: true }).fill('12345678')
+  await page.getByRole('button', { name: 'Cerca dati dal barcode' }).click()
   await expect(page.getByText('Il checksum EAN non è valido.', { exact: false })).toBeVisible()
-  await page.getByLabel('Barcode manuale').fill('8000500037560')
-  await page.getByRole('button', { name: 'Cerca e compila prodotto' }).click()
+  await page.getByLabel('EAN-8 / EAN-13 (facoltativo)', { exact: true }).fill('8000500037560')
+  await page.getByRole('button', { name: 'Cerca dati dal barcode' }).click()
   await expect(
     page.getByText('Prodotto non trovato nelle banche dati consultate.', { exact: false }),
   ).toBeVisible()
@@ -3207,5 +3500,5 @@ test('permesso fotocamera negato offre inserimento manuale', async ({ page }) =>
   await expect(
     page.getByText('Fotocamera non disponibile o permesso negato.', { exact: false }),
   ).toBeVisible()
-  await expect(page.getByLabel('Barcode manuale')).toBeVisible()
+  await expect(page.getByLabel('EAN-8 / EAN-13 (facoltativo)', { exact: true })).toBeVisible()
 })
