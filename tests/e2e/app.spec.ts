@@ -466,7 +466,7 @@ async function chooseListProduct(page: Page, name: string | RegExp, query = '') 
   await input.fill(query)
   await input.click()
   const option = page.getByRole('listbox').getByRole('option', { name, exact: typeof name === 'string' })
-  if (test.info().project.name === 'mobile') await option.tap()
+  if (test.info().project.use.hasTouch) await option.tap()
   else await option.click()
 }
 
@@ -506,7 +506,7 @@ test('autocomplete: ingredienti alfabetici, accenti, tastiera e righe indipenden
   const second = page.getByRole('combobox', { name: 'Ingrediente 2', exact: true })
   await second.fill('olio oliva')
   const option = page.getByRole('option', { name: 'Olio extra vergine di oliva', exact: true })
-  if (test.info().project.name === 'mobile') await option.tap()
+  if (test.info().project.use.hasTouch) await option.tap()
   else await option.click()
   await expect(second).toHaveValue('Olio extra vergine di oliva')
   await expect(first).toHaveValue('Caffè')
@@ -603,7 +603,7 @@ test('autocomplete: calendario alfabetico misto, omonimi e selezione corretta ri
   await component.fill('caffe')
   await expect(page.getByRole('listbox').getByRole('option')).toHaveCount(2)
   const recipe = page.getByRole('option', { name: /Caffè.*Ricetta/ })
-  if (test.info().project.name === 'mobile') await recipe.tap()
+  if (test.info().project.use.hasTouch) await recipe.tap()
   else await recipe.click()
   await page.getByRole('button', { name: 'Aggiungi pasto', exact: true }).click()
   await expect.poll(() => mealRequests.length).toBe(1)
@@ -1907,6 +1907,62 @@ test('generico: unità coerenti e conversione della quantità prima del salvatag
     p_quantity: '1000',
   })
 })
+test('touch selettore: perdita del focus prima del tocco non perde il prodotto e salva una sola volta', async ({
+  page,
+}) => {
+  const { itemRequests } = await login(page, false, productCatalog)
+  await page.goto('/liste')
+  const product = page.getByRole('combobox', { name: 'Prodotto dal catalogo', exact: true })
+  await product.fill('farina')
+  const option = page.getByRole('option', { name: /Farina fine/ })
+  await expect(option).toBeVisible()
+  // A software keyboard can blur the input before the option's click arrives.
+  await product.evaluate((input) => input.blur())
+  await expect(option).toBeVisible()
+  if (test.info().project.use.hasTouch) await option.tap()
+  else await option.click()
+  await expect(page.locator('input[name="product"]')).toHaveValue('specific-flour')
+  await expect(product).toHaveValue(/Farina fine/)
+  await expect(page.getByRole('listbox')).toHaveCount(0)
+  await expect(page.getByLabel('Nome per articolo libero')).toHaveCount(0)
+  expect(itemRequests).toHaveLength(0)
+  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
+  await expect.poll(() => itemRequests.length).toBe(1)
+  expect(itemRequests[0]).toMatchObject({
+    p_specific: 'specific-flour',
+    p_name: 'Farina fine',
+    p_quantity: '500',
+    p_unit: 'g',
+  })
+  await expect(page.locator('.shopping-item')).toContainText('Farina fine')
+})
+
+test('touch selettore: trascinare i suggerimenti non seleziona, focus esterno e Tab chiudono', async ({
+  page,
+}) => {
+  const { itemRequests } = await login(page, false, autocompleteCatalog)
+  await page.goto('/liste')
+  const product = page.getByRole('combobox', { name: 'Prodotto dal catalogo', exact: true })
+  await product.fill('')
+  await product.click()
+  const option = page.getByRole('option', { name: 'Albicocche', exact: true })
+  await option.dispatchEvent('pointerdown', { pointerId: 1, pointerType: 'touch', clientX: 40, clientY: 100 })
+  await product.evaluate((input) => input.blur())
+  await option.dispatchEvent('pointermove', { pointerId: 1, pointerType: 'touch', clientX: 40, clientY: 40 })
+  await option.dispatchEvent('pointercancel', { pointerId: 1, pointerType: 'touch' })
+  await expect(page.locator('input[name="product"]')).toHaveValue('')
+  expect(itemRequests).toHaveLength(0)
+  await expect(page.getByRole('listbox')).toBeVisible()
+  await page.getByLabel('Quantità', { exact: true }).focus()
+  await expect(page.getByRole('listbox')).toHaveCount(0)
+  await product.click()
+  await product.press('Tab')
+  await expect(page.getByRole('listbox')).toHaveCount(0)
+  await product.click()
+  await page.getByRole('heading', { name: 'La lista della spesa.' }).click()
+  await expect(page.getByRole('listbox')).toHaveCount(0)
+})
+
 test('lista autocomplete: ordine alfabetico, accenti, tastiera, tocco e articolo libero', async ({
   page,
 }) => {

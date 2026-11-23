@@ -1,5 +1,11 @@
 # Avanzamento
 
+## Selezione touch su iPad — 23 novembre 2026
+
+Corretto il menu di autocompletamento condiviso da lista, ricette e pasti. La chiusura sul blur poteva rimuovere i suggerimenti prima del click, perdendo la selezione. Ora il menu si chiude con selezione, interazione/focus esterni, Tab o Escape; il solo blur non lo smonta. Focus ripristinato prima della chiusura per evitare la riapertura del menu; touch e penna non bloccano i gesti di scorrimento.
+
+Riprodotta con WebKit la sequenza blur prima del click e verificata la correzione. 92 test locali e 21 prove mirate desktop/mobile/WebKit iPad; suite browser completa portata a 155 casi, con sette prove specifiche WebKit in CI. Nessun accesso ai dati familiari e nessuna modifica al database. Conferma sul dispositivo iPad fisico ancora da ottenere dall’utente dopo aggiornamento.
+
 ## Virgola nei campi dei prezzi — 23 novembre 2026
 
 Campo monetario condiviso per prezzi osservati, totale pagato, lordo, aggiunta successiva del prezzo e soglie/massimali sconto. Tastiera decimale mobile, indicazione della virgola, errore immediato accessibile per qualsiasi punto, senza autocorrezione; salvataggio bloccato finché l’importo non è valido. Interi e zero ammessi, massimo due decimali; campi opzionali vuoti mantengono il prezzo sconosciuto. Valori esistenti resi con virgola e senza separatori delle migliaia nei moduli. Conversione al formato numerico interno solo dopo validazione, nessuna migrazione o modifica dei dati preesistenti.

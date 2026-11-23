@@ -15,5 +15,10 @@ export default defineConfig({
   projects: [
     { name: 'desktop', use: { ...devices['Desktop Chrome'] } },
     { name: 'mobile', use: { ...devices['iPhone 13'], defaultBrowserType: 'chromium' } },
+    {
+      name: 'ipad-webkit',
+      use: { ...devices['iPad (gen 7)'], browserName: 'webkit' },
+      grep: /autocomplete:|lista autocomplete:|touch selettore:/,
+    },
   ],
 })

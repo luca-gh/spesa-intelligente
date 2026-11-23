@@ -1,5 +1,7 @@
 # Decisioni tecniche
 
+Autocompletamenti touch: non chiudere il popup sul solo blur dell’input, perché può precedere il click dell’opzione con tastiera software. Chiusura su pointerdown/focusin esterni, Tab, Escape e selezione. Scelta solo sul click, mai su pointerdown, per conservare lo scorrimento senza selezioni accidentali; preventDefault sul pointerdown limitato al mouse. Focus dell’input prima di setOpen(false) evita riaperture. Nessun ritardo arbitrario o rilevamento del dispositivo. Progetto Playwright WebKit con profilo iPad limitato ai flussi di autocompletamento e regressioni touch, installato anche in CI.
+
 Prezzi nei moduli: componente PriceField con input testuale e inputMode decimal, messaggio inline collegato tramite ARIA e validità nativa personalizzata per bloccare l’invio. Qualsiasi punto è un errore, anche per le migliaia; non si corregge automaticamente il testo. Parser dedicato prima delle scritture: interi o virgola con una/due cifre, conversione in stringa decimale canonica solo dopo validazione. Importi salvati proposti con virgola senza raggruppamento. Quantità, calcoli Decimal, API e schema restano nel formato numerico interno; prezzi facoltativi vuoti rimangono null. Nessuna migrazione o nuova dipendenza.
 
 Scorrimento alla modifica del Catalogo reso immediato: una seconda selezione durante l’animazione poteva interrompere il ritorno ai campi. Focus e scroll restano successivi al render, senza animazioni concorrenti.

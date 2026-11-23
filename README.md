@@ -80,7 +80,7 @@ Per i controlli amministrativi è disponibile `supabase/tests/online_rls.sql`: t
 
 ```sh
 npm run check
-npx playwright install chromium
+npx playwright install chromium webkit
 npm run test:e2e
 node scripts/secrets.mjs
 npm audit --omit=dev
@@ -89,7 +89,7 @@ npm run licenses
 
 `npm test` esegue calcoli di dominio e SQL su PostgreSQL tramite PGlite, con ruoli e RLS effettivi. Il namespace Auth è una fixture locale: non equivale al collaudo Supabase Auth/PostgREST/Realtime. Playwright usa **soltanto nei test** risposte HTTP controllate e dati fittizi, su desktop e viewport mobile Chromium. Non dimostra l'installazione su iPhone o Android fisici.
 
-La CI GitHub esegue lint, typecheck, test, build e browser test. [TEST_REPORT.md](TEST_REPORT.md) distingue esecuzioni locali, CI e test non eseguiti. Gli avvisi residui dell'audit di sviluppo sono registrati lì; non applicare `audit fix --force` senza revisione.
+La CI GitHub esegue lint, typecheck, test, build e browser test. Gli autocompletamenti sono verificati anche con WebKit e profilo touch iPad, oltre a Chromium desktop/mobile; l’emulazione non sostituisce il collaudo sul dispositivo fisico. [TEST_REPORT.md](TEST_REPORT.md) distingue esecuzioni locali, CI e test non eseguiti. Gli avvisi residui dell'audit di sviluppo sono registrati lì; non applicare `audit fix --force` senza revisione.
 
 ## Deploy statico con HTTPS
 

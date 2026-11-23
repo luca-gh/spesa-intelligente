@@ -68,11 +68,20 @@ export function SearchSelect({
     return () => form?.removeEventListener('reset', reset)
   }, [onQueryChange, onSelect])
   useEffect(() => {
-    const outside = (event: PointerEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false)
+    const outside = (event: PointerEvent | FocusEvent) => {
+      // A keyboard dismissal can blur the input before a touch click selects an option.
+      // Close on an actual outside interaction instead of unmounting options on blur.
+      if (!root.current?.contains(event.target as Node)) {
+        setOpen(false)
+        setActive(-1)
+      }
     }
     document.addEventListener('pointerdown', outside)
-    return () => document.removeEventListener('pointerdown', outside)
+    document.addEventListener('focusin', outside)
+    return () => {
+      document.removeEventListener('pointerdown', outside)
+      document.removeEventListener('focusin', outside)
+    }
   }, [])
   useEffect(() => {
     if (expanded && activeIndex >= 0)
@@ -84,10 +93,10 @@ export function SearchSelect({
     setInternalQuery(choice.label)
     onSelect?.(choice.value)
     onQueryChange?.(choice.label)
-    setOpen(false)
-    setActive(-1)
     input.current?.setCustomValidity('')
     input.current?.focus({ preventScroll: true })
+    setOpen(false)
+    setActive(-1)
   }
   return (
     <div className={`field search-select ${className}`} ref={root}>
@@ -111,10 +120,6 @@ export function SearchSelect({
         placeholder={placeholder}
         onFocus={() => setOpen(true)}
         onClick={() => setOpen(true)}
-        onBlur={() => {
-          setOpen(false)
-          setActive(-1)
-        }}
         onChange={(event) => {
           setInternalQuery(event.target.value)
           setInternalValue('')
@@ -163,7 +168,10 @@ export function SearchSelect({
                 role="option"
                 aria-selected={index === activeIndex}
                 className={index === activeIndex ? 'active' : ''}
-                onPointerDown={(event) => event.preventDefault()}
+                onPointerDown={(event) => {
+                  // Keep mouse focus in the combobox; let touch gestures scroll normally.
+                  if (event.pointerType === 'mouse') event.preventDefault()
+                }}
                 onClick={() => choose(choice)}
               >
                 <span>{choice.label}</span>

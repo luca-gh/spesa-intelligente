@@ -1,5 +1,13 @@
 # Rapporto test
 
+## Autocompletamento touch e profilo iPad WebKit — 23 novembre 2026
+
+Regressione riprodotta prima della correzione: dopo blur simulato della tastiera, l’opzione scompariva e non poteva ricevere il click. Rimosso lo smontaggio sul blur, con chiusura basata su interazioni/focus esterni e comandi espliciti. Il focus dopo la selezione precede la chiusura, così non riapre il popup.
+
+Due nuove prove eseguite sui tre profili: perdita focus prima della selezione, invio unico del prodotto con ID/formato corretti; sequenza sintetica di trascinamento/pointercancel senza selezione, chiusura su focus esterno, Tab e tocco esterno. Test preesistenti di lista, ingredienti e calendario aggiunti al progetto WebKit touch iPad. 21 prove mirate PASS e 92 test locali PASS, oltre a lint/tipi/build. Suite completa in CI: 155 casi (74 desktop, 74 mobile Chromium, 7 WebKit iPad). Aggiornamento PWA, segreti e pubblicazione verificati separatamente sul commit finale.
+
+Il blur della tastiera è simulato e WebKit usa un profilo iPad; nessuna prova su iPad fisico o tastiera iPadOS reale durante questa sessione. Il problema segnalato dall’utente richiede conferma finale sul suo dispositivo dopo aggiornamento.
+
 ## Prezzi con virgola e rifiuto dei punti — 23 novembre 2026
 
 Tre nuovi test locali per parsing italiano, rifiuto di punti/separatori delle migliaia e altri formati ambigui, resa dei valori preesistenti con virgola e conservazione dei prezzi sconosciuti. Quattro nuove prove browser su desktop e mobile: osservazione prezzo e riutilizzo del modulo dopo un salvataggio, totale/lordo acquisto, completamento successivo del prezzo, modifica soglia/massimale sconto. Verificati errore immediato, conservazione del testo errato, nessuna richiesta di scrittura con punti, correzione con virgola e importi canonici nella richiesta. Importi zero e acquisti senza prezzo conservati.
