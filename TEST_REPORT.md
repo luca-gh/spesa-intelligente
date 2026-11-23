@@ -1,5 +1,13 @@
 # Rapporto test
 
+## Prezzi con virgola e rifiuto dei punti — 23 novembre 2026
+
+Tre nuovi test locali per parsing italiano, rifiuto di punti/separatori delle migliaia e altri formati ambigui, resa dei valori preesistenti con virgola e conservazione dei prezzi sconosciuti. Quattro nuove prove browser su desktop e mobile: osservazione prezzo e riutilizzo del modulo dopo un salvataggio, totale/lordo acquisto, completamento successivo del prezzo, modifica soglia/massimale sconto. Verificati errore immediato, conservazione del testo errato, nessuna richiesta di scrittura con punti, correzione con virgola e importi canonici nella richiesta. Importi zero e acquisti senza prezzo conservati.
+
+Suite corrente: 92 casi locali in 12 file e 144 prove browser desktop/mobile. Lint, tipi, build, controllo segreti e aggiornamento PWA verificati; CI e disponibilità HTTPS controllate sul commit pubblicato. Nessuna nuova verifica hardware iPad o collaudo reale a due account.
+
+La verifica completa ha inoltre rilevato un’interruzione dello scorrimento animato alla seconda selezione rapida di Modifica nel Catalogo. Il posizionamento al campo Nome è ora immediato, evitando la sovrapposizione con lo scroll del click successivo e rispettando anche il movimento ridotto.
+
 ## Unità base e scorrimento alla modifica — 16 novembre 2026
 
 Nuovo test locale per conversioni decimali kg→g e L→ml, formato vuoto e conservazione di bozze non numeriche nelle altre unità. Quattro nuove prove browser desktop/mobile su formati precedenti kg/L: conversione proposta, quantità equivalente nella richiesta di salvataggio, focus e campo in viewport anche dopo una seconda selezione dello stesso prodotto, movimento ridotto. Aggiornate le prove di formato sempre visibile e opzionale, elenco unità senza kg/L, formato incompleto, barcode alimentari/non alimentari e ritorno alla lista con formato normalizzato. Nessuna migrazione o modifica di prodotti reali durante le prove.

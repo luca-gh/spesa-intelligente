@@ -40,6 +40,7 @@ export function safeError(error: unknown): string {
     'Articolo con storico',
     'Limite inviti',
     'Prodotto in uso:',
+    'Prezzo non valido:',
   ]
   if (known.some((prefix) => message.startsWith(prefix))) return message
   if (/Invalid login credentials/.test(message)) return 'Email o password non corrette.'

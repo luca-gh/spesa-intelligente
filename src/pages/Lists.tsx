@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom'
 import { Check, ShoppingBasket } from 'lucide-react'
 import { useApp } from '../data/context'
 import { rpc } from '../data/client'
-import { euro, quantity } from '../domain/math'
+import { euro, quantity, parsePrice } from '../domain/math'
+import { PriceField } from '../components/PriceField'
 import { AddListItemForm } from '../components/AddListItemForm'
 import type { Item } from '../data/types'
 import { orderedCategories } from '../data/catalog'
@@ -168,12 +169,12 @@ function ListDetail({ id }: { id: string }) {
                 p_id: purchaseOperation,
                 p_item: item.id,
                 p_quantity: quantity(text(f, 'quantity')).toString(),
-                p_total: text(f, 'paid') ? quantity(text(f, 'paid')).toFixed(2) : null,
+                p_total: text(f, 'paid') ? parsePrice(text(f, 'paid')) : null,
                 p_store: text(f, 'store') || null,
                 p_specific: text(f, 'specific') || item.specific_product_id,
                 p_promotional: text(f, 'promo') === '' ? null : text(f, 'promo') === 'true',
                 p_date: new Date(text(f, 'date') + 'T12:00:00').toISOString(),
-                p_gross: text(f, 'gross') ? quantity(text(f, 'gross')).toFixed(2) : null,
+                p_gross: text(f, 'gross') ? parsePrice(text(f, 'gross')) : null,
               })
               setBuy(null)
             }}
@@ -183,13 +184,13 @@ function ListDetail({ id }: { id: string }) {
               name="quantity"
               value={Number(q.remaining) > 0 ? q.remaining : '1'}
             />
-            <Field
+            <PriceField
               label="Totale pagato (€), facoltativo"
               name="paid"
               required={false}
               placeholder="Prezzo sconosciuto"
             />
-            <Field label="Lordo prima dello sconto (€), facoltativo" name="gross" required={false} />
+            <PriceField label="Lordo prima dello sconto (€), facoltativo" name="gross" required={false} />
             <Field
               label="Data acquisto"
               name="date"
@@ -248,11 +249,11 @@ function ListDetail({ id }: { id: string }) {
                   onSave={(f) =>
                     rpc('complete_purchase_price', {
                       p_id: p.id,
-                      p_total: quantity(text(f, 'paid')).toFixed(2),
+                      p_total: parsePrice(text(f, 'paid')),
                     })
                   }
                 >
-                  <Field label="Totale pagato (€)" name="paid" />
+                  <PriceField label="Totale pagato (€)" name="paid" />
                   <Submit>Aggiungi prezzo</Submit>
                 </Form>
               )}

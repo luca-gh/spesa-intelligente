@@ -19,6 +19,20 @@ export function quantity(value: string | number): Decimal {
 export function money(value: string | number | Decimal): string {
   return new Decimal(value).toFixed(2)
 }
+export function priceInputError(value: string): string {
+  if (value.includes('.')) return 'Prezzo non valido: usa la virgola per i decimali (es. 2,50), senza punti.'
+  if (value && !/^\d+(?:,\d{1,2})?$/.test(value.trim()))
+    return 'Prezzo non valido: inserisci un importo con al massimo due decimali (es. 2,50).'
+  return ''
+}
+export function parsePrice(value: string): string {
+  const error = priceInputError(value)
+  if (error || !value.trim()) throw new Error(error || 'Prezzo non valido: inserisci un importo.')
+  return quantity(value).toFixed(2)
+}
+export function priceInputValue(value: string | number | null | undefined): string {
+  return value === null || value === undefined || value === '' ? '' : money(value).replace('.', ',')
+}
 export function euro(value: string | number): string {
   return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(Number(value))
 }

@@ -1,5 +1,11 @@
 # Avanzamento
 
+## Virgola nei campi dei prezzi — 23 novembre 2026
+
+Campo monetario condiviso per prezzi osservati, totale pagato, lordo, aggiunta successiva del prezzo e soglie/massimali sconto. Tastiera decimale mobile, indicazione della virgola, errore immediato accessibile per qualsiasi punto, senza autocorrezione; salvataggio bloccato finché l’importo non è valido. Interi e zero ammessi, massimo due decimali; campi opzionali vuoti mantengono il prezzo sconosciuto. Valori esistenti resi con virgola e senza separatori delle migliaia nei moduli. Conversione al formato numerico interno solo dopo validazione, nessuna migrazione o modifica dei dati preesistenti.
+
+92 test locali in 12 file e 144 prove browser desktop/mobile; controlli di lint, tipi, build, aggiornamento PWA e segreti. CI e pubblicazione del commit finale controllate separatamente. Nessuna prova hardware o scrittura nei dati familiari.
+
 ## Modifica guidata e formato sempre visibile — 16 novembre 2026
 
 Nel modulo Catalogo rimossi kg e L dalle scelte del formato; restano g, ml, pz e conf. Formati esistenti e da barcode convertiti nel modulo con aritmetica decimale, conservando il contenuto della confezione; persistenza solo dopo Salva prodotto. Unità storiche e conversioni nelle altre sezioni conservate, nessuna migrazione. Formato ancora opzionale ma sempre visibile in un fieldset, senza espandi/riduci né etichetta facoltativo. Modifica scorre al campo Nome prodotto dopo il montaggio del form e lo focalizza; funziona anche ripremendo Modifica sullo stesso prodotto e rispetta il movimento ridotto.

@@ -7,7 +7,17 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Tag, Store as StoreIcon } from 'lucide-react'
 import { useApp } from '../data/context'
 import { insert, remove, removeCatalogProduct, rpc, update } from '../data/client'
-import { convert, dateInZone, euro, quantity, units, validBarcode, type Unit } from '../domain/math'
+import {
+  convert,
+  dateInZone,
+  euro,
+  quantity,
+  parsePrice,
+  units,
+  validBarcode,
+  type Unit,
+} from '../domain/math'
+import { PriceField } from '../components/PriceField'
 import { estimate, rank } from '../domain/prices'
 import {
   catalogProducts,
@@ -48,7 +58,7 @@ export function Catalog() {
     name?.focus({ preventScroll: true })
     name?.scrollIntoView({
       block: 'center',
-      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+      behavior: 'instant',
     })
   }, [selected, revision])
   const readDraft = () => new FormData(editor.current!.querySelector('form')!)
@@ -584,7 +594,7 @@ export function Prices() {
               rpc('add_price', {
                 p_product: text(f, 'product'),
                 p_store: text(f, 'store'),
-                p_amount: quantity(text(f, 'amount')).toFixed(2),
+                p_amount: parsePrice(text(f, 'amount')),
                 p_kind: text(f, 'kind'),
                 p_observed: new Date(text(f, 'date') + 'T12:00:00').toISOString(),
                 p_start: text(f, 'start') || null,
@@ -613,7 +623,7 @@ export function Prices() {
                   </option>
                 ))}
             </Select>
-            <Field label="Prezzo per confezione (€)" name="amount" />
+            <PriceField label="Prezzo per confezione (€)" name="amount" />
             <Select label="Tipo di prezzo accertato" name="kind">
               <option value="regular">Ordinario</option>
               <option value="promotion">Promozione</option>
@@ -642,8 +652,8 @@ export function Prices() {
                 valid_to: text(f, 'end') || null,
                 exclude_promotional_items: !f.has('stack'),
                 confirmed: f.has('confirmed'),
-                minimum_total: quantity(text(f, 'minimum') || '0').toFixed(2),
-                maximum_discount: text(f, 'maximum') ? quantity(text(f, 'maximum')).toFixed(2) : null,
+                minimum_total: parsePrice(text(f, 'minimum') || '0'),
+                maximum_discount: text(f, 'maximum') ? parsePrice(text(f, 'maximum')) : null,
                 conditions_note: text(f, 'notes'),
                 excluded_product_ids: f.getAll('excluded').map(String),
                 priority: Number(text(f, 'priority')),
@@ -694,8 +704,12 @@ export function Prices() {
               required={false}
               value={rule?.valid_to ?? ''}
             />
-            <Field label="Soglia minima per riga (€)" name="minimum" value={rule?.minimum_total ?? '0'} />
-            <Field
+            <PriceField
+              label="Soglia minima per riga (€)"
+              name="minimum"
+              value={rule?.minimum_total ?? '0'}
+            />
+            <PriceField
               label="Sconto massimo per riga (€), facoltativo"
               name="maximum"
               required={false}

@@ -51,6 +51,10 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
   const recipeSaveRequests: Record<string, unknown>[] = []
   const mealRequests: Record<string, unknown>[] = []
   const itemRequests: Record<string, unknown>[] = []
+  const priceRequests: Record<string, unknown>[] = []
+  const purchaseRequests: Record<string, unknown>[] = []
+  const completionRequests: Record<string, unknown>[] = []
+  const discountRequests: Record<string, unknown>[] = []
   const catalogDeleteRequests: { table: string; id: string }[] = []
   await page.route('https://fixture.supabase.test/**', async (route) => {
     const url = new URL(route.request().url())
@@ -163,7 +167,8 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
       result = id
     } else if (table === 'record_purchase') {
       const body = route.request().postDataJSON()
-      purchases.push({
+      purchaseRequests.push(body)
+      collections.purchases.push({
         id: body.p_id,
         list_item_id: body.p_item,
         quantity: body.p_quantity,
@@ -175,6 +180,33 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
         voided_at: null,
       })
       result = body.p_id
+    } else if (table === 'complete_purchase_price') {
+      const body = route.request().postDataJSON()
+      completionRequests.push(body)
+      const purchase = (collections.purchases as Record<string, unknown>[]).find((p) => p.id === body.p_id)
+      if (purchase) purchase.total_paid = body.p_total
+      result = null
+    } else if (table === 'add_price') {
+      const body = route.request().postDataJSON()
+      priceRequests.push(body)
+      ;(collections.price_observations ??= []).push({
+        id: `price-${priceRequests.length}`,
+        specific_product_id: body.p_product,
+        store_id: body.p_store,
+        price_amount: body.p_amount,
+        kind: body.p_kind,
+        observed_at: body.p_observed,
+        voided_at: null,
+      })
+      result = null
+    } else if (table === 'store_discount_rules' && ['POST', 'PATCH'].includes(route.request().method())) {
+      const body = route.request().postDataJSON()
+      discountRequests.push(body)
+      const rules = (collections.store_discount_rules ??= []) as Record<string, unknown>[]
+      const rule = rules.find((r) => r.id === url.searchParams.get('id')?.replace(/^eq\./, ''))
+      if (rule) Object.assign(rule, body)
+      else rules.push({ id: `rule-${rules.length}`, active: true, ...body })
+      result = rule ?? rules.at(-1)
     } else if (table === 'save_recipe') {
       const body = route.request().postDataJSON()
       recipeSaveRequests.push(body)
@@ -287,6 +319,10 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
     )
   })
   return {
+    priceRequests,
+    purchaseRequests,
+    completionRequests,
+    discountRequests,
     itemRequests,
     catalogDeleteRequests,
     catalogSaveRequests,
@@ -315,6 +351,115 @@ const productCatalog = {
     },
   ],
 }
+
+test('prezzi osservati: errore sul punto, virgola accettata e modulo riutilizzabile', async ({ page }) => {
+  const { priceRequests } = await login(page, false, {
+    ...productCatalog,
+    stores: [{ id: 'store', name: 'Negozio test' }],
+  })
+  await page.goto('/prezzi')
+  await page.getByRole('combobox', { name: 'Prodotto', exact: true }).selectOption('specific-flour')
+  await page.getByRole('combobox', { name: 'Punto vendita', exact: true }).selectOption('store')
+  const price = page.getByRole('textbox', { name: 'Prezzo per confezione (€)', exact: true })
+  await price.fill('2.50')
+  await expect(price).toHaveValue('2.50')
+  await expect(price).toHaveAttribute('aria-invalid', 'true')
+  await expect(page.getByRole('alert')).toContainText('usa la virgola')
+  await page.getByRole('button', { name: 'Registra prezzo', exact: true }).click()
+  expect(priceRequests).toHaveLength(0)
+  await price.fill('2,50')
+  await expect(price).not.toHaveAttribute('aria-invalid')
+  await page.getByRole('button', { name: 'Registra prezzo', exact: true }).click()
+  await expect.poll(() => priceRequests.length).toBe(1)
+  expect(priceRequests[0]).toMatchObject({ p_amount: '2.50', p_product: 'specific-flour', p_store: 'store' })
+  await expect(price).toHaveValue('')
+  await page.getByRole('combobox', { name: 'Prodotto', exact: true }).selectOption('specific-flour')
+  await page.getByRole('combobox', { name: 'Punto vendita', exact: true }).selectOption('store')
+  await price.fill('0')
+  await page.getByRole('button', { name: 'Registra prezzo', exact: true }).click()
+  await expect.poll(() => priceRequests.length).toBe(2)
+  expect(priceRequests[1].p_amount).toBe('0.00')
+})
+
+test('acquisto: punti bloccati in totale e lordo, decimali con virgola salvati', async ({ page }) => {
+  const { purchaseRequests } = await login(page, true)
+  await page.goto('/liste')
+  await page.getByRole('button', { name: 'Registra acquisto Latte' }).click()
+  const paid = page.getByRole('textbox', { name: 'Totale pagato (€), facoltativo', exact: true })
+  const gross = page.getByRole('textbox', { name: 'Lordo prima dello sconto (€), facoltativo', exact: true })
+  await paid.fill('2.50')
+  await gross.fill('1.000,50')
+  await page.getByRole('button', { name: 'Conferma acquisto' }).click()
+  expect(purchaseRequests).toHaveLength(0)
+  await expect(paid).toHaveAttribute('aria-invalid', 'true')
+  await expect(gross).toHaveAttribute('aria-invalid', 'true')
+  await paid.fill('2,50')
+  await page.getByRole('button', { name: 'Conferma acquisto' }).click()
+  expect(purchaseRequests).toHaveLength(0)
+  await gross.fill('3,00')
+  await page.getByRole('button', { name: 'Conferma acquisto' }).click()
+  await expect.poll(() => purchaseRequests.length).toBe(1)
+  expect(purchaseRequests[0]).toMatchObject({ p_total: '2.50', p_gross: '3.00' })
+  await expect(page.getByText(/2,50\s*€/)).toBeVisible()
+})
+
+test('prezzo aggiunto dopo acquisto: punto rifiutato e virgola accettata', async ({ page }) => {
+  const { completionRequests } = await login(page, true)
+  await page.goto('/liste')
+  await page.getByRole('button', { name: 'Registra acquisto Latte' }).click()
+  await page.getByRole('button', { name: 'Conferma acquisto' }).click()
+  const price = page.getByRole('textbox', { name: 'Totale pagato (€)', exact: true })
+  await price.fill('2.50')
+  await page.getByRole('button', { name: 'Aggiungi prezzo', exact: true }).click()
+  expect(completionRequests).toHaveLength(0)
+  await expect(page.getByRole('alert')).toContainText('usa la virgola')
+  await price.fill('2,50')
+  await page.getByRole('button', { name: 'Aggiungi prezzo', exact: true }).click()
+  await expect.poll(() => completionRequests.length).toBe(1)
+  expect(completionRequests[0].p_total).toBe('2.50')
+  await expect(price).toHaveCount(0)
+  await expect(page.getByText(/2,50\s*€/)).toBeVisible()
+})
+
+test('sconti: importi esistenti con virgola e punti bloccati su soglia e massimo', async ({ page }) => {
+  const { discountRequests } = await login(page, false, {
+    stores: [{ id: 'store', name: 'Negozio test' }],
+    store_discount_rules: [
+      {
+        id: 'rule',
+        name: 'Tessera test',
+        store_id: 'store',
+        percentage: '10',
+        weekdays: [1],
+        valid_from: '2026-01-01',
+        minimum_total: '12.50',
+        maximum_discount: '2.25',
+        excluded_product_ids: [],
+        active: true,
+        confirmed: true,
+        priority: 0,
+      },
+    ],
+  })
+  await page.goto('/prezzi')
+  await page.getByRole('button', { name: 'Modifica', exact: true }).click()
+  const minimum = page.getByRole('textbox', { name: 'Soglia minima per riga (€)', exact: true })
+  const maximum = page.getByRole('textbox', { name: 'Sconto massimo per riga (€), facoltativo', exact: true })
+  await expect(minimum).toHaveValue('12,50')
+  await expect(maximum).toHaveValue('2,25')
+  await minimum.fill('12.50')
+  await maximum.fill('2.25')
+  await page.getByRole('button', { name: 'Salva regola', exact: true }).click()
+  expect(discountRequests).toHaveLength(0)
+  await minimum.fill('12,50')
+  await page.getByRole('button', { name: 'Salva regola', exact: true }).click()
+  expect(discountRequests).toHaveLength(0)
+  await expect(maximum).toHaveAttribute('aria-invalid', 'true')
+  await maximum.fill('2,25')
+  await page.getByRole('button', { name: 'Salva regola', exact: true }).click()
+  await expect.poll(() => discountRequests.length).toBe(1)
+  expect(discountRequests[0]).toMatchObject({ minimum_total: '12.50', maximum_discount: '2.25' })
+})
 
 async function chooseListProduct(page: Page, name: string | RegExp, query = '') {
   const input = page.getByRole('combobox', { name: 'Prodotto dal catalogo', exact: true })

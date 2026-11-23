@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { convert, money, packages, remaining, scale, validBarcode, dateInZone } from '../src/domain/math'
+import {
+  convert,
+  money,
+  packages,
+  remaining,
+  scale,
+  validBarcode,
+  dateInZone,
+  parsePrice,
+  priceInputError,
+  priceInputValue,
+  quantity,
+} from '../src/domain/math'
 import {
   estimate,
   rank,
@@ -10,6 +22,33 @@ import {
   type RequestItem,
 } from '../src/domain/prices'
 import { previewDiff, statistics } from '../src/domain/planning'
+
+describe('prezzi con virgola', () => {
+  it('accetta interi e decimali italiani senza cambiare il formato numerico interno', () => {
+    for (const [input, expected] of [
+      ['2,50', '2.50'],
+      ['2,5', '2.50'],
+      ['0', '0.00'],
+      [' 1250,99 ', '1250.99'],
+    ])
+      expect(parsePrice(input)).toBe(expected)
+    expect(quantity('1.25').toString()).toBe('1.25')
+  })
+  it('rifiuta punti, separatori delle migliaia e importi ambigui senza correggerli', () => {
+    for (const input of ['2.50', '1.000,50', '2.', '.50']) {
+      expect(priceInputError(input)).toContain('usa la virgola')
+      expect(() => parsePrice(input)).toThrow('usa la virgola')
+    }
+    for (const input of ['', ' ', '-2,50', '2,501', '2,', '1e2', '€ 2,50'])
+      expect(() => parsePrice(input)).toThrow('Prezzo non valido:')
+    expect(priceInputError('')).toBe('')
+  })
+  it('mostra con la virgola i valori salvati lasciando vuoti quelli sconosciuti', () => {
+    expect(priceInputValue('1250.5')).toBe('1250,50')
+    expect(priceInputValue(0)).toBe('0,00')
+    for (const value of [null, undefined, '']) expect(priceInputValue(value)).toBe('')
+  })
+})
 const products: Product[] = [
   { id: 'a', generic_product_id: 'generic', name: 'Farina 500g', package_quantity: '500', package_unit: 'g' },
   { id: 'b', generic_product_id: 'generic', name: 'Farina 1kg', package_quantity: '1', package_unit: 'kg' },
