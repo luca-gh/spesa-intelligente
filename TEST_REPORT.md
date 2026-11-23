@@ -1,12 +1,14 @@
 # Rapporto test
 
+Verifica finale permessi alternative: revocati anche i grant authenticated ereditati dai default Supabase, prima di concedere soltanto SELECT/INSERT/UPDATE/DELETE. TRUNCATE, REFERENCES e TRIGGER esplicitamente assenti; probe SQL locale e remoto aggiornato e superato. Nessun privilegio diretto sulle scritture delle liste ampliato. Migrazione correttiva 20261123160134, senza modificare file già applicati.
+
 ## Ordinamento per negozio, PAM, alternative e rimozione Scanner — 23 novembre 2026
 
 107 test locali in 16 file. Nuovi test puri per riconoscimento PAM senza falsi positivi, disattivazione, zero e centesimi, prezzo originario immutato, quantità prima dell’arrotondamento e fallback quando un’alternativa viene rimossa. Probe SQL su PostgreSQL locale e Supabase reale con rollback completo: salvataggio atomico, duplicazione, singola alternativa trasferita e scalata, idempotenza, rifiuto scelte estranee/uguali al principale, vincolo PAM, invalidazione piani, FK/RLS e ruoli anon.
 
 200 prove browser: 87 desktop, 87 mobile Chromium, 26 WebKit iPad. Nuovi flussi per ordinamento decrescente e cambio negozio, dati mancanti in fondo e ritorno categorie; PAM attivabile/disattivabile, persistenza e netto coerente fra catalogo/lista/confronto; creazione e gestione alternative salvate con ricerca, scelta e trasferimento di un solo prodotto; anteprima pasti invalidata al cambio scelta. Vecchio percorso Scanner reindirizzato al Catalogo e scansione manuale/checksum/fotocamera integrati conservati. Accessibilità delle alternative verificata con Axe; regressioni precedenti mantenute.
 
-Backend: 17 migrazioni allineate, 23 tabelle protette, nove pubblicate. Nessun nuovo avviso di sicurezza; due definer pubblici in meno, soli INFO normali per indici appena creati. Lint, tipi, build, segreti, PWA, CI e pubblicazione verificati. Nessun nuovo collaudo hardware o a due account.
+Backend: 18 migrazioni allineate, 23 tabelle protette, nove pubblicate. Nessun nuovo avviso di sicurezza; due definer pubblici in meno, soli INFO normali per indici appena creati. Lint, tipi, build, segreti, PWA, CI e pubblicazione verificati. Nessun nuovo collaudo hardware o a due account.
 
 ## Tabella catalogo, inserimento diretto e prezzi modificabili dalla lista — 23 novembre 2026
 

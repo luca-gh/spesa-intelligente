@@ -1,5 +1,7 @@
 # Decisioni tecniche
 
+Verifica finale permessi alternative: revocati anche i grant authenticated ereditati dai default Supabase, prima di concedere soltanto SELECT/INSERT/UPDATE/DELETE. TRUNCATE, REFERENCES e TRIGGER esplicitamente assenti; probe SQL locale e remoto aggiornato e superato. Nessun privilegio diretto sulle scritture delle liste ampliato. Migrazione correttiva 20261123160134, senza modificare file già applicati.
+
 Ordinamento della lista sul costo della quantità residua per il negozio scelto, in alternativa al raggruppamento per categoria. Importi nulli in fondo e parità stabili in ordine alfabetico. Nessun ordinamento su totali parziali fra supermercati.
 
 Sconto PAM come booleano del singolo store, riconosciuto dalla parola PAM in nome/catena e vincolato anche in PostgreSQL. Prezzi salvati sempre lordi; sconto solo nella derivazione condivisa delle stime e nella presentazione, con aritmetica Decimal esatta fino al costo della voce. Catalogo e lista mostrano il flag per distinguere il netto. Cambiare il nome/catena fuori PAM azzera l’opzione nel modulo. Nessuna riattivazione del precedente sistema di promozioni/sconti datati.

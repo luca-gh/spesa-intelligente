@@ -4,7 +4,7 @@
 
 PWA in italiano per organizzare la spesa di una famiglia: una sola lista condivisa con aggiunta/rimozione rapida, catalogo, prezzi per punto vendita, confronto dei costi con i prezzi attuali, ricette e calendario.
 
-**Stato: diciassette migrazioni applicate e controlli SQL RLS/RPC superati sul database Supabase reale; collaudo Auth/JWT e Realtime completo ancora da eseguire.** Consultare [PROGRESS.md](PROGRESS.md) e [TEST_REPORT.md](TEST_REPORT.md). OCR, importazioni e alcune funzioni avanzate restano da completare. Nessun dato dimostrativo viene conservato in produzione.
+**Stato: diciotto migrazioni applicate e controlli SQL RLS/RPC superati sul database Supabase reale; collaudo Auth/JWT e Realtime completo ancora da eseguire.** Consultare [PROGRESS.md](PROGRESS.md) e [TEST_REPORT.md](TEST_REPORT.md). OCR, importazioni e alcune funzioni avanzate restano da completare. Nessun dato dimostrativo viene conservato in produzione.
 
 ## Avvio locale
 
@@ -42,13 +42,13 @@ VITE_SUPABASE_PUBLISHABLE_KEY=LA-CHIAVE-PUBBLICA
 
 Non vengono creati bucket di immagini. Non c'è un percorso di upload attivo, quindi nessuna foto privata viene pubblicata. Non creare bucket pubblici per aggirare questa limitazione.
 
-Se il progetto è nuovo e non hai accesso alla CLI o all'integrazione, `node scripts/prepare-bootstrap.mjs` prepara `.tools/supabase-bootstrap.sql`: contiene tutte le diciassette migrazioni in un'unica transazione, senza credenziali o dati dimostrativi. Aprilo in SQL Editor ed eseguilo **una sola volta sul progetto vuoto**. Il controllo iniziale interrompe l'esecuzione se rileva lo schema dell'app. Lo script è testato su PostgreSQL locale, compresa la pubblicazione delle nove tabelle sincronizzate; il servizio Realtime ospitato richiede ancora collaudo.
+Se il progetto è nuovo e non hai accesso alla CLI o all'integrazione, `node scripts/prepare-bootstrap.mjs` prepara `.tools/supabase-bootstrap.sql`: contiene tutte le diciotto migrazioni in un'unica transazione, senza credenziali o dati dimostrativi. Aprilo in SQL Editor ed eseguilo **una sola volta sul progetto vuoto**. Il controllo iniziale interrompe l'esecuzione se rileva lo schema dell'app. Lo script è testato su PostgreSQL locale, compresa la pubblicazione delle nove tabelle sincronizzate; il servizio Realtime ospitato richiede ancora collaudo.
 
 Il percorso SQL Editor non aggiorna la cronologia migrazioni della CLI. Prima di passare a `db push`, confrontare lo schema e riconciliare le versioni effettivamente applicate con `supabase migration repair --status applied VERSIONI`; non marcare applicate migrazioni non eseguite. Vedere la [documentazione ufficiale sulle migrazioni](https://supabase.com/docs/guides/deployment/database-migrations).
 
 Dopo la configurazione, `npm run check:backend` controlla Auth e la disponibilità delle 23 tabelle tramite richieste di sola lettura con `limit=0`. Il comando non registra account, non legge record familiari e non certifica RLS o sincronizzazione. Exit code: 0 se Auth risponde e tutte le tabelle risultano presenti o protette, 2 per schema incompleto/non verificato, 1 per configurazione o connessione fallita. Il file `.env` resta escluso da Git.
 
-Sul progetto corrente le diciassette migrazioni sono già applicate, registrate nella cronologia standard Supabase e confrontate con i file locali: **non rieseguire il bootstrap**. La migrazione 008 rimuove esplicitamente i grant anon e le operazioni dirette non necessarie assegnate dai default del servizio. Un rifiuto anon 401/42501 che nomina la tabella richiesta viene classificato PROTETTA dal check backend ed è atteso.
+Sul progetto corrente le diciotto migrazioni sono già applicate, registrate nella cronologia standard Supabase e confrontate con i file locali: **non rieseguire il bootstrap**. La migrazione 008 rimuove esplicitamente i grant anon e le operazioni dirette non necessarie assegnate dai default del servizio. Un rifiuto anon 401/42501 che nomina la tabella richiesta viene classificato PROTETTA dal check backend ed è atteso.
 
 Per i controlli amministrativi è disponibile `supabase/tests/online_rls.sql`: tre identità sintetiche, due famiglie, inviti, acquisti e accesso anon, dentro una transazione annullata. Non invia email né conserva fixture. È stato eseguito con successo sul progetto reale il 14 novembre 2026; non sostituisce il collaudo Auth/JWT e Realtime tramite app.
 

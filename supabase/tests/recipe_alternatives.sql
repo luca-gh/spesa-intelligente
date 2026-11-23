@@ -65,6 +65,9 @@ begin
 end $$;
 reset role;
 do $$ begin
+  if has_table_privilege('authenticated','public.recipe_ingredient_alternatives','truncate') or
+    has_table_privilege('authenticated','public.recipe_ingredient_alternatives','references') or
+    has_table_privilege('authenticated','public.recipe_ingredient_alternatives','trigger') then raise exception 'Unexpected non-DML privileges'; end if;
   if has_table_privilege('anon','public.recipe_ingredient_alternatives','select') or has_function_privilege('anon','public.add_recipe_choices_to_list(uuid,uuid,integer,uuid,jsonb)','execute') then raise exception 'Anonymous exposure'; end if;
   if exists(select 1 from pg_proc where pronamespace='public'::regnamespace and proname in('save_recipe','duplicate_recipe','add_recipe_choices_to_list') and prosecdef) then raise exception 'Public definer'; end if;
 end $$;
