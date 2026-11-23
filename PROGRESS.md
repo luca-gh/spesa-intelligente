@@ -1,5 +1,15 @@
 # Avanzamento
 
+Per gli alimenti semplici viene proposta l’unità del Catalogo; quantità non positive o unità incompatibili vengono respinte prima dell’inserimento. Gli errori di conversione nell’anteprima sono mostrati senza eccezioni non gestite.
+
+## Categorie alfabetiche, tutte le marche e alimenti per pasto — 23 novembre 2026
+
+Menu categorie A–Z indipendente dall’ordine corsie. Per articoli generici senza marca, dettagli di tutte le marche e di ogni negozio: quantità, formato, €/kg/l, PAM e trattini rispettati. Totali e ordine prezzo non sommano le alternative.
+
+Calendario con Colazione/Pranzo/Cena e testo libero. Pasto cliccabile, selezione persistente dei soli alimenti mancanti e alternativa distinta per singola occorrenza. Nuovi pasti inizialmente non selezionati, legacy compatibile; salvataggio apre una nuova anteprima della settimana prima della conferma, senza duplicare contributi. Duplica settimana e modelli preservano testo/scelte e scartano Spuntino; vecchi dati non cancellati. Nomi accessibili dei select condivisi corretti per escludere il testo delle opzioni.
+
+Migrazione 20261123192433 applicata e allineata: 19 totali, 23 tabelle RLS e nove pubblicate. Probe SQL locale e remoto PASS con fixture annullate; nessun record familiare modificato. Validazione scelte per ricetta/alimento/famiglia, testo esclusivo, versioni piano e copie con link rimossi. duplicate_week e apply_template diventano invoker: 19 definer pubblici preesistenti, nessun nuovo avviso di sicurezza. 112 test locali in 17 file e suite browser di 215 casi (92 desktop, 92 mobile, 31 WebKit iPad). CI e pubblicazione controllate sul commit finale.
+
 Verifica finale permessi alternative: revocati anche i grant authenticated ereditati dai default Supabase, prima di concedere soltanto SELECT/INSERT/UPDATE/DELETE. TRUNCATE, REFERENCES e TRIGGER esplicitamente assenti; probe SQL locale e remoto aggiornato e superato. Nessun privilegio diretto sulle scritture delle liste ampliato. Migrazione correttiva 20261123160134, senza modificare file già applicati.
 
 ## Ordinamento prezzi, PAM e alternative ricette — 23 novembre 2026

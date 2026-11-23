@@ -116,6 +116,8 @@ export interface Plan {
   version: number
 }
 export interface Meal {
+  free_text?: string | null
+  shopping_choices?: Record<string, string> | null
   id: string
   meal_plan_id: string
   meal_date: string

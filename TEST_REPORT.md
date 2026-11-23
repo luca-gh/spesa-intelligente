@@ -1,5 +1,15 @@
 # Rapporto test
 
+Per gli alimenti semplici viene proposta l’unità del Catalogo; quantità non positive o unità incompatibili vengono respinte prima dell’inserimento. Gli errori di conversione nell’anteprima sono mostrati senza eccezioni non gestite.
+
+## Selezione alimenti del pasto e prezzi di tutte le marche — 23 novembre 2026
+
+112 test locali in 17 file. Test puri per i tre pasti, testo libero senza generare prodotti, selezioni vuote/legacy, scaling, alternative rimosse, alimento semplice e dettaglio marche/negozi con PAM e prezzi mancanti. Probe SQL PostgreSQL locale e Supabase reale con rollback: esclusività testo/ricetta/alimento, scelte limitate agli ingredienti e alle alternative valide, invalidazione versione piano, copia di testi e scelte in settimane e modelli, esclusione Spuntino, isolamento tra famiglie e assenza di nuovi definer pubblici.
+
+215 prove browser: 92 desktop, 92 mobile Chromium, 31 WebKit iPad. Cinque nuovi flussi per profilo: categorie alfabetiche senza mutare sort_order; tutte le marche per negozio senza sommare alternative nel totale; Colazione/Pranzo/Cena, testo libero persistente ed eliminabile senza prodotti inventati; pasto ricetta con checkbox, alternativa, solo prodotti selezionati nella lista e ripetizione senza doppioni; alimento semplice con errori recuperabili e blocco offline. Aggiornata la prova pasti precedente alle scelte per singola occorrenza. Axe e immagini verificate per prezzi e selettore alimenti; etichette select rese esplicite. Nessun nuovo test su hardware fisico o a due account.
+
+19 migrazioni allineate; RLS/grant invariati sulle tabelle, trigger invoker di validazione JSON, due precedenti funzioni pubbliche passate a invoker. Advisor di sicurezza senza nuovi rilievi; 19 definer pubblici preesistenti. Backend, lint, tipi, build, segreti, PWA e pubblicazione verificati separatamente.
+
 Verifica finale permessi alternative: revocati anche i grant authenticated ereditati dai default Supabase, prima di concedere soltanto SELECT/INSERT/UPDATE/DELETE. TRUNCATE, REFERENCES e TRIGGER esplicitamente assenti; probe SQL locale e remoto aggiornato e superato. Nessun privilegio diretto sulle scritture delle liste ampliato. Migrazione correttiva 20261123160134, senza modificare file già applicati.
 
 ## Ordinamento per negozio, PAM, alternative e rimozione Scanner — 23 novembre 2026

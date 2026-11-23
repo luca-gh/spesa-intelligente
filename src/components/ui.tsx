@@ -66,7 +66,7 @@ export function Select({
   return (
     <label className="field">
       <span>{label}</span>
-      <select name={name} defaultValue={value} required={required}>
+      <select aria-label={label} name={name} defaultValue={value} required={required}>
         {children}
       </select>
     </label>

@@ -1,5 +1,11 @@
 # Decisioni tecniche
 
+Categorie alfabetiche solo nel menu Catalogo, includendo la voce senza categoria; sort_order globale e ordine per supermercato non vengono toccati. ShoppingItemPrices separa la presentazione e usa lo stesso motore Decimal per ogni marca, limitando prodotti per marca esatta e formato compatibile. Ogni voce mostra il formato usato; totali e ordinamento mantengono la singola alternativa più economica.
+
+Pasti: free_text esclusivo rispetto a recipe_id/generic_product_id e shopping_choices JSON validato sul database. Null significa comportamento precedente con tutti gli ingredienti principali; oggetto vuoto significa nessun alimento da comprare. I nuovi pasti iniziano vuoti. Le chiavi sono gli ID degli ingredienti della ricetta oppure food per l’alimento semplice; valori limitati al principale/alternative della stessa ricetta e famiglia. Scelte persistenti per singolo pasto, quindi la stessa ricetta in giorni diversi può avere prodotti mancanti diversi. Helper condiviso per scaling e normalizzazione; nessun prodotto dedotto dal testo libero.
+
+Il salvataggio delle spunte attende update e refresh riusciti, poi crea l’anteprima con la versione effettiva del piano. Apertura del pasto annulla anteprime precedenti; conferma settimanale sostituisce i contributi del piano e conserva manuali/acquisti. Nessun RPC di aggiunta ripetuta per pasto. Duplicazione e modelli diventano invoker con controllo membership e conservano i nuovi campi; helper privato invoker elimina scelte non più valide dalle copie. Spuntino escluso dai nuovi flussi, senza cancellare record precedenti. Select con aria-label esplicita per evitare nomi accessibili comprendenti le opzioni.
+
 Verifica finale permessi alternative: revocati anche i grant authenticated ereditati dai default Supabase, prima di concedere soltanto SELECT/INSERT/UPDATE/DELETE. TRUNCATE, REFERENCES e TRIGGER esplicitamente assenti; probe SQL locale e remoto aggiornato e superato. Nessun privilegio diretto sulle scritture delle liste ampliato. Migrazione correttiva 20261123160134, senza modificare file già applicati.
 
 Ordinamento della lista sul costo della quantità residua per il negozio scelto, in alternativa al raggruppamento per categoria. Importi nulli in fondo e parità stabili in ordine alfabetico. Nessun ordinamento su totali parziali fra supermercati.

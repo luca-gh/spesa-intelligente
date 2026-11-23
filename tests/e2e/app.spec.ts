@@ -50,6 +50,7 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
   const categoryOrderRequests: Record<string, unknown>[] = []
   const recipeSaveRequests: Record<string, unknown>[] = []
   const recipeAddRequests: Record<string, unknown>[] = []
+  const planRequests: Record<string, unknown>[] = []
   const mealRequests: Record<string, unknown>[] = []
   const itemRequests: Record<string, unknown>[] = []
   const priceRequests: Record<string, unknown>[] = []
@@ -321,6 +322,60 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
           })
       }
       result = id
+    } else if (table === 'meal_entries' && route.request().method() === 'PATCH') {
+      const meal = (collections.meal_entries as Record<string, unknown>[]).find(
+        (m) => m.id === url.searchParams.get('id')?.replace(/^eq\./, ''),
+      )!
+      Object.assign(meal, route.request().postDataJSON())
+      const plan = (collections.meal_plans as Record<string, unknown>[]).find(
+        (p) => p.id === meal.meal_plan_id,
+      )!
+      plan.version = Number(plan.version) + 1
+      result = meal
+    } else if (table === 'apply_plan_diff') {
+      const body = route.request().postDataJSON()
+      planRequests.push(body)
+      const items = collections.shopping_list_items as Record<string, unknown>[]
+      collections.list_item_contributions = (
+        collections.list_item_contributions as Record<string, unknown>[]
+      ).filter(
+        (c) =>
+          !(
+            c.origin_type === 'plan' &&
+            c.origin_id === body.p_plan &&
+            items.some((i) => i.id === c.item_id && i.list_id === body.p_list)
+          ),
+      )
+      for (const row of body.p_rows) {
+        let item = items.find(
+          (i) => i.list_id === body.p_list && i.generic_product_id === row.product_id && i.unit === row.unit,
+        )
+        if (!item) {
+          const product = (collections.generic_products as Record<string, unknown>[]).find(
+            (g) => g.id === row.product_id,
+          )!
+          item = {
+            id: `plan-item-${items.length}`,
+            list_id: body.p_list,
+            generic_product_id: row.product_id,
+            specific_product_id: null,
+            unit: row.unit,
+            name: product.name,
+            note: '',
+            created_at: '2026-11-23',
+          }
+          items.push(item)
+        }
+        collections.list_item_contributions.push({
+          id: 'plan-' + item.id,
+          item_id: item.id,
+          origin_type: 'plan',
+          origin_id: body.p_plan,
+          requested_quantity: row.quantity,
+        })
+      }
+      list.version++
+      result = null
     } else if (table === 'meal_entries' && route.request().method() === 'POST') {
       const body = route.request().postDataJSON()
       mealRequests.push(body)
@@ -385,6 +440,7 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
         'recipe_ingredients',
         'recipe_ingredient_alternatives',
         'meal_templates',
+        'meal_entries',
         'meal_plans',
       ].includes(table) &&
       route.request().method() === 'DELETE'
@@ -441,6 +497,7 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
     categoryOrderRequests,
     recipeSaveRequests,
     recipeAddRequests,
+    planRequests,
     mealRequests,
   }
 }
@@ -521,6 +578,240 @@ const spreadCatalog = {
     { specific_product_id: 'private', store_id: 'c', price_amount: '0.40' },
   ],
 }
+
+test('catalogo categorie: menu alfabetico indipendente dall’ordine delle corsie', async ({ page }) => {
+  const { collections } = await login(page, false, {
+    categories: [
+      { id: 'z', name: 'Zucchero', sort_order: 0 },
+      { id: 'f', name: 'Frutta', sort_order: 1 },
+      { id: 'a', name: 'Acqua', sort_order: 2 },
+    ],
+  })
+  await page.goto('/catalogo')
+  await expect(page.getByLabel('Categoria', { exact: true }).locator('option')).toHaveText([
+    'Acqua',
+    'Altri prodotti',
+    'Frutta',
+    'Zucchero',
+  ])
+  expect((collections.categories as { name: string }[]).map((c) => c.name)).toEqual([
+    'Zucchero',
+    'Frutta',
+    'Acqua',
+  ])
+})
+
+test('prezzi marche: prodotto generico mostra ogni marca e ogni negozio con totale senza doppioni', async ({
+  page,
+}) => {
+  await login(page, false, spreadCatalog)
+  await page.goto('/liste')
+  await chooseListProduct(page, 'Crema spalmabile', 'Crema spalmabile')
+  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
+  const article = page.getByRole('article', { name: 'Crema spalmabile', exact: true })
+  const nutella = article.getByRole('region', { name: 'Marca Nutella', exact: true })
+  const other = article.getByRole('region', { name: 'Marca Altra marca', exact: true })
+  await expect(nutella.locator('dt')).toHaveText(['Negozio A', 'Negozio B', 'Negozio C'])
+  await expect(nutella.locator('.item-prices > div').filter({ hasText: 'Negozio A' })).toContainText(
+    /4,00\s*€/,
+  )
+  await expect(
+    nutella.locator('.item-prices > div').filter({ hasText: 'Negozio C' }).locator('dd'),
+  ).toHaveText('-')
+  await expect(other.locator('.item-prices > div').filter({ hasText: 'Negozio A' })).toContainText(/1,00\s*€/)
+  await expect(other.locator('.item-prices > div').filter({ hasText: 'Negozio C' })).toContainText(/0,40\s*€/)
+  const total = page
+    .getByRole('table', { name: 'Confronto supermercati' })
+    .getByRole('row')
+    .filter({ hasText: 'Negozio A' })
+  await expect(total).toContainText(/1,00\s*€/)
+  await expect(total).not.toContainText(/5,00\s*€/)
+  const accessibility = await new AxeBuilder({ page })
+    .include('.brand-prices')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+    .analyze()
+  expect(accessibility.violations.map((v) => v.id)).toEqual([])
+  await article.screenshot({ path: `test-results/brands-${test.info().project.name}.png` })
+})
+
+const calendarCatalog = {
+  generic_products: [
+    { id: 'penne', name: 'Penne', canonical_unit: 'g', category_id: null },
+    { id: 'fusilli', name: 'Fusilli', canonical_unit: 'g', category_id: null },
+    { id: 'passata', name: 'Passata', canonical_unit: 'g', category_id: null },
+  ],
+  recipes: [
+    {
+      id: 'pasta',
+      title: 'Pasta al sugo',
+      base_servings: 2,
+      instructions: 'Cuoci',
+      notes: '',
+      is_favorite: false,
+    },
+  ],
+  recipe_ingredients: [
+    { id: 'pasta-i', recipe_id: 'pasta', generic_product_id: 'penne', quantity: '200', unit: 'g' },
+    { id: 'sauce-i', recipe_id: 'pasta', generic_product_id: 'passata', quantity: '100', unit: 'g' },
+  ],
+  recipe_ingredient_alternatives: [{ id: 'alt', ingredient_id: 'pasta-i', generic_product_id: 'fusilli' }],
+  meal_plans: [{ id: 'plan', week_start: '2026-11-23', version: 1, archived_at: null }],
+}
+
+test('calendario spesa: tre pasti maiuscoli, testo libero persistente ed eliminabile senza prodotti inventati', async ({
+  page,
+}) => {
+  await page.clock.install({ time: new Date('2026-11-23T12:00:00Z') })
+  const { mealRequests, collections } = await login(page, false, {
+    ...calendarCatalog,
+    meal_entries: [
+      {
+        id: 'old-snack',
+        meal_plan_id: 'plan',
+        meal_date: '2026-11-23',
+        meal_slot: 'spuntino',
+        generic_product_id: 'penne',
+        quantity: '1',
+        unit: 'g',
+        recipe_id: null,
+      },
+    ],
+  })
+  await page.goto('/pasti')
+  await expect(page.getByLabel('Pasto', { exact: true }).locator('option')).toHaveText([
+    'Colazione',
+    'Pranzo',
+    'Cena',
+  ])
+  await expect(page.locator('.meal-slot')).toHaveCount(21)
+  await expect(page.getByText('Spuntino', { exact: false })).toHaveCount(0)
+  await page.getByLabel('Testo libero', { exact: true }).check()
+  await page.getByLabel('Descrizione del pasto', { exact: true }).fill('Cena fuori')
+  await page.getByLabel('Pasto', { exact: true }).selectOption('cena')
+  await page.getByRole('button', { name: 'Aggiungi pasto', exact: true }).click()
+  await expect.poll(() => mealRequests.length).toBe(1)
+  expect(mealRequests[0]).toMatchObject({
+    free_text: 'Cena fuori',
+    recipe_id: null,
+    generic_product_id: null,
+    quantity: null,
+    unit: null,
+    shopping_choices: {},
+  })
+  await page.reload()
+  await page.getByRole('button', { name: 'Apri pasto Cena fuori · 2026-11-23 · Cena', exact: true }).click()
+  await expect(
+    page.getByText('Questo pasto a testo libero non aggiunge prodotti alla spesa.', { exact: true }),
+  ).toBeVisible()
+  await expect(page.locator('.meal-shopping-editor input[type="checkbox"]')).toHaveCount(0)
+  expect(collections.shopping_list_items).toHaveLength(0)
+  page.on('dialog', (d) => d.accept())
+  await page
+    .locator('.meal-chip')
+    .filter({ hasText: 'Cena fuori' })
+    .getByRole('button', { name: '×', exact: true })
+    .click()
+  await expect(page.getByRole('button', { name: /Apri pasto Cena fuori/ })).toHaveCount(0)
+})
+
+test('calendario spesa: apri ricetta, spunta solo ciò che manca, alternativa e lista senza duplicati', async ({
+  page,
+}) => {
+  test.setTimeout(60000)
+  await page.clock.install({ time: new Date('2026-11-23T12:00:00Z') })
+  const { planRequests, collections } = await login(page, false, calendarCatalog)
+  await page.goto('/pasti')
+  const component = page.getByRole('combobox', { name: 'Ricetta o alimento', exact: true })
+  await component.fill('Pasta al sugo')
+  await component.press('ArrowDown')
+  await component.press('Enter')
+  await page.getByLabel('Pasto', { exact: true }).selectOption('pranzo')
+  await page.getByLabel('Persone (default 2)', { exact: true }).fill('4')
+  await page.getByRole('button', { name: 'Aggiungi pasto', exact: true }).click()
+  const open = page.getByRole('button', {
+    name: 'Apri pasto Pasta al sugo · 2026-11-23 · Pranzo',
+    exact: true,
+  })
+  await open.click()
+  const pasta = page.getByRole('checkbox', { name: 'Penne · 400 g', exact: true })
+  await expect(pasta).not.toBeChecked()
+  await expect(page.getByRole('checkbox', { name: 'Passata · 200 g', exact: true })).not.toBeChecked()
+  await pasta.check()
+  await page.getByLabel('Alternativa per Penne', { exact: true }).selectOption('fusilli')
+  const accessibility = await new AxeBuilder({ page })
+    .include('.meal-shopping-editor')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+    .analyze()
+  expect(accessibility.violations.map((v) => ({ id: v.id, nodes: v.nodes.map((n) => n.target) }))).toEqual([])
+  await page
+    .locator('.meal-shopping-editor')
+    .screenshot({ path: `test-results/meal-selection-${test.info().project.name}.png` })
+  await page.getByRole('button', { name: 'Salva selezione e prepara lista', exact: true }).click()
+  await expect(page.locator('.diff')).toContainText('Fusilli: 0 → 400')
+  await expect(page.locator('.diff')).not.toContainText('Passata')
+  await page.getByRole('button', { name: 'Conferma modifiche alla lista', exact: true }).click()
+  await expect.poll(() => planRequests.length).toBe(1)
+  expect(planRequests[0].p_rows).toEqual([{ product_id: 'fusilli', quantity: '400', unit: 'g' }])
+  await page.reload()
+  await open.click()
+  await expect(pasta).toBeChecked()
+  await expect(page.getByLabel('Alternativa per Penne', { exact: true })).toHaveValue('fusilli')
+  await page.getByRole('button', { name: 'Salva selezione e prepara lista', exact: true }).click()
+  await expect(page.locator('.diff')).toContainText('Nessuna differenza nelle quantità.')
+  await page.getByRole('button', { name: 'Conferma modifiche alla lista', exact: true }).click()
+  await expect.poll(() => planRequests.length).toBe(2)
+  expect(collections.list_item_contributions).toHaveLength(1)
+  await page.goto('/liste')
+  await expect(page.getByRole('article', { name: 'Fusilli', exact: true })).toContainText('400 g')
+  await expect(page.getByRole('article', { name: 'Passata', exact: true })).toHaveCount(0)
+})
+
+test('calendario spesa: alimento semplice, errore conserva le spunte e offline blocca il salvataggio', async ({
+  page,
+  context,
+}) => {
+  test.setTimeout(60000)
+  await page.clock.install({ time: new Date('2026-11-23T12:00:00Z') })
+  const { planRequests, mealRequests } = await login(page, false, calendarCatalog)
+  await page.goto('/pasti')
+  const component = page.getByRole('combobox', { name: 'Ricetta o alimento', exact: true })
+  await component.fill('Passata')
+  await component.press('ArrowDown')
+  await component.press('Enter')
+  await page.getByLabel('Quantità per alimento semplice', { exact: true }).fill('50')
+  await expect(page.getByRole('combobox', { name: 'Unità', exact: true })).toHaveValue('g')
+  await page.getByRole('combobox', { name: 'Unità', exact: true }).selectOption('pz')
+  await page.getByRole('button', { name: 'Aggiungi pasto', exact: true }).click()
+  await expect(page.locator('.notice')).toContainText('Quantità non valida:')
+  expect(mealRequests).toHaveLength(0)
+  await page.getByRole('combobox', { name: 'Unità', exact: true }).selectOption('g')
+  await page.getByRole('button', { name: 'Aggiungi pasto', exact: true }).click()
+  await page.getByRole('button', { name: 'Apri pasto Passata · 2026-11-23 · Colazione', exact: true }).click()
+  const food = page.getByRole('checkbox', { name: 'Passata · 50 g', exact: true })
+  await food.check()
+  let fail = true
+  await page.route('**/rest/v1/meal_entries?*', async (route) => {
+    if (route.request().method() === 'PATCH' && fail) {
+      fail = false
+      await route.fulfill({ status: 503, json: { message: 'Fixture unavailable' } })
+    } else await route.fallback()
+  })
+  const save = page.getByRole('button', { name: 'Salva selezione e prepara lista', exact: true })
+  await save.click()
+  await expect(page.locator('.notice')).toContainText('Operazione non riuscita')
+  await expect(food).toBeChecked()
+  await expect(page.locator('.diff')).toHaveCount(0)
+  expect(planRequests).toHaveLength(0)
+  await context.setOffline(true)
+  await expect(save).toBeDisabled()
+  await context.setOffline(false)
+  await expect(save).toBeEnabled()
+  await save.click()
+  await expect(page.locator('.diff')).toContainText('Passata: 0 → 50')
+  await page.getByRole('button', { name: 'Conferma modifiche alla lista', exact: true }).click()
+  await expect.poll(() => planRequests.length).toBe(1)
+  expect(planRequests[0].p_rows).toEqual([{ product_id: 'passata', quantity: '50', unit: 'g' }])
+})
 
 test('opzioni lista: ordinamento decrescente per negozio, categoria e prezzi assenti in fondo', async ({
   page,
@@ -742,14 +1033,16 @@ test('alternative ricetta: piano pasti usa una sola scelta e invalida l’antepr
     await route.fulfill({ json: null })
   })
   await page.goto('/pasti')
-  const choice = page.getByLabel('Usa per ingrediente Penne', { exact: true })
+  await page.getByRole('button', { name: 'Apri pasto Pasta · 2026-11-23 · Pranzo', exact: true }).click()
+  const choice = page.getByLabel('Alternativa per Penne', { exact: true })
   await choice.selectOption('fusilli')
-  await page.getByRole('button', { name: 'Calcola anteprima delle differenze', exact: true }).click()
+  await page.getByRole('button', { name: 'Salva selezione e prepara lista', exact: true }).click()
   await expect(page.locator('.diff')).toContainText('Fusilli: 0 → 400')
   await expect(page.locator('.diff')).not.toContainText('Penne')
-  await choice.selectOption('penne')
+  await page.getByRole('button', { name: 'Apri pasto Pasta · 2026-11-23 · Pranzo', exact: true }).click()
   await expect(page.locator('.diff')).toHaveCount(0)
-  await page.getByRole('button', { name: 'Calcola anteprima delle differenze', exact: true }).click()
+  await choice.selectOption('penne')
+  await page.getByRole('button', { name: 'Salva selezione e prepara lista', exact: true }).click()
   await expect(page.locator('.diff')).toContainText('Penne: 0 → 400')
   await page.getByRole('button', { name: 'Conferma modifiche alla lista', exact: true }).click()
   await expect.poll(() => requests.length).toBe(1)

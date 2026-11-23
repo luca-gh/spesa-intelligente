@@ -1,10 +1,12 @@
 import { ArchiveButton, ArchiveFilter } from '../components/ArchiveButton'
-import { useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Decimal from 'decimal.js'
 import { CalendarDays, Star, Plus, ArrowLeft, ArrowRight } from 'lucide-react'
 import { useApp } from '../data/context'
 import { insert, remove, rpc, update } from '../data/client'
 import { ingredientProducts } from '../data/catalog'
+import { MealShoppingEditor } from '../components/MealShoppingEditor'
+import { mealName, mealShoppingRows, mealSlots } from '../data/mealShopping'
 import { chosenIngredient } from '../data/recipeChoices'
 import { SearchSelect } from '../components/SearchSelect'
 import {
@@ -316,15 +318,20 @@ function addDays(date: string, days: number) {
   return d.toISOString().slice(0, 10)
 }
 export function Meals() {
-  const { data, household, act, itemQuantity } = useApp()
+  const { data, household, act, itemQuantity, busy } = useApp()
   const [week, setWeek] = useState(monday(dateInZone(new Date(), household!.timezone)))
   const plan = data.meal_plans.find((p) => p.week_start === week)
-  const entries = data.meal_entries.filter((e) => e.meal_plan_id === plan?.id)
-  const listId = data.shopping_lists[0]?.id ?? ''
-  const [ingredientChoices, setIngredientChoices] = useState<Record<string, string>>({})
-  const weekIngredients = data.recipe_ingredients.filter((i) =>
-    entries.some((e) => e.recipe_id === i.recipe_id),
+  const entries = useMemo(
+    () => data.meal_entries.filter((e) => e.meal_plan_id === plan?.id && e.meal_slot !== 'spuntino'),
+    [data.meal_entries, plan?.id],
   )
+  const [selectedMealId, setSelectedMealId] = useState<string | null>(null)
+  const selectedMeal = entries.find((e) => e.id === selectedMealId)
+  const [freeMode, setFreeMode] = useState(false)
+  const [mealUnit, setMealUnit] = useState<Unit>('pz')
+  const [prepareRequested, setPrepareRequested] = useState(false)
+  const previewRoot = useRef<HTMLDivElement>(null)
+  const listId = data.shopping_lists[0]?.id ?? ''
   const [preview, setPreview] = useState<{
     version: number
     planVersion: number
@@ -334,32 +341,25 @@ export function Meals() {
     planId: string
   } | null>(null)
   const days = Array.from({ length: 7 }, (_, i) => addDays(week, i))
-  const buildPreview = () => {
+  const buildPreview = useCallback(() => {
     const list = data.shopping_lists.find((l) => l.id === listId)
     if (!list || !plan) return
     const amounts = new Map<string, { product_id: string; quantity: string; unit: Unit }>()
     for (const entry of entries) {
-      const recipe = data.recipes.find((r) => r.id === entry.recipe_id)
-      const parts = recipe
-        ? data.recipe_ingredients
-            .filter((i) => i.recipe_id === recipe.id)
-            .map((i) => ({
-              ...i,
-              generic_product_id: chosenIngredient(data, i, ingredientChoices),
-              quantity: scale(
-                i.quantity,
-                recipe.base_servings,
-                entry.servings_override ?? household!.default_diners,
-                i.unit === 'pz' || i.unit === 'conf',
-              ),
-            }))
-        : entry.generic_product_id
-          ? [{ generic_product_id: entry.generic_product_id, quantity: entry.quantity!, unit: entry.unit! }]
-          : []
+      const parts = mealShoppingRows(data, entry, household!.default_diners)
       for (const p of parts) {
         const product = data.generic_products.find((g) => g.id === p.generic_product_id)!
+        if (!product)
+          throw new Error('Quantità non valida: un alimento del piano non è più disponibile. Ricarica.')
         const unit = product.canonical_unit ?? p.unit
-        const q = convert(p.quantity, p.unit, unit)
+        let q: Decimal
+        try {
+          q = convert(p.quantity, p.unit, unit)
+        } catch {
+          throw new Error(
+            `Quantità non valida: l’unità di ${product.name} non è compatibile con il catalogo.`,
+          )
+        }
         const key = product.id + unit
         const old = amounts.get(key)
         amounts.set(key, { product_id: product.id, unit, quantity: q.plus(old?.quantity ?? 0).toString() })
@@ -394,7 +394,27 @@ export function Meals() {
       listId: list.id,
       planId: plan.id,
     })
-  }
+  }, [data, entries, household, listId, plan, itemQuantity])
+  useEffect(() => {
+    if (!prepareRequested || busy) return
+    let active = true
+    void Promise.resolve().then(() => {
+      if (!active) return
+      setPrepareRequested(false)
+      void act(async () => {
+        buildPreview()
+        setSelectedMealId(null)
+      }, 'Anteprima pronta. La lista non è stata modificata.')
+    })
+    return () => {
+      active = false
+    }
+  }, [prepareRequested, busy, buildPreview, act])
+  useEffect(() => {
+    if (!preview) return
+    previewRoot.current?.focus({ preventScroll: true })
+    previewRoot.current?.scrollIntoView({ block: 'center', behavior: 'instant' })
+  }, [preview])
   return (
     <>
       <SectionTitle eyebrow="UN’IDEA PER OGNI GIORNO" title="La settimana a tavola." />
@@ -471,22 +491,31 @@ export function Meals() {
                     day: 'numeric',
                   })}
                 </h2>
-                {['colazione', 'pranzo', 'cena', 'spuntino'].map((slot) => (
+                {mealSlots.map(({ value: slot, label }) => (
                   <div className="meal-slot" key={slot}>
-                    <h3>{slot}</h3>
+                    <h3>{label}</h3>
                     {entries
                       .filter((e) => e.meal_date === day && e.meal_slot === slot)
                       .map((e) => (
                         <div className="meal-chip" key={e.id}>
-                          <span>
-                            {data.recipes.find((r) => r.id === e.recipe_id)?.title ??
-                              data.generic_products.find((g) => g.id === e.generic_product_id)?.name}
-                            <small>
-                              {e.recipe_id
-                                ? `${e.servings_override ?? household!.default_diners} persone`
-                                : `${e.quantity} ${e.unit}`}
-                            </small>
-                          </span>
+                          <button
+                            type="button"
+                            className="text-button meal-title"
+                            aria-label={`Apri pasto ${mealName(data, e)} · ${e.meal_date} · ${label}`}
+                            onClick={() => {
+                              setPreview(null)
+                              setSelectedMealId(e.id)
+                            }}
+                          >
+                            {mealName(data, e)}
+                            {!e.free_text && (
+                              <small>
+                                {e.recipe_id
+                                  ? `${e.servings_override ?? household!.default_diners} persone`
+                                  : `${e.quantity} ${e.unit}`}
+                              </small>
+                            )}
+                          </button>
                           <ConfirmButton
                             message="Rimuovere questo pasto? La lista cambierà solo dopo anteprima e conferma."
                             onConfirm={() => remove('meal_entries', e.id)}
@@ -503,21 +532,46 @@ export function Meals() {
               </section>
             ))}
           </div>
+          {selectedMeal && (
+            <MealShoppingEditor
+              key={selectedMeal.id}
+              meal={selectedMeal}
+              onClose={() => setSelectedMealId(null)}
+              onPrepared={() => {
+                setPreview(null)
+                setPrepareRequested(true)
+              }}
+            />
+          )}
           <Panel title="Aggiungi al calendario">
             <Form
               className="grid-form"
               onSave={(f) => {
-                const ref = text(f, 'component')
+                const ref = freeMode ? '' : text(f, 'component')
                 const isRecipe = data.recipes.some((r) => r.id === ref)
+                const amount = freeMode || isRecipe ? null : quantity(text(f, 'quantity'))
+                if (amount) {
+                  const canonical = data.generic_products.find((p) => p.id === ref)?.canonical_unit
+                  try {
+                    if (!amount.gt(0)) throw new Error('Non positivo')
+                    if (canonical) convert(amount.toString(), text(f, 'unit') as Unit, canonical)
+                  } catch {
+                    throw new Error(
+                      'Quantità non valida: scegli una quantità positiva e un’unità compatibile con l’alimento.',
+                    )
+                  }
+                }
                 return insert('meal_entries', household!.id, {
                   meal_plan_id: plan.id,
                   meal_date: text(f, 'day'),
                   meal_slot: text(f, 'slot'),
-                  recipe_id: isRecipe ? ref : null,
-                  generic_product_id: isRecipe ? null : ref,
-                  servings_override: text(f, 'servings') ? Number(text(f, 'servings')) : null,
-                  quantity: isRecipe ? null : quantity(text(f, 'quantity')).toString(),
-                  unit: isRecipe ? null : text(f, 'unit'),
+                  recipe_id: !freeMode && isRecipe ? ref : null,
+                  generic_product_id: freeMode || isRecipe ? null : ref,
+                  free_text: freeMode ? text(f, 'free_text') : null,
+                  shopping_choices: {},
+                  servings_override: !freeMode && text(f, 'servings') ? Number(text(f, 'servings')) : null,
+                  quantity: amount?.toString() ?? null,
+                  unit: freeMode || isRecipe ? null : text(f, 'unit'),
                 })
               }}
             >
@@ -527,46 +581,67 @@ export function Meals() {
                 ))}
               </Select>
               <Select label="Pasto" name="slot">
-                {['colazione', 'pranzo', 'cena', 'spuntino'].map((s) => (
-                  <option key={s}>{s}</option>
+                {mealSlots.map((slot) => (
+                  <option key={slot.value} value={slot.value}>
+                    {slot.label}
+                  </option>
                 ))}
               </Select>
-              <SearchSelect
-                label="Ricetta o alimento"
-                name="component"
-                choices={[
-                  ...data.recipes
-                    .filter((r) => !r.archived_at)
-                    .map((r) => ({ value: r.id, label: r.title, kind: 'Ricetta' })),
-                  ...ingredientProducts(data).map((g) => ({ value: g.id, label: g.name, kind: 'Alimento' })),
-                ]}
-              />
-              <Field
-                label={`Persone (default ${household!.default_diners})`}
-                name="servings"
-                type="number"
-                min={1}
-                max={100}
-                required={false}
-              />
-              <Field label="Quantità per alimento semplice" name="quantity" value="1" />
-              <UnitSelect />
+              <label className="checkbox">
+                <input
+                  type="checkbox"
+                  checked={freeMode}
+                  onChange={(event) => setFreeMode(event.target.checked)}
+                />
+                Testo libero
+              </label>
+              {freeMode ? (
+                <label className="field">
+                  Descrizione del pasto
+                  <input name="free_text" required maxLength={200} placeholder="Es. Cena fuori" />
+                </label>
+              ) : (
+                <>
+                  <SearchSelect
+                    label="Ricetta o alimento"
+                    name="component"
+                    onSelect={(id) =>
+                      setMealUnit(data.generic_products.find((p) => p.id === id)?.canonical_unit ?? 'pz')
+                    }
+                    choices={[
+                      ...data.recipes
+                        .filter((r) => !r.archived_at)
+                        .map((r) => ({ value: r.id, label: r.title, kind: 'Ricetta' })),
+                      ...ingredientProducts(data).map((g) => ({
+                        value: g.id,
+                        label: g.name,
+                        kind: 'Alimento',
+                      })),
+                    ]}
+                  />
+                  <Field
+                    label={`Persone (default ${household!.default_diners})`}
+                    name="servings"
+                    type="number"
+                    min={1}
+                    max={100}
+                    required={false}
+                  />
+                  <Field label="Quantità per alimento semplice" name="quantity" value="1" />
+                  <UnitSelect key={mealUnit} value={mealUnit} />
+                </>
+              )}
               <Submit>Aggiungi pasto</Submit>
             </Form>
           </Panel>
           <Panel title="Ingredienti nella lista">
-            <IngredientChoices
-              ingredients={weekIngredients}
-              choices={ingredientChoices}
-              onChange={(id, product) => {
-                setIngredientChoices((current) => ({ ...current, [id]: product }))
-                setPreview(null)
-              }}
-            />
+            <p className="muted">
+              Apri un pasto nel calendario per spuntare gli alimenti da comprare e scegliere le alternative.
+            </p>
             <p className="muted">L’anteprima aggiorna gli ingredienti nella tua unica lista della spesa.</p>
             <button
               className="button"
-              disabled={!listId}
+              disabled={!listId || !!selectedMeal}
               onClick={() =>
                 void act(async () => {
                   buildPreview()
@@ -580,7 +655,7 @@ export function Meals() {
               protetti. La versione viene ricontrollata alla conferma.
             </p>
             {preview && (
-              <div className="diff">
+              <div className="diff" ref={previewRoot} tabIndex={-1}>
                 <h3>Anteprima · versione lista {preview.version}</h3>
                 {data.shopping_list_items
                   .filter(

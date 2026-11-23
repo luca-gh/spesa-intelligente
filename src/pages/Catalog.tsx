@@ -13,13 +13,7 @@ import { convert, euro, quantity, units, validBarcode, type Unit } from '../doma
 import { unitPriceLabel } from '../domain/catalogPrices'
 import { isPam, pamDiscount, storePrice } from '../domain/storePrices'
 import { PamDiscountToggle } from '../components/PamDiscountToggle'
-import {
-  catalogProducts,
-  productFormat,
-  orderedCategories,
-  catalogTotals,
-  catalogFormatFields,
-} from '../data/catalog'
+import { catalogProducts, productFormat, catalogTotals, catalogFormatFields } from '../data/catalog'
 import {
   ConfirmButton,
   Empty,
@@ -67,7 +61,9 @@ export function Catalog() {
     setPrefill(null)
     setRevision((value) => value + 1)
   }
-  const categories = orderedCategories(data.categories)
+  const categories = [...data.categories, { id: '', name: 'Altri prodotti' }].sort((a, b) =>
+    a.name.localeCompare(b.name, 'it', { sensitivity: 'base' }),
+  )
   const allProducts = catalogProducts(data)
   const summary = catalogTotals(data)
   const editing = allProducts.find((entry) => entry.kind + ':' + entry.product.id === selected)
@@ -205,7 +201,6 @@ export function Catalog() {
                 value={prefill?.category ?? editing?.categoryId ?? ''}
                 required={false}
               >
-                <option value="">Altri prodotti</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}

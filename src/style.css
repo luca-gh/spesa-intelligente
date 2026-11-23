@@ -1879,3 +1879,31 @@ details p {
 .ingredients li {
   flex-wrap: wrap;
 }
+.brand-prices > section {
+  margin-top: 14px;
+}
+.brand-prices h4 {
+  font-size: 14px;
+  margin: 0 0 6px;
+}
+.meal-chip .meal-title {
+  width: 100%;
+  min-height: 44px;
+  text-align: left;
+  margin: 0;
+  font-size: 12px;
+}
+.meal-chip .meal-title small {
+  display: block;
+  font-size: 11px;
+}
+.meal-shopping-editor {
+  scroll-margin-top: 90px;
+}
+.meal-food-choice {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.meal-food-choice .field {
+  margin-top: 8px;
+}

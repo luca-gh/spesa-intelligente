@@ -3,14 +3,13 @@ import Decimal from 'decimal.js'
 import { Link } from 'react-router-dom'
 import { useApp } from '../data/context'
 import { rpc } from '../data/client'
-import { euro, quantity } from '../domain/math'
+import { quantity } from '../domain/math'
 import { AddListItemForm } from '../components/AddListItemForm'
 import { CurrentPriceComparison } from '../components/CurrentPriceComparison'
 import { shoppingPrices } from '../data/shoppingPrices'
-import { unitPriceLabel } from '../domain/catalogPrices'
+import { ShoppingItemPrices } from '../components/ShoppingItemPrices'
 import { ListItemPrices } from '../components/ListItemPrices'
 import { PamDiscountToggle } from '../components/PamDiscountToggle'
-import { pamDiscount, storePrice } from '../domain/storePrices'
 import type { Item } from '../data/types'
 import { productFormat, storeCategories } from '../data/catalog'
 import { Empty, Field, Form, Panel, SectionTitle, Submit, text } from '../components/ui'
@@ -41,7 +40,6 @@ function ListDetail({ id }: { id: string }) {
   const pending = items.filter((i) => Number(itemQuantity(i).remaining) > 0)
   const done = items.filter((i) => Number(itemQuantity(i).remaining) === 0)
   const estimates = shoppingPrices(data, id, (item) => itemQuantity(item).remaining)
-  const stores = data.stores.filter((s) => !s.archived_at).sort((a, b) => a.name.localeCompare(b.name, 'it'))
   const brandFor = (item: Item) =>
     data.specific_products.find((p) => p.id === item.specific_product_id)?.brand ?? item.preferred_brand
   const categoryFor = (item: Item) => {
@@ -97,36 +95,7 @@ function ListDetail({ id }: { id: string }) {
             </small>
           </div>
         </div>
-        {Number(q.remaining) > 0 && !!stores.length && (
-          <dl className="item-prices" aria-label={`Prezzi previsti per ${item.name}`}>
-            {stores.map((store) => {
-              const line = estimates
-                .find((estimate) => estimate.storeId === store.id)
-                ?.lines.find((line) => line.itemId === item.id)
-              const price = line?.amount
-              const pricedProduct = data.specific_products.find((p) => p.id === line?.productId)
-              const catalogPrice = data.product_prices.find(
-                (p) => p.specific_product_id === pricedProduct?.id && p.store_id === store.id,
-              )
-              return (
-                <div key={store.id}>
-                  <dt>
-                    {store.name}
-                    {pamDiscount(store) && ' · −10%'}
-                  </dt>
-                  <dd>
-                    {price === null || price === undefined ? '-' : euro(price)}
-                    {pricedProduct && catalogPrice && (
-                      <small>
-                        {unitPriceLabel(storePrice(catalogPrice.price_amount, store, false), pricedProduct)}
-                      </small>
-                    )}
-                  </dd>
-                </div>
-              )
-            })}
-          </dl>
-        )}
+        <ShoppingItemPrices item={item} estimates={estimates} remaining={q.remaining} />
         <div className="inline wrap item-actions">
           <button
             type="button"
