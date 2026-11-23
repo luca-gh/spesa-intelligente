@@ -923,6 +923,27 @@ small {
   color: #8a3026;
   font-size: 13px;
 }
+.item-prices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+  margin: 12px 0;
+}
+.item-prices > div {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.item-prices dt {
+  font-size: 12px;
+  color: #617064;
+}
+.item-prices dd {
+  margin: 4px 0 0;
+  font-weight: 700;
+}
 .search-field {
   margin: 22px 0;
 }

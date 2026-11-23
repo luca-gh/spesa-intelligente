@@ -1,5 +1,13 @@
 # Rapporto test
 
+## Marca nella ricerca e prezzi sempre disponibili nella lista — 23 novembre 2026
+
+103 casi locali in 15 file. Quattro nuovi test puri: ricerca generica distinta da marca esatta, formati multipli senza risultati duplicati, termini misti nome/marca, accenti/maiuscole e omonimi senza collisioni tra ID; marche archiviate escluse; aggregazione prezzi condivisa che rispetta la marca ed esclude rimossi, quantità completate e supermercati archiviati. Totali e costi articolo provengono dallo stesso calcolo.
+
+175 prove browser: 79 desktop, 79 mobile Chromium, 17 WebKit iPad. Tre nuove prove su tutti i profili: cercare NUTEL/crema nut e scegliere Crema spalmabile · Nutella, marca salvata senza forzare formato, nessun invio implicito, ricaricamento; cambio prodotto che annulla la vecchia marca, errore/retry che conserva scelta e quantità; prezzi e totali aggiornati dopo modifica quantità, articolo libero senza prezzo, filtro per marca senza modificare totali, rimozione e ripristino. Prezzi di altre marche più economiche non sostituiscono Nutella; negozi archiviati esclusi e dati sconosciuti a trattino. Verificati contrasto, nomi accessibili e nessun overflow della pagina. La tabella compatta è focusabile per consentire lo scorrimento con tastiera su schermi stretti.
+
+Suite precedente conservata e aggiornata per la ricerca delle marche. Nessuna migrazione, scrittura o lettura di record familiari reali. Controlli locali, CI e pubblicazione verificati separatamente; nessun nuovo collaudo hardware iPad o a due account.
+
 ## Prezzi attuali senza promozioni, statistiche o storico — 23 novembre 2026
 
 99 casi locali in 14 file. Test di migrazione dedicato: ultimo importo attivo copiato una volta, comprese rilevazioni prima classificate promozionali e ormai scadute; annullate escluse. Probe SQL locale e Supabase reale, interamente annullato: update conserva una sola riga per prodotto/negozio e non inserisce osservazioni storiche, zero valido, importi negativi respinti senza alterare il precedente, cancellazione senza riemersione di valori vecchi, RLS e FK tra famiglie, cascata alla cancellazione prodotto, niente accesso anon o definer pubblico. Confronto nuovo indipendente da date e sconti, con quantità, marca/formato e copertura parziale.

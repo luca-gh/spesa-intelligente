@@ -2,8 +2,10 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useApp } from '../data/context'
 import { rpc } from '../data/client'
-import { quantity } from '../domain/math'
+import { euro, quantity } from '../domain/math'
 import { AddListItemForm } from '../components/AddListItemForm'
+import { CurrentPriceComparison } from '../components/CurrentPriceComparison'
+import { shoppingPrices } from '../data/shoppingPrices'
 import type { Item } from '../data/types'
 import { productFormat, storeCategories } from '../data/catalog'
 import { Empty, Field, Form, Panel, SectionTitle, Submit, text } from '../components/ui'
@@ -31,6 +33,10 @@ function ListDetail({ id }: { id: string }) {
     .sort((a, b) => a.name.localeCompare(b.name, 'it') || a.created_at.localeCompare(b.created_at))
   const pending = items.filter((i) => Number(itemQuantity(i).remaining) > 0)
   const done = items.filter((i) => Number(itemQuantity(i).remaining) === 0)
+  const estimates = shoppingPrices(data, id, (item) => itemQuantity(item).remaining)
+  const stores = data.stores.filter((s) => !s.archived_at).sort((a, b) => a.name.localeCompare(b.name, 'it'))
+  const brandFor = (item: Item) =>
+    data.specific_products.find((p) => p.id === item.specific_product_id)?.brand ?? item.preferred_brand
   const categoryFor = (item: Item) => {
     const specific = data.specific_products.find((s) => s.id === item.specific_product_id)
     const generic = data.generic_products.find(
@@ -65,17 +71,39 @@ function ListDetail({ id }: { id: string }) {
         ? { package_quantity: item.preferred_package_quantity, package_unit: item.preferred_package_unit }
         : null)
     return (
-      <article className="shopping-item" key={item.id}>
+      <article
+        className="shopping-item"
+        key={item.id}
+        aria-label={[item.name, brand].filter(Boolean).join(' · ')}
+      >
         <div className="item-heading">
           <div className="item-text">
-            <strong>{item.name}</strong>
+            <strong>
+              <span>{item.name}</span>
+              {brand && <span> · {brand}</span>}
+            </strong>
             <small>
-              {q.remaining} {item.unit} da acquistare{brand && ` · ${brand}`}
+              {q.remaining} {item.unit} da acquistare
               {format && ` · ${productFormat(format)}`}
               {item.note && ` · ${item.note}`}
             </small>
           </div>
         </div>
+        {Number(q.remaining) > 0 && !!stores.length && (
+          <dl className="item-prices" aria-label={`Prezzi previsti per ${item.name}`}>
+            {stores.map((store) => {
+              const price = estimates
+                .find((estimate) => estimate.storeId === store.id)
+                ?.lines.find((line) => line.itemId === item.id)?.amount
+              return (
+                <div key={store.id}>
+                  <dt>{store.name}</dt>
+                  <dd>{price === null || price === undefined ? '-' : euro(price)}</dd>
+                </div>
+              )
+            })}
+          </dl>
+        )}
         <div className="inline wrap item-actions">
           <button
             type="button"
@@ -151,6 +179,9 @@ function ListDetail({ id }: { id: string }) {
         Aggiungi ciò che serve e rimuovi ciò che hai preso. Puoi rimettere gli articoli rimossi nella lista.
         Aggiorna i prezzi dal <Link to="/catalogo">Catalogo</Link> quando sei a casa.
       </p>
+      <Panel title="Prezzi previsti per supermercato">
+        <CurrentPriceComparison compact estimates={estimates} />
+      </Panel>
       <label className="field search-field">
         Filtra articoli
         <input
@@ -167,7 +198,11 @@ function ListDetail({ id }: { id: string }) {
           const rows = pending.filter(
             (i) =>
               (categoryFor(i)?.id ?? '') === group &&
-              i.name.toLocaleLowerCase('it').includes(search.toLocaleLowerCase('it')),
+              [i.name, brandFor(i)]
+                .filter(Boolean)
+                .join(' ')
+                .toLocaleLowerCase('it')
+                .includes(search.toLocaleLowerCase('it')),
           )
           return (
             !!rows.length && (
@@ -197,7 +232,7 @@ function ListDetail({ id }: { id: string }) {
             .filter((i) => i.list_id === id && i.archived_at)
             .map((item) => (
               <div className="data-row" key={item.id}>
-                <span>{item.name}</span>
+                <span>{[item.name, brandFor(item)].filter(Boolean).join(' · ')}</span>
                 <button
                   type="button"
                   className="text-button"

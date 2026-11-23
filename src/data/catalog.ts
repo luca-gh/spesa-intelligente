@@ -1,6 +1,7 @@
 import type { Category, Data } from './types'
 import type { Product } from '../domain/prices'
 import { convert, type Unit } from '../domain/math'
+import { matchingChoices, type SearchChoice } from '../domain/choices'
 
 export function catalogFormatFields(size: string | null | undefined, unit: Unit | '' | null | undefined) {
   if (unit === 'kg' || unit === 'L') {
@@ -93,4 +94,31 @@ export function catalogTotals(data: Data) {
     products: catalogProducts(data).filter((entry) => !entry.product.archived_at).length,
     categories: data.categories.length,
   }
+}
+
+export function listProductChoices(
+  groups: ReturnType<typeof listProductGroups>,
+  query: string,
+  selectedValue = '',
+) {
+  const terms = query.trim().split(/\s+/).filter(Boolean)
+  const choices: (SearchChoice & { groupId: string; brand?: string })[] = []
+  for (const group of groups) {
+    choices.push({ value: group.id, groupId: group.id, label: group.name, sortLabel: group.name })
+    for (const brand of new Set(group.products.map((p) => p.brand).filter(Boolean))) {
+      const value = `brand:${group.id}:${encodeURIComponent(brand)}`
+      if (
+        value === selectedValue ||
+        terms.some((term) => matchingChoices([{ value, label: brand }], term).length)
+      )
+        choices.push({
+          value,
+          groupId: group.id,
+          brand,
+          label: `${group.name} · ${brand}`,
+          sortLabel: group.name,
+        })
+    }
+  }
+  return choices
 }

@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import { useApp } from '../data/context'
 import { rpc } from '../data/client'
-import { listProductGroups, productFormat } from '../data/catalog'
+import { listProductChoices, listProductGroups, productFormat } from '../data/catalog'
 import { convert, quantity, units, type Unit } from '../domain/math'
 import { Submit } from './ui'
 import { ListBarcodePicker } from './ListBarcodePicker'
@@ -13,6 +13,7 @@ export function AddListItemForm({ listId }: { listId: string }) {
   const { data, act, busy, online } = useApp()
   const [search, setSearch] = useState('')
   const [productId, setProductId] = useState('')
+  const [searchSelection, setSearchSelection] = useState('')
   const [brand, setBrand] = useState('')
   const [formatId, setFormatId] = useState('')
   const [exactId, setExactId] = useState('')
@@ -24,6 +25,7 @@ export function AddListItemForm({ listId }: { listId: string }) {
   const [params, setParams] = useSearchParams()
   const incomingProduct = params.get('prodotto')
   const groups = listProductGroups(data)
+  const choices = listProductChoices(groups, search, searchSelection)
   const group = groups.find((g) => g.id === productId)
   const specific = data.specific_products.find((p) => p.id === exactId && !p.archived_at)
   const candidates = group?.products.filter((p) => !brand || p.brand === brand) ?? []
@@ -51,6 +53,7 @@ export function AddListItemForm({ listId }: { listId: string }) {
       const next = all.find((g) => g.id === id || g.products.some((p) => p.id === id))
       const card = exact ? data.specific_products.find((p) => p.id === id) : undefined
       setProductId(next?.id ?? '')
+      setSearchSelection(next?.id ?? '')
       setBrand(card?.brand ?? '')
       setFormatId(card?.package_quantity && card.package_unit ? card.id : '')
       setExactId(card?.id ?? '')
@@ -125,24 +128,28 @@ export function AddListItemForm({ listId }: { listId: string }) {
       <ListBarcodePicker key={scanRevision} onSelect={(id) => chooseProduct(id)} />
       <form className="form item-form" aria-label="Aggiungi un articolo alla lista" onSubmit={save}>
         <p className="muted item-help">
-          Scegli il nome del prodotto. Marca e formato sono facoltativi; puoi anche aggiungere un articolo
-          libero.
+          Cerca per nome o marca. Il formato è facoltativo; puoi anche aggiungere un articolo libero.
         </p>
         <SearchSelect
           className="catalog-product"
           label="Prodotto dal catalogo"
           name="product"
-          choices={groups.map((g) => ({ value: g.id, label: g.name }))}
-          value={group?.id ?? ''}
+          choices={choices}
+          value={group ? searchSelection : ''}
           query={search}
           onQueryChange={setSearch}
           onSelect={(id) => {
-            if (id || productId) chooseProduct(id, false)
+            const choice = choices.find((c) => c.value === id)
+            if (choice) {
+              chooseProduct(choice.groupId, false)
+              setSearchSelection(choice.value)
+              setBrand(choice.brand ?? '')
+            } else if (productId) chooseProduct('', false)
           }}
           required={false}
           disabled={!groups.length}
-          placeholder="Scrivi il nome del prodotto…"
-          helpText="Scrivi il nome e seleziona un risultato. Poi puoi scegliere marca e formato."
+          placeholder="Scrivi il nome o la marca…"
+          helpText="Cerca per nome o marca e seleziona un risultato. Scegliendo una marca, viene mantenuta nella lista."
           emptyText="Nessun prodotto trovato. Puoi scrivere il nome qui sotto per aggiungere un articolo libero."
         />
         {group && (
@@ -156,6 +163,7 @@ export function AddListItemForm({ listId }: { listId: string }) {
                   disabled={busy || !online}
                   onChange={(event) => {
                     setBrand(event.target.value)
+                    setSearchSelection(group.id)
                     setFormatId('')
                     setExactId('')
                     setRequested('1')

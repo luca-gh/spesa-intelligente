@@ -169,6 +169,17 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
         requested_quantity: body.p_quantity,
       })
       result = id
+    } else if (table === 'update_manual_item') {
+      const body = route.request().postDataJSON()
+      const contribution = (collections.list_item_contributions as Record<string, unknown>[]).find(
+        (c) => c.item_id === body.p_item && c.origin_type === 'manual',
+      )
+      if (contribution) contribution.requested_quantity = body.p_quantity
+      const item = (collections.shopping_list_items as Record<string, unknown>[]).find(
+        (i) => i.id === body.p_item,
+      )
+      if (item) item.note = body.p_note
+      result = null
     } else if (table === 'record_purchase') {
       const body = route.request().postDataJSON()
       purchaseRequests.push(body)
@@ -397,6 +408,228 @@ const productCatalog = {
     },
   ],
 }
+
+const spreadCatalog = {
+  generic_products: [
+    {
+      id: 'spread-g',
+      name: 'Crema spalmabile',
+      canonical_unit: 'g',
+      category_id: null,
+      is_catalog_group: true,
+    },
+  ],
+  specific_products: [
+    {
+      id: 'nut-small',
+      generic_product_id: 'spread-g',
+      name: 'Crema spalmabile',
+      brand: 'Nutella',
+      variant: '',
+      barcode: null,
+      package_quantity: '400',
+      package_unit: 'g',
+    },
+    {
+      id: 'nut-big',
+      generic_product_id: 'spread-g',
+      name: 'Crema spalmabile',
+      brand: 'Nutella',
+      variant: '',
+      barcode: null,
+      package_quantity: '750',
+      package_unit: 'g',
+    },
+    {
+      id: 'private',
+      generic_product_id: 'spread-g',
+      name: 'Crema spalmabile',
+      brand: 'Altra marca',
+      variant: '',
+      barcode: null,
+      package_quantity: '400',
+      package_unit: 'g',
+    },
+  ],
+  stores: [
+    { id: 'a', name: 'Negozio A' },
+    { id: 'b', name: 'Negozio B' },
+    { id: 'c', name: 'Negozio C' },
+    { id: 'hidden', name: 'Negozio archiviato', archived_at: '2026-11-23' },
+  ],
+  product_prices: [
+    { specific_product_id: 'nut-small', store_id: 'a', price_amount: '4.00' },
+    { specific_product_id: 'nut-small', store_id: 'b', price_amount: '5.00' },
+    { specific_product_id: 'nut-big', store_id: 'a', price_amount: '6.00' },
+    { specific_product_id: 'private', store_id: 'a', price_amount: '1.00' },
+    { specific_product_id: 'private', store_id: 'b', price_amount: '0.50' },
+    { specific_product_id: 'private', store_id: 'c', price_amount: '0.40' },
+  ],
+}
+
+test('lista marca: cerca Nutella, salva nome e marca esatta senza imporre il formato', async ({ page }) => {
+  const { itemRequests } = await login(page, false, spreadCatalog)
+  await page.goto('/liste')
+  await chooseListProduct(page, 'Crema spalmabile · Nutella', 'NUTEL')
+  await expect(page.getByRole('combobox', { name: 'Marca (facoltativa)', exact: true })).toHaveValue(
+    'Nutella',
+  )
+  await expect(page.getByRole('combobox', { name: 'Formato (facoltativo)', exact: true })).toHaveValue('')
+  expect(itemRequests).toHaveLength(0)
+  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
+  await expect.poll(() => itemRequests.length).toBe(1)
+  expect(itemRequests[0]).toMatchObject({
+    p_name: 'Crema spalmabile',
+    p_generic: 'spread-g',
+    p_specific: null,
+    p_brand: 'Nutella',
+    p_package_quantity: null,
+    p_unit: 'conf',
+  })
+  const article = page.getByRole('article', { name: 'Crema spalmabile · Nutella', exact: true })
+  await expect(article.locator('strong')).toHaveText('Crema spalmabile · Nutella')
+  await expect(
+    article.locator('.item-prices > div').filter({ hasText: 'Negozio A' }).locator('dd'),
+  ).toHaveText(/4,00\s*€/)
+  await expect(
+    article.locator('.item-prices > div').filter({ hasText: 'Negozio B' }).locator('dd'),
+  ).toHaveText(/5,00\s*€/)
+  await expect(
+    article.locator('.item-prices > div').filter({ hasText: 'Negozio C' }).locator('dd'),
+  ).toHaveText('-')
+  await expect(article.locator('.item-prices')).not.toContainText('Negozio archiviato')
+  const accessibility = await new AxeBuilder({ page })
+    .include('main.content')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+    .analyze()
+  expect(accessibility.violations.map((v) => ({ id: v.id, targets: v.nodes.map((n) => n.target) }))).toEqual(
+    [],
+  )
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await page.screenshot({
+    path: 'test-results/brand-prices-' + test.info().project.name + '.png',
+    fullPage: true,
+  })
+  await page.reload()
+  await expect(article.locator('strong')).toHaveText('Crema spalmabile · Nutella')
+})
+
+test('lista marca: cambio ricerca elimina la marca e un errore di salvataggio conserva la scelta', async ({
+  page,
+}) => {
+  const { itemRequests } = await login(page, false, {
+    ...spreadCatalog,
+    generic_products: [
+      ...spreadCatalog.generic_products,
+      { id: 'milk-g', name: 'Latte', canonical_unit: null, category_id: null, is_catalog_group: true },
+    ],
+    specific_products: [
+      ...spreadCatalog.specific_products,
+      {
+        id: 'milk',
+        generic_product_id: 'milk-g',
+        name: 'Latte',
+        brand: '',
+        variant: '',
+        barcode: null,
+        package_quantity: null,
+        package_unit: null,
+      },
+    ],
+  })
+  await page.goto('/liste')
+  const product = page.getByRole('combobox', { name: 'Prodotto dal catalogo', exact: true })
+  await product.fill('Nutella')
+  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
+  expect(itemRequests).toHaveLength(0)
+  await chooseListProduct(page, 'Crema spalmabile · Nutella', 'crema nut')
+  await chooseListProduct(page, 'Latte', 'latte')
+  await expect(page.getByRole('combobox', { name: 'Marca (facoltativa)', exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
+  await expect.poll(() => itemRequests.length).toBe(1)
+  expect(itemRequests[0]).toMatchObject({ p_generic: 'milk-g', p_brand: null })
+  let fail = true
+  await page.route('**/rest/v1/rpc/add_shopping_product', async (route) => {
+    if (fail) {
+      fail = false
+      await route.fulfill({ status: 503, json: { message: 'Fixture unavailable' } })
+    } else await route.fallback()
+  })
+  await chooseListProduct(page, 'Crema spalmabile · Nutella', 'nutella')
+  await page.getByLabel('Quantità', { exact: true }).fill('2')
+  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
+  await expect(page.locator('.notice')).toContainText('Operazione non riuscita')
+  await expect(product).toHaveValue('Crema spalmabile · Nutella')
+  await expect(page.getByRole('combobox', { name: 'Marca (facoltativa)', exact: true })).toHaveValue(
+    'Nutella',
+  )
+  await expect(page.getByLabel('Quantità', { exact: true })).toHaveValue('2')
+  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
+  await expect.poll(() => itemRequests.length).toBe(2)
+  expect(itemRequests[1]).toMatchObject({ p_brand: 'Nutella', p_quantity: '2', p_package_quantity: null })
+  await expect(product).toHaveValue('')
+})
+
+test('lista prezzi: totali e prezzi articolo si aggiornano con quantità, rimozione e ripristino', async ({
+  page,
+}) => {
+  await login(page, false, {
+    ...spreadCatalog,
+    shopping_list_items: [
+      {
+        id: 'spread',
+        list_id: '20000000-0000-4000-8000-000000000001',
+        name: 'Crema spalmabile',
+        generic_product_id: 'spread-g',
+        specific_product_id: null,
+        preferred_brand: 'Nutella',
+        unit: 'conf',
+        note: '',
+      },
+    ],
+    list_item_contributions: [
+      {
+        id: 'manual-spread',
+        item_id: 'spread',
+        origin_type: 'manual',
+        origin_id: 'spread',
+        requested_quantity: '1',
+      },
+    ],
+  })
+  await page.goto('/liste')
+  const summary = page.getByRole('table', { name: 'Confronto supermercati', exact: true })
+  const totalA = summary.getByRole('row').filter({ hasText: 'Negozio A' }).getByRole('cell').nth(1)
+  await expect(totalA).toHaveText(/4,00\s*€/)
+  const article = page.getByRole('article', { name: 'Crema spalmabile · Nutella', exact: true })
+  await article.getByRole('button', { name: 'Modifica quantità', exact: true }).click()
+  await article.getByLabel('Quantità manuale', { exact: true }).fill('2')
+  await article.getByRole('button', { name: 'Salva', exact: true }).click()
+  await expect(totalA).toHaveText(/8,00\s*€/)
+  await expect(
+    article.locator('.item-prices > div').filter({ hasText: 'Negozio B' }).locator('dd'),
+  ).toHaveText(/10,00\s*€/)
+  await page.getByLabel('Nome per articolo libero').fill('Sale sfuso')
+  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
+  await expect(summary.getByRole('row').filter({ hasText: 'Negozio A' })).toContainText('1/2')
+  await expect(totalA).toContainText('Parziale')
+  await page.getByLabel('Filtra articoli', { exact: true }).fill('Nutella')
+  await expect(article).toBeVisible()
+  await expect(page.getByRole('article', { name: 'Sale sfuso', exact: true })).toHaveCount(0)
+  await expect(summary.getByRole('row').filter({ hasText: 'Negozio A' })).toContainText('1/2')
+  await page.getByLabel('Filtra articoli', { exact: true }).fill('')
+  await page.getByRole('button', { name: 'Rimuovi dalla lista Crema spalmabile', exact: true }).click()
+  await expect(totalA).toContainText('-')
+  await page.getByLabel('Mostra articoli rimossi', { exact: true }).check()
+  await page
+    .locator('.data-row')
+    .filter({ hasText: 'Crema spalmabile · Nutella' })
+    .getByRole('button', { name: 'Rimetti nella lista', exact: true })
+    .click()
+  await expect(totalA).toContainText(/8,00\s*€/)
+  await expect(article).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'Prezzo per confezione (€)', exact: true })).toHaveCount(0)
+})
 
 test('catalogo prezzi: riepilogo negozi, virgola, calcolo kg e sostituzione del prezzo attuale', async ({
   page,
@@ -2251,14 +2484,16 @@ test('lista autocomplete: ordine alfabetico, accenti, tastiera, tocco e articolo
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 
-test('ricerca solo per nome, nessuna selezione nascosta quando il filtro cambia', async ({ page }) => {
+test('ricerca per nome o marca, nessuna selezione nascosta quando il filtro cambia', async ({ page }) => {
   await login(page, true, productCatalog)
   await page.goto('/liste/20000000-0000-4000-8000-000000000001')
   const product = page.getByRole('combobox', { name: 'Prodotto dal catalogo', exact: true })
   await chooseListProduct(page, 'Latte intero')
   await product.fill('Molino')
   await expect(page.locator('input[name="product"]')).toHaveValue('')
-  await expect(page.getByRole('listbox').getByRole('option', { name: /Farina fine/ })).toHaveCount(0)
+  await expect(
+    page.getByRole('listbox').getByRole('option', { name: 'Farina fine · Molino Test', exact: true }),
+  ).toHaveCount(1)
   await chooseListProduct(page, /^Farina fine/, 'Farina')
   await product.fill('senza corrispondenze')
   await expect(page.locator('input[name="product"]')).toHaveValue('')

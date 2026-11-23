@@ -1,5 +1,13 @@
 # Avanzamento
 
+## Ricerca per marca e prezzi nella lista — 23 novembre 2026
+
+Ricerca del prodotto per nome oppure marca, con risultati espliciti nome generico · marca. La scelta per marca salva preferred_brand già esistente e lascia libero il formato; scelta generica, barcode e articoli liberi conservati. Una sola voce per nome/marca anche con più formati; marche di prodotti archiviati escluse. Nome e marca visibili insieme nella lista e nei rimossi, filtro articoli esteso alla marca.
+
+Riepilogo dei totali per ogni supermercato sempre espanso nella lista e costi per negozio sotto ogni articolo. Calcolo condiviso con il confronto nei Supermercati, su quantità residue e confezioni intere, con preferenze marca/formato. Trattini per dati mancanti e totali parziali; nessuna modifica prezzi nella lista, nessuno storico o statistica reintrodotto. Variazioni quantità, aggiunte, rimozioni e ripristini ricalcolano tutto; filtro testuale e scelta dell’ordine corsie non nascondono i costi degli altri negozi. Nessuna migrazione o nuova dipendenza.
+
+103 test locali in 15 file e 175 prove browser (79 desktop, 79 mobile Chromium, 17 WebKit iPad). Verificati ricerca Nutella, persistenza della marca, prezzi senza sostituzione con marche più economiche, quantità e copertura, errori recuperabili, reset, tocco e accessibilità; tabella compatta scorribile anche da tastiera. Lint, tipi, build, segreti, PWA, CI e pubblicazione controllati sul commit finale. Nessun dato familiare modificato durante le prove.
+
 ## Prezzo unico attuale e cinque pagine — 23 novembre 2026
 
 Menu principale e barra mobile: Lista della spesa, Catalogo, Ricette, Pasti, Supermercati. Statistiche rimosse; vecchio indirizzo reindirizzato alla lista. Confronto costi integrato nei Supermercati e raggiungibile dalla lista, senza una pagina aggiuntiva.
