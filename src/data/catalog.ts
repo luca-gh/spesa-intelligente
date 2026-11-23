@@ -71,7 +71,7 @@ export function listProductGroups(data: Data) {
     }
   >()
   for (const entry of catalogProducts(data).filter((entry) => !entry.product.archived_at)) {
-    const key = entry.product.name.trim().toLocaleLowerCase('it')
+    const key = entry.product.name.trim()
     let group = groups.get(key)
     if (!group) {
       const genericId = entry.kind === 'generic' ? entry.product.id : entry.product.generic_product_id

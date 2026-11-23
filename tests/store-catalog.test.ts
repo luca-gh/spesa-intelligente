@@ -71,6 +71,12 @@ it('nomi unici senza marca e formato, esclusione archiviati e ultimo prezzo spec
   expect(groups).toHaveLength(1)
   expect(groups[0].name).toBe('Latte')
   expect(groups[0].products).toHaveLength(3)
+  const distinctNames = listProductGroups({
+    ...emptyData,
+    specific_products: [products[0], { ...products[1], name: 'latte', generic_product_id: 'other-group' }],
+  })
+  expect(distinctNames).toHaveLength(2)
+  expect(distinctNames.map((g) => g.genericId)).toEqual(['g', 'other-group'])
   expect(
     latestProductPrice(
       [...observations, { ...observations[0], id: 'new', price_amount: '9', voided_at: '2026-11-22' }],
