@@ -583,7 +583,8 @@ small {
 .catalog-products > summary > span {
   text-align: right;
 }
-.catalog-products th {
+.catalog-products th,
+.product-prices th {
   color: #607254;
 }
 .plan-actions {

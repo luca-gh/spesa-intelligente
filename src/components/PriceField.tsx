@@ -7,12 +7,14 @@ export function PriceField({
   value,
   required = true,
   placeholder = 'Es. 2,50',
+  onChange,
 }: {
   label: string
   name: string
   value?: string | number | null
   required?: boolean
   placeholder?: string
+  onChange?: (value: string) => void
 }) {
   const id = useId()
   const [error, setError] = useState('')
@@ -34,6 +36,7 @@ export function PriceField({
           const message = priceInputError(event.currentTarget.value)
           event.currentTarget.setCustomValidity(message)
           setError(message)
+          onChange?.(event.currentTarget.value)
         }}
         onInvalid={(event) => {
           setError(priceInputError(event.currentTarget.value) || 'Prezzo non valido: inserisci un importo.')

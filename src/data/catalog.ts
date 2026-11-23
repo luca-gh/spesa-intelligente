@@ -16,6 +16,18 @@ export function orderedCategories(categories: Category[]) {
   )
 }
 
+export function storeCategories(data: Data, storeId: string) {
+  const order = new Map(
+    data.store_category_order.filter((o) => o.store_id === storeId).map((o) => [o.category_id, o.sort_order]),
+  )
+  return orderedCategories(
+    data.categories.map((category) => ({
+      ...category,
+      sort_order: order.get(category.id) ?? category.sort_order,
+    })),
+  )
+}
+
 export function productFormat(product: Pick<Product, 'package_quantity' | 'package_unit'>) {
   return product.package_quantity && product.package_unit
     ? `${product.package_quantity} ${product.package_unit}`
@@ -46,6 +58,34 @@ export function ingredientProducts(data: Data) {
     data.specific_products.filter((s) => !s.archived_at).map((s) => s.generic_product_id),
   )
   return data.generic_products.filter((g) => (g.is_catalog_group ? activeGroups.has(g.id) : !g.archived_at))
+}
+
+export function listProductGroups(data: Data) {
+  const groups = new Map<
+    string,
+    {
+      id: string
+      name: string
+      genericId: string | null
+      products: Data['specific_products']
+    }
+  >()
+  for (const entry of catalogProducts(data).filter((entry) => !entry.product.archived_at)) {
+    const key = entry.product.name.trim().toLocaleLowerCase('it')
+    let group = groups.get(key)
+    if (!group) {
+      const genericId = entry.kind === 'generic' ? entry.product.id : entry.product.generic_product_id
+      group = {
+        id: entry.product.id,
+        name: entry.product.name,
+        genericId,
+        products: [],
+      }
+      groups.set(key, group)
+    }
+    if (entry.kind === 'specific') group.products.push(entry.product)
+  }
+  return [...groups.values()]
 }
 
 export function catalogTotals(data: Data) {

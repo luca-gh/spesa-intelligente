@@ -2,6 +2,7 @@ import { ArchiveButton, ArchiveFilter } from '../components/ArchiveButton'
 import { useEffect, useRef, useState } from 'react'
 import { BarcodeImport } from '../components/BarcodeImport'
 import { CategoryOrder } from '../components/CategoryOrder'
+import { ProductPrices } from '../components/ProductPrices'
 import { barcodeSourceName, type BarcodeProduct } from '../domain/barcodeLookup'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Tag, Store as StoreIcon } from 'lucide-react'
@@ -39,7 +40,7 @@ import {
 } from '../components/ui'
 
 export function Catalog() {
-  const { data, household } = useApp()
+  const { data } = useApp()
   const [search, setSearch] = useState('')
   const [archived, setArchived] = useState(false)
   const [productsExpanded, setProductsExpanded] = useState(true)
@@ -52,18 +53,23 @@ export function Catalog() {
   const fromList = catalogParams.get('origine') === 'lista'
   const [revision, setRevision] = useState(0)
   const editor = useRef<HTMLDivElement>(null)
+  const pricePanel = useRef<HTMLDivElement>(null)
+  const [focusPrices, setFocusPrices] = useState(false)
   useEffect(() => {
     if (!selected) return
-    const name = editor.current?.querySelector<HTMLInputElement>('input[name="name"]')
+    const name = focusPrices
+      ? pricePanel.current
+      : editor.current?.querySelector<HTMLInputElement>('input[name="name"]')
     name?.focus({ preventScroll: true })
     name?.scrollIntoView({
       block: 'center',
       behavior: 'instant',
     })
-  }, [selected, revision])
+  }, [selected, revision, focusPrices])
   const readDraft = () => new FormData(editor.current!.querySelector('form')!)
-  const selectProduct = (key: string) => {
+  const selectProduct = (key: string, prices = false) => {
     setSelected(key)
+    setFocusPrices(prices)
     setPrefill(null)
     setRevision((value) => value + 1)
   }
@@ -267,6 +273,11 @@ export function Catalog() {
           </Form>
         </div>
       </Panel>
+      {details && (
+        <div ref={pricePanel} tabIndex={-1} className="product-prices">
+          <ProductPrices key={details.id} product={details} />
+        </div>
+      )}
       <label className="field search-field">
         Cerca prodotto, marca o barcode
         <input
@@ -329,6 +340,11 @@ export function Catalog() {
                       <button className="text-button" onClick={() => selectProduct(key)}>
                         Modifica
                       </button>
+                      {specific && (
+                        <button className="text-button" onClick={() => selectProduct(key, true)}>
+                          Prezzi
+                        </button>
+                      )}
                       <ArchiveButton
                         table={table}
                         record={p}
@@ -359,23 +375,9 @@ export function Catalog() {
           </Empty>
         )}
       </details>
-      <Panel title="Categorie della famiglia">
-        <Form
-          className="inline-form"
-          onSave={(f) =>
-            insert('categories', household!.id, {
-              name: text(f, 'name'),
-              sort_order: Math.max(-1, ...data.categories.map((c) => c.sort_order)) + 1,
-            })
-          }
-        >
-          <Field label="Nuova categoria" name="name" />
-          <Submit>
-            <Plus size={16} /> Aggiungi
-          </Submit>
-        </Form>
-        <CategoryOrder />
-      </Panel>
+      <p className="muted">
+        <Link to="/negozi">Gestisci categorie e ordine delle corsie nei supermercati →</Link>
+      </p>
     </>
   )
 }
@@ -383,6 +385,10 @@ export function Stores() {
   const { data, household } = useApp()
   const [editing, setEditing] = useState('')
   const [archived, setArchived] = useState(false)
+  const [categoryStoreId, setCategoryStoreId] = useState('')
+  const categoryStore =
+    data.stores.find((s) => s.id === categoryStoreId && !s.archived_at) ??
+    data.stores.find((s) => !s.archived_at)
   const store = data.stores.find((s) => s.id === editing)
   return (
     <>
@@ -452,6 +458,43 @@ export function Stores() {
             </article>
           ))}
       </div>
+      <Panel title="Categorie e corsie dei supermercati">
+        <p className="muted">
+          Le categorie sono comuni. Ogni supermercato ha il proprio ordine; rinomina ed eliminazione valgono
+          per tutti.
+        </p>
+        <Form
+          className="inline-form"
+          onSave={(f) =>
+            insert('categories', household!.id, {
+              name: text(f, 'name'),
+              sort_order: Math.max(-1, ...data.categories.map((c) => c.sort_order)) + 1,
+            })
+          }
+        >
+          <Field label="Nuova categoria" name="name" />
+          <Submit>
+            <Plus size={16} /> Aggiungi
+          </Submit>
+        </Form>
+        <label className="field">
+          Supermercato per ordine categorie
+          <select
+            value={categoryStore?.id ?? ''}
+            onChange={(event) => setCategoryStoreId(event.target.value)}
+          >
+            {!categoryStore && <option value="">Ordine iniziale: aggiungi un supermercato</option>}
+            {data.stores
+              .filter((s) => !s.archived_at)
+              .map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+          </select>
+        </label>
+        <CategoryOrder key={categoryStore?.id ?? 'default'} storeId={categoryStore?.id} />
+      </Panel>
       <ArchiveFilter value={archived} onChange={setArchived} />
       {!data.stores.length && (
         <Empty title="Dove fate la spesa?">Aggiungi il primo punto vendita per registrare i prezzi.</Empty>
@@ -464,7 +507,6 @@ export function Prices() {
   const list = data.shopping_lists[0]?.id ?? ''
   const [date, setDate] = useState(dateInZone(new Date(), household!.timezone))
   const [ruleId, setRuleId] = useState('')
-  const [showVoided, setShowVoided] = useState(false)
   const rule = data.store_discount_rules.find((r) => r.id === ruleId)
   const requested = data.shopping_list_items
     .filter((i) => i.list_id === list && !i.archived_at)
@@ -587,58 +629,7 @@ export function Prices() {
           ))}
         </div>
       )}
-      <div className="two-columns">
-        <Panel title="Registra un prezzo osservato">
-          <Form
-            onSave={(f) =>
-              rpc('add_price', {
-                p_product: text(f, 'product'),
-                p_store: text(f, 'store'),
-                p_amount: parsePrice(text(f, 'amount')),
-                p_kind: text(f, 'kind'),
-                p_observed: new Date(text(f, 'date') + 'T12:00:00').toISOString(),
-                p_start: text(f, 'start') || null,
-                p_end: text(f, 'end') || null,
-              })
-            }
-          >
-            <Select label="Prodotto" name="product">
-              <option value="">Seleziona prodotto</option>
-              {data.specific_products
-                .filter((s) => !s.archived_at)
-                .map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                    {s.brand ? ` · ${s.brand}` : ''} · {productFormat(s)}
-                  </option>
-                ))}
-            </Select>
-            <Select label="Punto vendita" name="store">
-              <option value="">Seleziona negozio</option>
-              {data.stores
-                .filter((s) => !s.archived_at)
-                .map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-            </Select>
-            <PriceField label="Prezzo per confezione (€)" name="amount" />
-            <Select label="Tipo di prezzo accertato" name="kind">
-              <option value="regular">Ordinario</option>
-              <option value="promotion">Promozione</option>
-              <option value="unknown">Non determinato (escluso dalla stima)</option>
-            </Select>
-            <Field label="Data rilevazione" name="date" type="date" value={date} />
-            <Field label="Inizio promo" name="start" type="date" required={false} />
-            <Field label="Fine promo" name="end" type="date" required={false} />
-            <Submit>Registra prezzo</Submit>
-          </Form>
-          <p className="muted">
-            Per prezzi al kg/litro, inserisci il costo della confezione corrispondente. Una promozione senza
-            periodo certo non viene usata nella stima.
-          </p>
-        </Panel>
+      <div className="price-settings">
         <Panel title={rule ? 'Modifica sconto personale' : 'Sconto personale ricorrente'}>
           <Form
             key={ruleId}
@@ -789,48 +780,9 @@ export function Prices() {
           <p className="muted">Nessuna regola. Nessuno sconto personale viene presunto.</p>
         )}
       </Panel>
-      <Panel title="Storico prezzi">
-        <label className="checkbox">
-          <input type="checkbox" checked={showVoided} onChange={(e) => setShowVoided(e.target.checked)} />
-          Mostra annullate
-        </label>
-        {[...data.price_observations]
-          .filter((p) => showVoided || !p.voided_at)
-          .sort((a, b) => b.observed_at.localeCompare(a.observed_at))
-          .map((p) => (
-            <div className="data-row" key={p.id}>
-              <div>
-                <strong>
-                  {data.specific_products.find((s) => s.id === p.specific_product_id)?.name} ·{' '}
-                  {euro(p.price_amount)}
-                </strong>
-                <small>
-                  {data.stores.find((s) => s.id === p.store_id)?.name} ·{' '}
-                  {new Date(p.observed_at).toLocaleDateString('it-IT', { timeZone: household!.timezone })} ·{' '}
-                  {p.kind === 'regular'
-                    ? 'Ordinario'
-                    : p.kind === 'promotion'
-                      ? 'Promozione'
-                      : 'Non determinato'}
-                  {p.voided_at ? ' · ANNULLATO' : ''}
-                </small>
-              </div>
-              {!p.voided_at && (
-                <ConfirmButton
-                  message="Annullare la rilevazione? Il record verrà conservato."
-                  onConfirm={() => rpc('void_price', { p_id: p.id })}
-                >
-                  Annulla
-                </ConfirmButton>
-              )}
-            </div>
-          ))}
-        {!data.price_observations.length && (
-          <Empty title="Ogni prezzo ha una data">
-            Registra le prime osservazioni per confrontare la spesa.
-          </Empty>
-        )}
-      </Panel>
+      <p>
+        <Link to="/catalogo">Inserisci, correggi e consulta i prezzi dei prodotti nel Catalogo →</Link>
+      </p>
     </>
   )
 }

@@ -143,7 +143,7 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
             !deletedItems.has(r.item_id),
         )
       result = null
-    } else if (table === 'add_list_item') {
+    } else if (table === 'add_list_item' || table === 'add_shopping_product') {
       const body = route.request().postDataJSON()
       itemRequests.push(body)
       const id = `item-new-${collections.shopping_list_items.length + 1}`
@@ -155,6 +155,9 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
         generic_product_id: body.p_generic,
         specific_product_id: body.p_specific,
         note: '',
+        preferred_brand: body.p_brand ?? null,
+        preferred_package_quantity: body.p_package_quantity ?? null,
+        preferred_package_unit: body.p_package_unit ?? null,
         created_at: '2026-11-14T13:00:00Z',
       })
       ;(collections.list_item_contributions as Record<string, unknown>[]).push({
@@ -186,16 +189,21 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
       const purchase = (collections.purchases as Record<string, unknown>[]).find((p) => p.id === body.p_id)
       if (purchase) purchase.total_paid = body.p_total
       result = null
-    } else if (table === 'add_price') {
+    } else if (table === 'add_price' || table === 'correct_catalog_price') {
       const body = route.request().postDataJSON()
       priceRequests.push(body)
+      const previous = (collections.price_observations as Record<string, unknown>[] | undefined)?.find(
+        (p) => p.id === body.p_id,
+      )
+      if (previous) previous.voided_at = '2026-11-23T12:00:00Z'
       ;(collections.price_observations ??= []).push({
         id: `price-${priceRequests.length}`,
-        specific_product_id: body.p_product,
-        store_id: body.p_store,
+        specific_product_id: previous?.specific_product_id ?? body.p_product,
+        store_id: previous?.store_id ?? body.p_store,
         price_amount: body.p_amount,
         kind: body.p_kind,
         observed_at: body.p_observed,
+        created_at: new Date(Date.now() + priceRequests.length).toISOString(),
         voided_at: null,
       })
       result = null
@@ -253,6 +261,21 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
       const records = (collections[body.p_type] ?? []) as Record<string, unknown>[]
       const record = records.find((r) => r.id === body.p_id)
       if (record) record.archived_at = body.p_archived ? '2026-11-14T13:00:00Z' : null
+      result = null
+    } else if (table === 'void_price') {
+      const { p_id } = route.request().postDataJSON()
+      const price = (collections.price_observations as Record<string, unknown>[]).find((p) => p.id === p_id)
+      if (price) price.voided_at = '2026-11-23T12:00:00Z'
+      result = null
+    } else if (table === 'reorder_store_categories') {
+      const body = route.request().postDataJSON()
+      categoryOrderRequests.push(body)
+      for (const entry of (collections.store_category_order ?? []) as {
+        store_id: string
+        category_id: string
+        sort_order: number
+      }[])
+        if (entry.store_id === body.p_store) entry.sort_order = body.p_ids.indexOf(entry.category_id)
       result = null
     } else if (table === 'reorder_categories') {
       const body = route.request().postDataJSON()
@@ -319,6 +342,7 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
     )
   })
   return {
+    collections,
     priceRequests,
     purchaseRequests,
     completionRequests,
@@ -352,73 +376,215 @@ const productCatalog = {
   ],
 }
 
-test('prezzi osservati: errore sul punto, virgola accettata e modulo riutilizzabile', async ({ page }) => {
+test('catalogo prezzi: riepilogo negozi, virgola, calcolo kg e nuovo prezzo', async ({ page }) => {
   const { priceRequests } = await login(page, false, {
     ...productCatalog,
-    stores: [{ id: 'store', name: 'Negozio test' }],
+    stores: [
+      { id: 'store', name: 'Negozio test' },
+      { id: 'empty-store', name: 'Altro negozio' },
+    ],
   })
-  await page.goto('/prezzi')
-  await page.getByRole('combobox', { name: 'Prodotto', exact: true }).selectOption('specific-flour')
-  await page.getByRole('combobox', { name: 'Punto vendita', exact: true }).selectOption('store')
+  await page.goto('/catalogo')
+  await page
+    .getByRole('row', { name: /^Farina fine/ })
+    .getByRole('button', { name: 'Prezzi', exact: true })
+    .click()
+  const row = page.getByRole('row', { name: 'Prezzo presso Negozio test', exact: true })
+  const missing = page.getByRole('row', { name: 'Prezzo presso Altro negozio', exact: true })
+  await expect(missing.getByRole('cell').nth(1)).toHaveText('-')
+  await row.getByRole('button', { name: 'Inserisci prezzo', exact: true }).click()
   const price = page.getByRole('textbox', { name: 'Prezzo per confezione (€)', exact: true })
   await price.fill('2.50')
-  await expect(price).toHaveValue('2.50')
   await expect(price).toHaveAttribute('aria-invalid', 'true')
   await expect(page.getByRole('alert')).toContainText('usa la virgola')
-  await page.getByRole('button', { name: 'Registra prezzo', exact: true }).click()
+  await page.getByRole('button', { name: 'Salva prezzo', exact: true }).click()
   expect(priceRequests).toHaveLength(0)
   await price.fill('2,50')
-  await expect(price).not.toHaveAttribute('aria-invalid')
-  await page.getByRole('button', { name: 'Registra prezzo', exact: true }).click()
+  const accessibility = await new AxeBuilder({ page })
+    .include('.product-prices')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+    .analyze()
+  expect(
+    accessibility.violations.map((v) => ({ id: v.id, nodes: v.nodes.map((node) => node.target) })),
+  ).toEqual([])
+  await expect(page.getByRole('status').filter({ hasText: 'Prezzo al kg/l' })).toContainText(/5,00\s*€\/kg/)
+  await page.getByRole('button', { name: 'Salva prezzo', exact: true }).click()
   await expect.poll(() => priceRequests.length).toBe(1)
   expect(priceRequests[0]).toMatchObject({ p_amount: '2.50', p_product: 'specific-flour', p_store: 'store' })
-  await expect(price).toHaveValue('')
-  await page.getByRole('combobox', { name: 'Prodotto', exact: true }).selectOption('specific-flour')
-  await page.getByRole('combobox', { name: 'Punto vendita', exact: true }).selectOption('store')
+  await expect(row.getByRole('cell').nth(1)).toContainText(/2,50\s*€/)
+  await expect(missing.getByRole('cell').nth(1)).toHaveText('-')
+  await row.getByRole('button', { name: 'Aggiorna prezzo', exact: true }).click()
   await price.fill('0')
-  await page.getByRole('button', { name: 'Registra prezzo', exact: true }).click()
+  await page.getByRole('button', { name: 'Salva prezzo', exact: true }).click()
   await expect.poll(() => priceRequests.length).toBe(2)
   expect(priceRequests[1].p_amount).toBe('0.00')
 })
 
-test('acquisto: punti bloccati in totale e lordo, decimali con virgola salvati', async ({ page }) => {
-  const { purchaseRequests } = await login(page, true)
-  await page.goto('/liste')
-  await page.getByRole('button', { name: 'Registra acquisto Latte' }).click()
-  const paid = page.getByRole('textbox', { name: 'Totale pagato (€), facoltativo', exact: true })
-  const gross = page.getByRole('textbox', { name: 'Lordo prima dello sconto (€), facoltativo', exact: true })
-  await paid.fill('2.50')
-  await gross.fill('1.000,50')
-  await page.getByRole('button', { name: 'Conferma acquisto' }).click()
-  expect(purchaseRequests).toHaveLength(0)
-  await expect(paid).toHaveAttribute('aria-invalid', 'true')
-  await expect(gross).toHaveAttribute('aria-invalid', 'true')
-  await paid.fill('2,50')
-  await page.getByRole('button', { name: 'Conferma acquisto' }).click()
-  expect(purchaseRequests).toHaveLength(0)
-  await gross.fill('3,00')
-  await page.getByRole('button', { name: 'Conferma acquisto' }).click()
-  await expect.poll(() => purchaseRequests.length).toBe(1)
-  expect(purchaseRequests[0]).toMatchObject({ p_total: '2.50', p_gross: '3.00' })
-  await expect(page.getByText(/2,50\s*€/)).toBeVisible()
+test('catalogo prezzi: correzione con errore recuperabile, storico annullato e prezzo al litro', async ({
+  page,
+}) => {
+  const { priceRequests } = await login(page, false, {
+    generic_products: [
+      { id: 'g', name: 'Latte', canonical_unit: 'ml', category_id: null, is_catalog_group: true },
+    ],
+    specific_products: [
+      {
+        id: 'milk',
+        generic_product_id: 'g',
+        name: 'Latte',
+        brand: 'A',
+        package_quantity: '750',
+        package_unit: 'ml',
+        variant: '',
+        barcode: null,
+      },
+    ],
+    stores: [{ id: 'store', name: 'Negozio' }],
+    price_observations: [
+      {
+        id: 'old',
+        specific_product_id: 'milk',
+        store_id: 'store',
+        price_amount: '1.50',
+        kind: 'regular',
+        observed_at: '2026-11-20T12:00:00Z',
+        voided_at: null,
+      },
+    ],
+  })
+  let fail = true
+  await page.route('**/rest/v1/rpc/correct_catalog_price', async (route) => {
+    if (fail) {
+      fail = false
+      await route.fulfill({ status: 503, json: { message: 'Fixture unavailable' } })
+    } else await route.fallback()
+  })
+  await page.goto('/catalogo')
+  await page
+    .getByRole('row', { name: /^Latte/ })
+    .getByRole('button', { name: 'Prezzi', exact: true })
+    .click()
+  await page.getByRole('button', { name: 'Correggi prezzo', exact: true }).click()
+  const price = page.getByRole('textbox', { name: 'Prezzo per confezione (€)', exact: true })
+  await expect(price).toHaveValue('1,50')
+  await price.fill('1,20')
+  await expect(page.getByRole('status').filter({ hasText: 'Prezzo al kg/l' })).toContainText(/1,60\s*€\/l/)
+  await page.getByRole('button', { name: 'Salva prezzo', exact: true }).click()
+  await expect(page.locator('.notice')).toContainText('Operazione non riuscita')
+  await expect(price).toHaveValue('1,20')
+  await page.getByRole('button', { name: 'Salva prezzo', exact: true }).click()
+  await expect.poll(() => priceRequests.length).toBe(1)
+  expect(priceRequests[0]).toMatchObject({ p_id: 'old', p_amount: '1.20' })
+  await page.getByText('Storico prezzi del prodotto', { exact: true }).click()
+  await expect(page.getByText(/1,50.*ANNULLATO/)).toBeVisible()
 })
 
-test('prezzo aggiunto dopo acquisto: punto rifiutato e virgola accettata', async ({ page }) => {
-  const { completionRequests } = await login(page, true)
+test('catalogo prezzi: formato sconosciuto mostra trattino, nessuna gestione prezzi nella lista', async ({
+  page,
+}) => {
+  await login(page, true, {
+    ...productCatalog,
+    specific_products: productCatalog.specific_products.map((p) => ({
+      ...p,
+      package_quantity: null,
+      package_unit: null,
+    })),
+    stores: [{ id: 's', name: 'Negozio' }],
+  })
+  await page.goto('/catalogo')
+  await page
+    .getByRole('row', { name: /^Farina fine/ })
+    .getByRole('button', { name: 'Prezzi', exact: true })
+    .click()
+  await page.getByRole('button', { name: 'Inserisci prezzo', exact: true }).click()
+  await page.getByRole('textbox', { name: 'Prezzo per confezione (€)', exact: true }).fill('2,50')
+  await expect(page.getByRole('status').filter({ hasText: 'Prezzo al kg/l' })).toContainText('-')
   await page.goto('/liste')
-  await page.getByRole('button', { name: 'Registra acquisto Latte' }).click()
-  await page.getByRole('button', { name: 'Conferma acquisto' }).click()
-  const price = page.getByRole('textbox', { name: 'Totale pagato (€)', exact: true })
-  await price.fill('2.50')
-  await page.getByRole('button', { name: 'Aggiungi prezzo', exact: true }).click()
-  expect(completionRequests).toHaveLength(0)
-  await expect(page.getByRole('alert')).toContainText('usa la virgola')
-  await price.fill('2,50')
-  await page.getByRole('button', { name: 'Aggiungi prezzo', exact: true }).click()
-  await expect.poll(() => completionRequests.length).toBe(1)
-  expect(completionRequests[0].p_total).toBe('2.50')
-  await expect(price).toHaveCount(0)
-  await expect(page.getByText(/2,50\s*€/)).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: /Registra acquisto|Conferma acquisto|Inizia la spesa/ }),
+  ).toHaveCount(0)
+  await expect(page.getByRole('textbox', { name: /pagato|Prezzo|Lordo/ })).toHaveCount(0)
+  await page.goto('/prezzi')
+  await expect(page.getByRole('textbox', { name: 'Prezzo per confezione (€)', exact: true })).toHaveCount(0)
+})
+
+test('lista preferenze: nomi unici, marca e formato indipendenti, cambio prodotto pulisce le scelte', async ({
+  page,
+}) => {
+  const { itemRequests } = await login(page, false, {
+    generic_products: [
+      { id: 'g', name: 'Latte', canonical_unit: 'ml', category_id: null, is_catalog_group: true },
+    ],
+    specific_products: [
+      {
+        id: 'a-small',
+        name: 'Latte',
+        generic_product_id: 'g',
+        brand: 'Abit',
+        package_quantity: '500',
+        package_unit: 'ml',
+        variant: '',
+        barcode: null,
+      },
+      {
+        id: 'a-large',
+        name: 'Latte',
+        generic_product_id: 'g',
+        brand: 'Abit',
+        package_quantity: '1000',
+        package_unit: 'ml',
+        variant: '',
+        barcode: null,
+      },
+      {
+        id: 'b-small',
+        name: 'Latte',
+        generic_product_id: 'g',
+        brand: 'Altro',
+        package_quantity: '500',
+        package_unit: 'ml',
+        variant: '',
+        barcode: null,
+      },
+    ],
+  })
+  await page.goto('/liste')
+  const product = page.getByRole('combobox', { name: 'Prodotto dal catalogo', exact: true })
+  await product.fill('latte')
+  await expect(page.getByRole('listbox').getByRole('option')).toHaveText('Latte')
+  if (test.info().project.use.hasTouch) await page.getByRole('listbox').getByRole('option').tap()
+  else await page.getByRole('listbox').getByRole('option').click()
+  await expect(page.getByRole('combobox', { name: 'Marca (facoltativa)', exact: true })).toHaveValue('')
+  await expect(page.getByRole('combobox', { name: 'Formato (facoltativo)', exact: true })).toHaveValue('')
+  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
+  await expect.poll(() => itemRequests.length).toBe(1)
+  expect(itemRequests[0]).toMatchObject({
+    p_generic: 'g',
+    p_specific: null,
+    p_brand: null,
+    p_package_quantity: null,
+    p_unit: 'conf',
+  })
+  await chooseListProduct(page, 'Latte')
+  await page.getByRole('combobox', { name: 'Marca (facoltativa)', exact: true }).selectOption('Abit')
+  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
+  await expect.poll(() => itemRequests.length).toBe(2)
+  expect(itemRequests[1]).toMatchObject({ p_brand: 'Abit', p_specific: null, p_package_quantity: null })
+  await chooseListProduct(page, 'Latte')
+  await page.getByRole('combobox', { name: 'Formato (facoltativo)', exact: true }).selectOption('a-small')
+  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
+  await expect.poll(() => itemRequests.length).toBe(3)
+  expect(itemRequests[2]).toMatchObject({
+    p_brand: null,
+    p_specific: null,
+    p_package_quantity: '500',
+    p_package_unit: 'ml',
+  })
+  await chooseListProduct(page, 'Latte')
+  await page.getByRole('combobox', { name: 'Marca (facoltativa)', exact: true }).selectOption('Abit')
+  await product.fill('inesistente')
+  await expect(page.getByRole('combobox', { name: 'Marca (facoltativa)', exact: true })).toHaveCount(0)
+  await expect(page.locator('input[name="product"]')).toHaveValue('')
 })
 
 test('sconti: importi esistenti con virgola e punti bloccati su soglia e massimo', async ({ page }) => {
@@ -675,11 +841,44 @@ const categoryCatalog = {
   ],
 }
 
+test('categorie negozi: ordine indipendente, scelta nella lista e persistenza', async ({ page }) => {
+  const { categoryOrderRequests } = await login(page, false, {
+    ...categoryCatalog,
+    stores: [
+      { id: 'a', name: 'Supermercato A' },
+      { id: 'b', name: 'Supermercato B' },
+    ],
+    store_category_order: ['a', 'b'].flatMap((store_id) => [
+      { store_id, category_id: 'dairy-category', sort_order: 0 },
+      { store_id, category_id: 'fruit-category', sort_order: 1 },
+      { store_id, category_id: 'other-category', sort_order: 2 },
+    ]),
+  })
+  await page.goto('/negozi')
+  const store = page.getByRole('combobox', { name: 'Supermercato per ordine categorie' })
+  await store.selectOption('a')
+  await page.getByRole('button', { name: 'Sposta Frutta su', exact: true }).click()
+  await expect.poll(() => categoryOrderRequests.length).toBe(1)
+  expect(categoryOrderRequests[0].p_store).toBe('a')
+  await expect(page.locator('.category-order-name').first()).toContainText('Frutta')
+  await store.selectOption('b')
+  await expect(page.locator('.category-order-name').first()).toContainText('Latticini')
+  await page.goto('/liste')
+  await page.getByRole('combobox', { name: 'Supermercato per la spesa', exact: true }).selectOption('a')
+  await expect(page.locator('.category-group h3')).toHaveText(['Frutta', 'Latticini'])
+  await page.reload()
+  await expect(page.locator('.category-group h3')).toHaveText(['Frutta', 'Latticini'])
+  await page.getByRole('combobox', { name: 'Supermercato per la spesa', exact: true }).selectOption('b')
+  await expect(page.locator('.category-group h3')).toHaveText(['Latticini', 'Frutta'])
+  await page.goto('/catalogo')
+  await expect(page.getByLabel('Nuova categoria', { exact: true })).toHaveCount(0)
+})
+
 test('categorie: trascinamento mouse, persistenza e ordine dei gruppi nella spesa', async ({ page }) => {
   const { categoryOrderRequests } = await login(page, false, categoryCatalog)
   await page.goto('/liste')
   await expect(page.locator('.category-group h3')).toHaveText(['Latticini', 'Frutta'])
-  await page.goto('/catalogo')
+  await page.goto('/negozi')
   await expect(page.locator('.category-order-name')).toHaveText([
     '1. Latticini',
     '2. Frutta',
@@ -716,7 +915,7 @@ test('categorie: trascinamento mouse, persistenza e ordine dei gruppi nella spes
 
 test('categorie: trascinamento touch e annullamento senza salvataggio', async ({ page, context }) => {
   const { categoryOrderRequests } = await login(page, false, categoryCatalog)
-  await page.goto('/catalogo')
+  await page.goto('/negozi')
   const first = page.locator('[data-category-id="dairy-category"]')
   await first.scrollIntoViewIfNeeded()
   const from = (await page
@@ -759,7 +958,7 @@ test('categorie: tastiera e frecce, errore conserva ordine precedente, offline b
   context,
 }) => {
   const { categoryOrderRequests } = await login(page, false, categoryCatalog)
-  await page.goto('/catalogo')
+  await page.goto('/negozi')
   await page.getByRole('button', { name: 'Sposta categoria Frutta', exact: true }).focus()
   await page.keyboard.press('ArrowUp')
   await expect.poll(() => categoryOrderRequests.length).toBe(1)
@@ -1230,10 +1429,13 @@ test('catalogo unico: nome, categoria, marca ed EAN senza creare una seconda sch
     p_barcode: '96385074',
     p_quantity: null,
   })
-  await page.goto('/prezzi')
+  await page
+    .getByRole('row', { name: /^Latte parzialmente scremato/ })
+    .getByRole('button', { name: 'Prezzi', exact: true })
+    .click()
   await expect(
-    page.getByRole('combobox', { name: 'Prodotto', exact: true }).locator('option[value="new-product-0"]'),
-  ).toHaveCount(1)
+    page.getByRole('heading', { name: 'Prezzi di Latte parzialmente scremato', exact: true }),
+  ).toBeVisible()
 })
 
 test('catalogo unico: aggiunta successiva del formato e rimozione dei dettagli facoltativi', async ({
@@ -1386,7 +1588,12 @@ test('lista: un solo prodotto senza formato, con quantità modificabile e senza 
   await chooseListProduct(page, /^Latte/)
   await expect(page.getByLabel('Quantità', { exact: true })).toHaveValue('1')
   await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
-  expect(itemRequests[0]).toMatchObject({ p_specific: 'card', p_quantity: '1', p_unit: 'pz' })
+  expect(itemRequests[0]).toMatchObject({
+    p_generic: 'group',
+    p_specific: null,
+    p_quantity: '1',
+    p_unit: 'conf',
+  })
 })
 
 test('lista: il prodotto senza marca permette il confronto tra le marche disponibili', async ({ page }) => {
@@ -1415,7 +1622,7 @@ test('lista: il prodotto senza marca permette il confronto tra le marche disponi
     p_generic: 'group',
     p_specific: null,
     p_quantity: '1',
-    p_unit: 'pz',
+    p_unit: 'conf',
   })
 })
 
@@ -1461,7 +1668,7 @@ test('catalogo: totali prodotti e categorie, tabella richiudibile e ricerca che 
   else await toggle.click()
   await expect(page.locator('.catalog-products table')).not.toBeVisible()
   await expect(toggle).toContainText('Espandi tabella')
-  const categories = page.getByRole('heading', { name: 'Categorie della famiglia', exact: true })
+  const categories = page.getByRole('link', { name: /Gestisci categorie/ })
   await categories.scrollIntoViewIfNeeded()
   await expect(categories).toBeInViewport()
   await toggle.focus()
@@ -1500,49 +1707,23 @@ test('catalogo: totali prodotti e categorie, tabella richiudibile e ricerca che 
   })
 })
 
-test('lista: articoli da acquistare e acquistati precedono il modulo di aggiunta', async ({ page }) => {
-  const list = '20000000-0000-4000-8000-000000000001'
-  const { itemRequests } = await login(page, false, {
-    shopping_list_items: ['pending', 'done'].map((id) => ({
-      id,
-      name: id === 'pending' ? 'Da comprare' : 'Già acquistato',
-      list_id: list,
-      unit: 'pz',
-      created_at: '2026-11-15T12:00:00Z',
-    })),
-    list_item_contributions: ['pending', 'done'].map((id) => ({
-      id: id + '-contribution',
-      item_id: id,
-      origin_type: 'manual',
-      origin_id: id,
-      requested_quantity: '1',
-    })),
-    purchases: [
-      {
-        id: 'purchase',
-        list_item_id: 'done',
-        quantity: '1',
-        unit: 'pz',
-        total_paid: '2',
-        voided_at: null,
-        purchased_at: '2026-11-15T12:00:00Z',
-      },
-    ],
-  })
+test('lista: articoli prima del modulo, rimozione diretta e ripristino senza prezzi', async ({ page }) => {
+  const { itemRequests, purchaseRequests } = await login(page, true)
   await page.goto('/liste')
-  await expect(page.getByRole('button', { name: 'Registra acquisto Da comprare', exact: true })).toBeVisible()
-  await expect(
-    page.getByRole('button', { name: 'Registra acquisto Già acquistato', exact: true }),
-  ).toBeVisible()
-  const formTop = (await page
-    .getByRole('heading', { name: 'Aggiungi alla lista', exact: true })
-    .boundingBox())!.y
-  for (const article of await page.locator('.shopping-item').all())
-    expect((await article.boundingBox())!.y).toBeLessThan(formTop)
+  const article = page.locator('.shopping-item')
+  await expect(article).toContainText('Latte')
+  expect((await article.boundingBox())!.y).toBeLessThan(
+    (await page.getByRole('heading', { name: 'Aggiungi alla lista', exact: true }).boundingBox())!.y,
+  )
+  await page.getByRole('button', { name: 'Rimuovi dalla lista Latte', exact: true }).click()
+  await expect(article).toHaveCount(0)
+  await page.getByLabel('Mostra articoli rimossi', { exact: true }).check()
+  await page.getByRole('button', { name: 'Rimetti nella lista', exact: true }).click()
+  await expect(article).toContainText('Latte')
+  expect(purchaseRequests).toHaveLength(0)
   await page.getByLabel('Nome per articolo libero').fill('Pane nuovo')
   await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
   await expect.poll(() => itemRequests.length).toBe(1)
-  await expect(page.locator('.shopping-item').filter({ hasText: 'Pane nuovo' })).toBeVisible()
 })
 
 test('catalogo: ordine alfabetico automatico senza selettore', async ({ page }) => {
@@ -1666,7 +1847,7 @@ test('catalogo: cancellazione definitiva aggiorna lista, ingredienti, pasti e st
 }) => {
   await page.clock.install({ time: new Date('2026-11-18T12:00:00Z') })
   const listId = '20000000-0000-4000-8000-000000000001'
-  const { catalogDeleteRequests } = await login(page, false, {
+  const { catalogDeleteRequests, collections } = await login(page, false, {
     ...productCatalog,
     generic_products: productCatalog.generic_products.map((p) => ({
       ...p,
@@ -1777,7 +1958,7 @@ test('catalogo: cancellazione definitiva aggiorna lista, ingredienti, pasti e st
   })
   await page.goto('/liste')
   await expect(
-    page.getByRole('button', { name: 'Registra acquisto Latte nella lista', exact: true }),
+    page.getByRole('button', { name: 'Rimuovi dalla lista Latte nella lista', exact: true }),
   ).toBeVisible()
   await page.goto('/catalogo')
   page.once('dialog', async (dialog) => {
@@ -1802,12 +1983,12 @@ test('catalogo: cancellazione definitiva aggiorna lista, ingredienti, pasti e st
   await page.goto('/liste')
   await expect(page.getByRole('form', { name: 'Aggiungi un articolo alla lista' })).toBeVisible()
   await expect(
-    page.getByRole('button', { name: 'Registra acquisto Latte nella lista', exact: true }),
+    page.getByRole('button', { name: 'Rimuovi dalla lista Latte nella lista', exact: true }),
   ).toHaveCount(0)
   await page.reload()
   await expect(page.getByRole('form', { name: 'Aggiungi un articolo alla lista' })).toBeVisible()
   await expect(
-    page.getByRole('button', { name: 'Registra acquisto Latte nella lista', exact: true }),
+    page.getByRole('button', { name: 'Rimuovi dalla lista Latte nella lista', exact: true }),
   ).toHaveCount(0)
   await page.goto('/ricette')
   await page.getByRole('button', { name: 'Colazione semplice', exact: true }).click()
@@ -1817,7 +1998,7 @@ test('catalogo: cancellazione definitiva aggiorna lista, ingredienti, pasti e st
   await expect(page.locator('.meal-chip')).toHaveCount(1)
   await expect(page.locator('.meal-chip')).toContainText('Colazione semplice')
   await page.goto('/prezzi')
-  await expect(page.getByRole('heading', { name: 'Ogni prezzo ha una data' })).toBeVisible()
+  expect(collections.price_observations).toHaveLength(0)
 })
 
 test('catalogo: offline blocca la cancellazione definitiva senza richieste', async ({ page }) => {
@@ -1854,6 +2035,9 @@ test('prodotto commerciale: quantità del formato, unità e riferimento corretti
   await page.goto('/liste/20000000-0000-4000-8000-000000000001')
   const product = page.getByRole('combobox', { name: 'Prodotto dal catalogo', exact: true })
   await chooseListProduct(page, /^Farina fine/)
+  await page
+    .getByRole('combobox', { name: 'Formato (facoltativo)', exact: true })
+    .selectOption('specific-flour')
   await expect(page.getByLabel('Unità', { exact: true })).toHaveValue('g')
   await expect(page.getByLabel('Quantità', { exact: true })).toHaveValue('500')
   await expect(page.getByLabel('Nome per articolo libero')).toHaveCount(0)
@@ -1876,8 +2060,10 @@ test('prodotto commerciale: quantità del formato, unità e riferimento corretti
   await expect(page.getByText('Farina fine', { exact: true })).toBeVisible()
   expect(itemRequests[0]).toMatchObject({
     p_name: 'Farina fine',
-    p_specific: 'specific-flour',
-    p_generic: null,
+    p_specific: null,
+    p_generic: 'generic-flour',
+    p_package_quantity: '500',
+    p_package_unit: 'g',
     p_unit: 'g',
     p_quantity: '750',
   })
@@ -1891,8 +2077,9 @@ test('generico: unità coerenti e conversione della quantità prima del salvatag
   await page.goto('/liste/20000000-0000-4000-8000-000000000001')
   await chooseListProduct(page, 'Latte intero')
   const unit = page.getByLabel('Unità', { exact: true })
-  await expect(unit).toHaveValue('L')
-  await expect(unit.getByRole('option', { name: 'g', exact: true })).toHaveCount(0)
+  await expect(unit).toHaveValue('conf')
+  await unit.selectOption('L')
+
   await unit.selectOption('ml')
   await expect(page.getByLabel('Quantità', { exact: true })).toHaveValue('1000')
   await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
@@ -1929,10 +2116,11 @@ test('touch selettore: perdita del focus prima del tocco non perde il prodotto e
   await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
   await expect.poll(() => itemRequests.length).toBe(1)
   expect(itemRequests[0]).toMatchObject({
-    p_specific: 'specific-flour',
+    p_generic: 'generic-flour',
+    p_specific: null,
     p_name: 'Farina fine',
-    p_quantity: '500',
-    p_unit: 'g',
+    p_quantity: '1',
+    p_unit: 'conf',
   })
   await expect(page.locator('.shopping-item')).toContainText('Farina fine')
 })
@@ -1981,11 +2169,11 @@ test('lista autocomplete: ordine alfabetico, accenti, tastiera, tocco e articolo
   await product.press('ArrowDown')
   await product.press('Enter')
   await expect(page.locator('input[name="product"]')).toHaveValue('coffee')
-  await expect(page.getByLabel('Unità', { exact: true })).toHaveValue('g')
+  await expect(page.getByLabel('Unità', { exact: true })).toHaveValue('conf')
   expect(itemRequests).toHaveLength(0)
   await chooseListProduct(page, 'Olio extra vergine di oliva', 'olio oliva')
   await expect(page.locator('input[name="product"]')).toHaveValue('oil')
-  await expect(page.getByLabel('Unità', { exact: true })).toHaveValue('ml')
+  await expect(page.getByLabel('Unità', { exact: true })).toHaveValue('conf')
   await page.getByRole('button', { name: 'Scrivi un articolo libero', exact: true }).click()
   await expect(product).toHaveValue('')
   await expect(page.getByLabel('Quantità', { exact: true })).toHaveValue('1')
@@ -2007,15 +2195,15 @@ test('lista autocomplete: ordine alfabetico, accenti, tastiera, tocco e articolo
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 
-test('ricerca per marca e codice, nessuna selezione nascosta quando il filtro cambia', async ({ page }) => {
+test('ricerca solo per nome, nessuna selezione nascosta quando il filtro cambia', async ({ page }) => {
   await login(page, true, productCatalog)
   await page.goto('/liste/20000000-0000-4000-8000-000000000001')
   const product = page.getByRole('combobox', { name: 'Prodotto dal catalogo', exact: true })
   await chooseListProduct(page, 'Latte intero')
   await product.fill('Molino')
   await expect(page.locator('input[name="product"]')).toHaveValue('')
-  await expect(page.getByRole('listbox').getByRole('option', { name: /Farina fine/ })).toHaveCount(1)
-  await chooseListProduct(page, /^Farina fine/, '8000500037560')
+  await expect(page.getByRole('listbox').getByRole('option', { name: /Farina fine/ })).toHaveCount(0)
+  await chooseListProduct(page, /^Farina fine/, 'Farina')
   await product.fill('senza corrispondenze')
   await expect(page.locator('input[name="product"]')).toHaveValue('')
   await expect(page.getByText('Nessun prodotto trovato.', { exact: false })).toBeVisible()
@@ -2024,7 +2212,7 @@ test('ricerca per marca e codice, nessuna selezione nascosta quando il filtro ca
 test('errore di salvataggio conserva prodotto, quantità e ricerca per riprovare', async ({ page }) => {
   await login(page, true, productCatalog)
   let fail = true
-  await page.route('**/rest/v1/rpc/add_list_item', async (route) => {
+  await page.route('**/rest/v1/rpc/add_shopping_product', async (route) => {
     if (fail) {
       fail = false
       await route.fulfill({
@@ -2035,7 +2223,7 @@ test('errore di salvataggio conserva prodotto, quantità e ricerca per riprovare
   })
   await page.goto('/liste/20000000-0000-4000-8000-000000000001')
   const product = page.getByRole('combobox', { name: 'Prodotto dal catalogo', exact: true })
-  await chooseListProduct(page, /^Farina fine/, 'Molino')
+  await chooseListProduct(page, /^Farina fine/, 'Farina')
   await page.getByLabel('Quantità', { exact: true }).fill('750')
   await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
   await expect(page.getByRole('status').filter({ hasText: 'Operazione non riuscita' })).toBeVisible()
@@ -2057,7 +2245,7 @@ test('schermata iniziale lista della spesa e ordine dei cinque collegamenti prin
   await page.goto('/')
   await expect(page).toHaveURL(/\/liste$/)
   await expect(page.getByRole('heading', { name: 'La lista della spesa.' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Una lista, tante possibilità.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'La lista è vuota.' })).toBeVisible()
   const labels = ['Catalogo', 'Ricette', 'Lista della spesa', 'Pasti', 'Statistiche']
   await expect(page.locator('.sidebar nav[aria-label="Navigazione principale"] a')).toHaveText(labels)
   await expect(page.locator('.bottom-nav a')).toHaveText(labels)
@@ -2127,14 +2315,14 @@ test('lista unica: vecchi collegamenti aprono la stessa lista e mantengono gli a
   await login(page, true)
   await page.goto('/')
   await expect(page).toHaveURL(/\/liste$/)
-  await expect(page.getByRole('button', { name: 'Registra acquisto Latte' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Rimuovi dalla lista Latte' })).toBeVisible()
   await page.goto('/liste/vecchia-lista')
-  await expect(page.getByRole('button', { name: 'Registra acquisto Latte' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Rimuovi dalla lista Latte' })).toBeVisible()
   await expect(page.locator('nav a[aria-current="page"]').filter({ visible: true })).toHaveText([
     'Lista della spesa',
   ])
   await expect(page.getByRole('button', { name: 'Segna lista completata' })).toHaveCount(0)
-  await page.getByRole('link', { name: 'Confronta prezzi →', exact: true }).click()
+  await page.goto('/prezzi')
   await expect(page.getByRole('combobox', { name: 'Lista', exact: true })).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Confronta la tua spesa' })).toBeVisible()
 })
@@ -2157,19 +2345,14 @@ test('un secondo salvataggio rinnova la durata della conferma', async ({ page })
   await expect(page.locator('.notice')).toHaveCount(0)
 })
 
-test('aggiunta articolo e acquisto parziale senza prezzo', async ({ page }) => {
-  await login(page, true)
-  await page.goto('/liste/20000000-0000-4000-8000-000000000001')
-  await expect(page.getByRole('heading', { name: 'La lista della spesa.' })).toBeVisible()
+test('aggiunta articolo libero senza registrare acquisti', async ({ page }) => {
+  const { itemRequests, purchaseRequests } = await login(page, true)
+  await page.goto('/liste')
   await page.getByLabel('Nome per articolo libero').fill('Pane')
   await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
   await expect(page.getByText('Pane', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'Registra acquisto Latte' }).click()
-  await page.getByLabel('Quantità effettiva (L)', { exact: true }).fill('0,5')
-  await page.getByRole('button', { name: 'Conferma acquisto' }).click()
-  await expect(page.getByText('Prezzo non registrato', { exact: false })).toBeVisible()
-  await expect(page.getByText(/1.5 L da acquistare/)).toBeVisible()
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  expect(itemRequests[0]).toMatchObject({ p_name: 'Pane', p_unit: 'pz' })
+  expect(purchaseRequests).toHaveLength(0)
 })
 test('scanner manuale, checksum e nessun salvataggio implicito', async ({ page }) => {
   const { catalogSaveRequests } = await login(page)
@@ -2212,10 +2395,11 @@ test('categoria già usata: eliminazione conserva i prodotti sotto Altri prodott
     categories: [{ id: 'category', name: 'Dispensa', sort_order: 0 }],
     generic_products: [{ ...productCatalog.generic_products[0], category_id: 'category' }],
   })
-  await page.goto('/catalogo')
+  await page.goto('/negozi')
   page.on('dialog', (dialog) => dialog.accept())
   await page.getByRole('button', { name: 'Elimina categoria Dispensa', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Elimina categoria Dispensa', exact: true })).toHaveCount(0)
+  await page.goto('/catalogo')
   await expect(page.getByRole('row').filter({ hasText: 'Latte intero' })).toContainText('Altri prodotti')
 })
 
@@ -2262,54 +2446,51 @@ test('punti vendita: eliminazione definitiva, archiviazione e ripristino', async
   await expect(page.getByRole('heading', { name: 'Negozio Test', exact: true })).toHaveCount(0)
 })
 
-test('rimuovi dalla lista: accesso diretto, storico e catalogo conservati, ripristino', async ({ page }) => {
+test('rimuovi dalla lista: storico precedente e catalogo conservati, ripristino', async ({ page }) => {
   const deletions: string[] = []
-  await login(page, true, productCatalog)
-  page.on('request', (request) => {
-    if (request.method() === 'DELETE') deletions.push(request.url())
+  await login(page, true, {
+    ...productCatalog,
+    purchases: [
+      {
+        id: 'old-purchase',
+        list_item_id: 'item',
+        quantity: '0.5',
+        unit: 'L',
+        total_paid: '2.50',
+        purchased_at: '2026-11-20T12:00:00Z',
+        voided_at: null,
+      },
+    ],
+  })
+  page.on('request', (r) => {
+    if (r.method() === 'DELETE') deletions.push(r.url())
   })
   await page.goto('/liste')
-  page.on('dialog', (dialog) => dialog.accept())
-  await page.getByRole('button', { name: 'Registra acquisto Latte' }).click()
-  await page.getByLabel('Quantità effettiva (L)', { exact: true }).fill('0,5')
-  await page.getByLabel('Totale pagato (€), facoltativo', { exact: true }).fill('2,50')
-  await page.getByRole('button', { name: 'Conferma acquisto' }).click()
-  await expect(page.locator('.shopping-item')).toContainText('0.5/2 acquistati')
-  await expect(page.getByLabel('Quantità manuale', { exact: true })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Rimuovi dal catalogo', exact: true })).toHaveCount(0)
-  await page.getByRole('button', { name: 'Rimuovi dalla lista', exact: true }).click()
+  await expect(page.locator('.shopping-item')).toContainText('1.5 L da acquistare')
+  await page.getByRole('button', { name: 'Rimuovi dalla lista Latte', exact: true }).click()
   await expect(page.locator('.shopping-item')).toHaveCount(0)
   await page.reload()
   await expect(page.locator('.shopping-item')).toHaveCount(0)
   await page.getByLabel('Mostra articoli rimossi', { exact: true }).check()
   await page.getByRole('button', { name: 'Rimetti nella lista', exact: true }).click()
-  await expect(page.locator('.shopping-item')).toContainText('Latte')
-  await expect(page.locator('.shopping-item')).toContainText('0.5/2 acquistati')
-  await page.getByRole('button', { name: 'Modifica', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Elimina articolo', exact: true })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Rimuovi dalla lista', exact: true })).toBeVisible()
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await expect(page.locator('.shopping-item')).toContainText('1.5 L da acquistare')
   await page.goto('/catalogo')
   await expect(page.getByRole('row', { name: /^Latte intero/ })).toBeVisible()
-  await expect(
-    page
-      .getByRole('row', { name: /^Latte intero/ })
-      .getByRole('button', { name: 'Rimuovi dal catalogo', exact: true }),
-  ).toBeVisible()
   expect(deletions).toHaveLength(0)
 })
 
-test('rimuovi dalla lista: annullare la conferma mantiene articolo senza scritture', async ({ page }) => {
+test('rimuovi dalla lista: offline e errore conservano articolo', async ({ page, context }) => {
   await login(page, true)
-  let writes = 0
-  page.on('request', (request) => {
-    if (request.url().includes('/rpc/set_record_archived') && request.method() === 'POST') writes++
-  })
   await page.goto('/liste')
-  page.once('dialog', (dialog) => dialog.dismiss())
-  await page.getByRole('button', { name: 'Rimuovi dalla lista', exact: true }).click()
+  const remove = page.getByRole('button', { name: 'Rimuovi dalla lista Latte', exact: true })
+  await page.route('**/rest/v1/rpc/set_record_archived', (route) =>
+    route.fulfill({ status: 503, json: { message: 'Fixture unavailable' } }),
+  )
+  await remove.click()
+  await expect(page.locator('.notice')).toContainText('Operazione non riuscita')
   await expect(page.locator('.shopping-item')).toContainText('Latte')
-  expect(writes).toBe(0)
+  await context.setOffline(true)
+  await expect(remove).toBeDisabled()
 })
 
 test('previsioni salvate: archiviazione ripristinabile mantiene importi', async ({ page }) => {
@@ -2449,7 +2630,7 @@ for (const archived of [false, true]) {
     await expect(page.locator('.meal-chip')).toContainText('Ricetta conservata')
     await page.goto('/liste')
     await expect(page.locator('.shopping-item')).toContainText('Latte')
-    await expect(page.locator('.shopping-item')).toContainText('0.5 L')
+    await expect(page.locator('.shopping-item')).toContainText('1.5 L da acquistare')
   })
 }
 

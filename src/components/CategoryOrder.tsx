@@ -2,7 +2,7 @@ import { useRef, useState, type PointerEvent } from 'react'
 import { ArrowDown, ArrowUp, GripVertical } from 'lucide-react'
 import { useApp } from '../data/context'
 import { rpc, update } from '../data/client'
-import { orderedCategories } from '../data/catalog'
+import { storeCategories } from '../data/catalog'
 import { ConfirmButton } from './ui'
 
 interface Drag {
@@ -22,9 +22,9 @@ const move = (ids: string[], from: string, to: string) => {
   return result
 }
 
-export function CategoryOrder() {
+export function CategoryOrder({ storeId }: { storeId?: string }) {
   const { data, household, act, busy, online, refresh } = useApp()
-  const categories = orderedCategories(data.categories)
+  const categories = storeCategories(data, storeId ?? '')
   const drag = useRef<Drag | null>(null)
   const saving = useRef(false)
   const [preview, setPreview] = useState<string[] | null>(null)
@@ -44,8 +44,8 @@ export function CategoryOrder() {
     setPreview(ids)
     const ok = await act(
       () =>
-        rpc('reorder_categories', {
-          p_household: household!.id,
+        rpc(storeId ? 'reorder_store_categories' : 'reorder_categories', {
+          ...(storeId ? { p_store: storeId } : { p_household: household!.id }),
           p_ids: ids,
           p_expected: expected,
         }),

@@ -1,5 +1,13 @@
 # Avanzamento
 
+## Catalogo prezzi, percorsi dei negozi e lista rapida — 23 novembre 2026
+
+Scheda Prezzi per ogni prodotto del Catalogo: riepilogo dell’ultima rilevazione di ciascun supermercato attivo, trattini per dati mancanti, calcolo automatico €/kg o €/l anche durante l’inserimento, date e tipo del prezzo. Nuova rilevazione e correzione distinte; la correzione è atomica e conserva l’originale annullato. Input con virgola mantenuto. Prezzi e storico spostati dal confronto al Catalogo; il confronto e gli sconti personali restano disponibili.
+
+Categorie comuni gestite nei Supermercati; ordine indipendente per negozio, trascinamento/tastiera conservati. Replica iniziale e automatica per nuovi negozi/categorie; scelta del negozio nella lista ricordata per famiglia sul dispositivo. Lista con aggiunta/rimozione reversibile immediata, senza registrazione acquisti o prezzi. Scelta per nome univoco, poi marca e formato indipendenti e facoltativi; barcode conserva la scheda esatta. Senza formato si parte da 1 confezione; confronto prezzi rispetta entrambe le preferenze e i formati equivalenti.
+
+Migrazioni 20261123113031 e 20261123113134 applicate: quindici complessive, 21 tabelle con RLS e sette tabelle pubblicate. Probe SQL reale PASS con sole fixture annullate, nessun prodotto/prezzo familiare alterato; aggiunte soltanto copie dell’ordine categorie dei negozi. Advisor: nessuna nuova segnalazione di sicurezza; indice FK e policy duplicata corretti, normale INFO di indice appena creato ancora inutilizzato. Suite locale 96 casi in 13 file; suite browser 164 casi, inclusi 12 WebKit iPad. CI e pubblicazione verificate sul commit finale. Il precedente difetto touch era stato confermato risolto dall’utente sul suo iPad; per questa versione nuove prove automatiche, nessun nuovo collaudo hardware.
+
 ## Selezione touch su iPad — 23 novembre 2026
 
 Corretto il menu di autocompletamento condiviso da lista, ricette e pasti. La chiusura sul blur poteva rimuovere i suggerimenti prima del click, perdendo la selezione. Ora il menu si chiude con selezione, interazione/focus esterni, Tab o Escape; il solo blur non lo smonta. Focus ripristinato prima della chiusura per evitare la riapertura del menu; touch e penna non bloccano i gesti di scorrimento.

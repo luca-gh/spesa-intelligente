@@ -1,5 +1,15 @@
 # Rapporto test
 
+## Catalogo prezzi, preferenze indipendenti e ordine per negozio — 23 novembre 2026
+
+96 casi locali in 13 file. Nuovo probe SQL eseguito sia con tutte le migrazioni in PGlite sia sul database Supabase reale: replica categorie per negozi già presenti e creati dopo, riordino indipendente, rifiuto ordini incompleti/obsoleti, preferenze marca/formato indipendenti, rollback di inserimenti invalidi, correzione prezzo atomica con originale annullato, rifiuto correzioni negative/obsolete, RLS e FK tra famiglie, divieti anon, cancellazioni categorie/negozi senza orfani. Fixture e utenti sintetici interamente annullati. Nessuna modifica a prezzi, prodotti o acquisti familiari.
+
+Test di dominio per €/kg e €/l in g/kg/ml/L, zero, formato assente e pz; scelta dell’ultima rilevazione per negozio anche con più registrazioni nella stessa giornata; nomi raggruppati; confronto con sola marca, solo formato, entrambe le preferenze e confezioni senza formato. Bootstrap aggiornato a 21 tabelle con RLS e sette pubblicate. RPC nuove pubbliche invoker con controlli membership nelle implementazioni private, nessun nuovo definer esposto.
+
+Suite browser: 164 casi (76 desktop Chromium, 76 mobile Chromium, 12 WebKit con profilo iPad). Aggiornate le prove delle funzioni sostituite: prezzi nel Catalogo, trattini, virgola/errore sul punto, calcolo live e accessibilità; correzione con errore recuperabile; nome univoco con marca/formato opzionali; ordini dei negozi e persistenza della scelta; rimozione immediata/ripristino senza acquisti inventati, storico precedente conservato, offline/errori. Conservate prove barcode, ricette, pasti, cancellazione catalogo, PWA e autocompletamento touch. CI, segreti, build, audit e disponibilità HTTPS verificati separatamente sul commit finale.
+
+Migrazioni remote allineate ai nomi/versioni locali 20261123113031 e 20261123113134. Advisor di sicurezza: medesime segnalazioni preesistenti (23 definer pubblici precedenti e protezione password compromesse disabilitata); nessuna nuova. Advisor prestazioni: risolti indice FK mancante e doppia policy SELECT della nuova tabella; resta la normale INFO di indice nuovo non ancora utilizzato, oltre ai rilievi preesistenti. Nessun nuovo test su iPad fisico o collaudo Auth/Realtime a due account.
+
 ## Autocompletamento touch e profilo iPad WebKit — 23 novembre 2026
 
 Regressione riprodotta prima della correzione: dopo blur simulato della tastiera, l’opzione scompariva e non poteva ricevere il click. Rimosso lo smontaggio sul blur, con chiusura basata su interazioni/focus esterni e comandi espliciti. Il focus dopo la selezione precede la chiusura, così non riapre il popup.

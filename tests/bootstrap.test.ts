@@ -22,12 +22,12 @@ beforeAll(async () => {
 afterAll(async () => {
   await db.close()
 })
-it('bootstrap completo: migrazioni correnti, venti tabelle con RLS e cinque tabelle pubblicate', async () => {
+it('bootstrap completo: migrazioni correnti, ventuno tabelle con RLS e sette tabelle pubblicate', async () => {
   await db.exec(sql)
   const tables = await db.query<{ name: string; rls: boolean }>(
     `select c.relname as name,c.relrowsecurity as rls from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r'`,
   )
-  expect(tables.rows).toHaveLength(20)
+  expect(tables.rows).toHaveLength(21)
   expect(tables.rows.every((t) => t.rls)).toBe(true)
   const publication = await db.query<{ tablename: string }>(
     "select tablename from pg_publication_tables where pubname='supabase_realtime' order by tablename",
@@ -35,9 +35,11 @@ it('bootstrap completo: migrazioni correnti, venti tabelle con RLS e cinque tabe
   expect(publication.rows.map((t) => t.tablename)).toEqual([
     'categories',
     'list_item_contributions',
+    'price_observations',
     'purchases',
     'shopping_list_items',
     'shopping_lists',
+    'store_category_order',
   ])
 })
 it('bootstrap respinge una seconda esecuzione senza alterare lo schema esistente', async () => {

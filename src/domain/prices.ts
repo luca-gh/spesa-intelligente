@@ -1,7 +1,8 @@
 import Decimal from 'decimal.js'
-import { dateInZone, money, packages, type Unit } from './math'
+import { convert, dateInZone, money, packages, type Unit } from './math'
 
 export interface Product {
+  brand?: string
   id: string
   generic_product_id: string | null
   name: string
@@ -9,6 +10,7 @@ export interface Product {
   package_unit: Unit | null
 }
 export interface Observation {
+  created_at?: string
   id: string
   specific_product_id: string
   store_id: string
@@ -36,6 +38,9 @@ export interface DiscountRule {
   excluded_product_ids: string[]
 }
 export interface RequestItem {
+  preferred_brand?: string | null
+  preferred_package_quantity?: string | null
+  preferred_package_unit?: Unit | null
   id: string
   generic_product_id: string | null
   specific_product_id: string | null
@@ -57,7 +62,12 @@ export function resolvePrice(
         p.store_id === storeId &&
         dateInZone(new Date(p.observed_at), zone) <= date,
     )
-    .sort((a, b) => b.observed_at.localeCompare(a.observed_at) || a.id.localeCompare(b.id))
+    .sort(
+      (a, b) =>
+        b.observed_at.localeCompare(a.observed_at) ||
+        (b.created_at ?? '').localeCompare(a.created_at ?? '') ||
+        b.id.localeCompare(a.id),
+    )
   const regular = candidates.find((p) => p.kind === 'regular')
   const promotion = candidates.find(
     (p) =>
@@ -132,12 +142,29 @@ export function estimate(
       )
       const candidates: EstimateLine[] = []
       for (const product of options) {
-        if (!product.package_quantity || !product.package_unit) continue
+        if (item.preferred_brand && product.brand !== item.preferred_brand) continue
+        if (item.preferred_package_quantity && item.preferred_package_unit) {
+          if (!product.package_quantity || !product.package_unit) continue
+          try {
+            if (
+              !convert(product.package_quantity, product.package_unit, item.preferred_package_unit).eq(
+                item.preferred_package_quantity,
+              )
+            )
+              continue
+          } catch {
+            continue
+          }
+        }
         const price = resolvePrice(observations, product.id, storeId, date, zone)
         if (!price.selected) continue
         let count: number
         try {
-          count = packages(item.quantity, item.unit, product.package_quantity, product.package_unit)
+          if (item.unit === 'conf') count = new Decimal(item.quantity).ceil().toNumber()
+          else {
+            if (!product.package_quantity || !product.package_unit) continue
+            count = packages(item.quantity, item.unit, product.package_quantity, product.package_unit)
+          }
         } catch {
           continue
         }

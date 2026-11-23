@@ -14,6 +14,7 @@ const expectedTables = [
   'household_members',
   'household_invites',
   'categories',
+  'store_category_order',
   'generic_products',
   'specific_products',
   'stores',

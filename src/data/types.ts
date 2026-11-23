@@ -11,6 +11,11 @@ export interface Category {
   name: string
   sort_order: number
 }
+export interface StoreCategoryOrder {
+  store_id: string
+  category_id: string
+  sort_order: number
+}
 export interface Generic {
   is_catalog_group?: boolean
   archived_at?: string | null
@@ -41,6 +46,9 @@ export interface List {
   created_at: string
 }
 export interface Item {
+  preferred_brand?: string | null
+  preferred_package_quantity?: string | null
+  preferred_package_unit?: Unit | null
   archived_at?: string | null
   id: string
   list_id: string
@@ -130,6 +138,7 @@ export interface Invite {
   revoked_at: string | null
 }
 export interface Data {
+  store_category_order: StoreCategoryOrder[]
   categories: Category[]
   generic_products: Generic[]
   specific_products: Specific[]
@@ -149,6 +158,7 @@ export interface Data {
   household_invites: Invite[]
 }
 export const emptyData: Data = {
+  store_category_order: [],
   categories: [],
   generic_products: [],
   specific_products: [],
