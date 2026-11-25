@@ -1,16 +1,15 @@
-import { ArchiveButton, ArchiveFilter } from '../components/ArchiveButton'
 import { useEffect, useRef, useState } from 'react'
 import { BarcodeImport } from '../components/BarcodeImport'
 import { CategoryOrder } from '../components/CategoryOrder'
-import { ProductPrices } from '../components/ProductPrices'
 import { CurrentPriceComparison } from '../components/CurrentPriceComparison'
 import { barcodeSourceName, type BarcodeProduct } from '../domain/barcodeLookup'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Store as StoreIcon } from 'lucide-react'
 import { useApp } from '../data/context'
 import { insert, remove, removeCatalogProduct, rpc, update } from '../data/client'
-import { convert, parsePrice, quantity, validBarcode, type Unit } from '../domain/math'
+import { convert, parsePrice, priceInputValue, quantity, validBarcode, type Unit } from '../domain/math'
 import {
+  pricePreview,
   catalogPriceLabel,
   unitPriceLabel,
   validatePriceBasis,
@@ -43,12 +42,12 @@ export function Catalog() {
   const { data, act, busy, online } = useApp()
   const stores = data.stores.filter((s) => !s.archived_at).sort((a, b) => a.name.localeCompare(b.name, 'it'))
   const [search, setSearch] = useState('')
-  const [archived, setArchived] = useState(false)
   const [productsExpanded, setProductsExpanded] = useState(true)
   const [selected, setSelected] = useState('')
   const [initialStore, setInitialStore] = useState('')
   const [initialAmount, setInitialAmount] = useState('')
   const [initialDiscount, setInitialDiscount] = useState('')
+  const [formatDraft, setFormatDraft] = useState({ size: '', unit: '' })
   const [initialBasis, setInitialBasis] = useState<PriceBasis>('package')
   const [prefill, setPrefill] = useState<
     (BarcodeProduct & { category: string; variant?: string; message?: string }) | null
@@ -58,28 +57,29 @@ export function Catalog() {
   const fromList = catalogParams.get('origine') === 'lista'
   const [revision, setRevision] = useState(0)
   const editor = useRef<HTMLDivElement>(null)
-  const pricePanel = useRef<HTMLDivElement>(null)
-  const [focusPrices, setFocusPrices] = useState(false)
   useEffect(() => {
     if (!selected) return
-    const name = focusPrices
-      ? pricePanel.current
-      : editor.current?.querySelector<HTMLInputElement>('input[name="name"]')
+    const name = editor.current?.querySelector<HTMLInputElement>('input[name="name"]')
     name?.focus({ preventScroll: true })
     name?.scrollIntoView({
       block: 'center',
       behavior: 'instant',
     })
-  }, [selected, revision, focusPrices])
+  }, [selected, revision])
   const readDraft = () => new FormData(editor.current!.querySelector('form')!)
-  const selectProduct = (key: string, prices = false) => {
+  const selectProduct = (key: string) => {
     setSelected(key)
-    setFocusPrices(prices)
     setPrefill(null)
     setInitialStore('')
     setInitialAmount('')
     setInitialDiscount('')
     setInitialBasis('package')
+    const selectedProduct = allProducts.find((entry) => entry.kind + ':' + entry.product.id === key)
+    const f =
+      selectedProduct?.kind === 'specific'
+        ? catalogFormatFields(selectedProduct.product.package_quantity, selectedProduct.product.package_unit)
+        : { size: '', unit: '' }
+    setFormatDraft(f)
     setRevision((value) => value + 1)
   }
   const categories = [...data.categories, { id: '', name: 'Altri prodotti' }].sort((a, b) =>
@@ -97,7 +97,7 @@ export function Catalog() {
   const query = search.trim().toLocaleLowerCase('it')
   const products = allProducts.filter(
     (entry) =>
-      !!entry.product.archived_at === archived &&
+      !entry.product.archived_at &&
       [
         entry.product.name,
         entry.kind === 'specific' ? entry.product.brand : '',
@@ -149,6 +149,7 @@ export function Catalog() {
             onOpen={(id) => selectProduct(`specific:${id}`)}
             onApply={(found, category) => {
               setPrefill({ ...found, category })
+              setFormatDraft(catalogFormatFields(found.size, found.unit))
               setRevision((value) => value + 1)
             }}
             onCodeOnly={(barcode, message) => {
@@ -182,6 +183,7 @@ export function Catalog() {
             </p>
           )}
           <Form
+            onChange={(f) => setFormatDraft({ size: text(f, 'size'), unit: text(f, 'unit') })}
             key={`form:${selected}:${revision}`}
             onSave={async (f) => {
               const barcode = text(f, 'barcode')
@@ -204,21 +206,27 @@ export function Catalog() {
                 p_quantity: size ? quantity(size).toString() : null,
                 p_unit: unit || null,
               }
-              const withPrice =
-                !editing && (!!initialStore || !!initialAmount.trim() || !!initialDiscount.trim())
-              if (withPrice && (!initialStore || (!initialAmount.trim() && !initialDiscount.trim())))
+              const withPrice = !!initialStore || !!initialAmount.trim() || !!initialDiscount.trim()
+              if (
+                withPrice &&
+                (!initialStore || (!editing && !initialAmount.trim() && !initialDiscount.trim()))
+              )
                 throw new Error('Prezzo non valido: completa supermercato e importo iniziale.')
               if (withPrice) validatePriceBasis(unit || null, initialBasis)
               const saved = withPrice
                 ? await rpc(
-                    initialDiscount.trim()
-                      ? 'create_catalog_product_with_prices'
-                      : 'create_catalog_product_with_price',
+                    editing
+                      ? 'save_catalog_product_with_prices'
+                      : initialDiscount.trim()
+                        ? 'create_catalog_product_with_prices'
+                        : 'create_catalog_product_with_price',
                     {
                       p_product: values,
                       p_store: initialStore,
                       p_amount: initialAmount.trim() ? parsePrice(initialAmount) : null,
-                      ...(initialDiscount.trim() ? { p_discounted: parsePrice(initialDiscount) } : {}),
+                      ...(editing || initialDiscount.trim()
+                        ? { p_discounted: initialDiscount.trim() ? parsePrice(initialDiscount) : null }
+                        : {}),
                       p_basis: initialBasis,
                     },
                   )
@@ -290,55 +298,92 @@ export function Catalog() {
                 </Select>
               </div>
             </fieldset>
-            {!editing && (
-              <fieldset>
-                <legend>Prezzo iniziale</legend>
-                {stores.length ? (
-                  <>
-                    <p className="muted">
-                      Puoi salvare subito il prezzo di un supermercato, oppure lasciare questi campi vuoti.
-                      Per i prodotti sfusi scegli €/kg o €/l.
-                    </p>
-                    <label className="field">
-                      Supermercato del prezzo iniziale
-                      <select
-                        aria-label="Supermercato del prezzo iniziale"
-                        name="initial_store"
-                        value={initialStore}
-                        onChange={(e) => setInitialStore(e.target.value)}
-                        disabled={busy || !online}
-                      >
-                        <option value="">Non inserire un prezzo</option>
-                        {stores.map((store) => (
-                          <option key={store.id} value={store.id}>
-                            {store.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <PriceBasisSelect value={initialBasis} onChange={setInitialBasis} name="initial_basis" />
-                    <PriceField
-                      label="Prezzo iniziale (€)"
-                      name="initial_amount"
-                      rawValue={initialAmount}
-                      onChange={setInitialAmount}
-                      required={false}
-                    />
-                    <PriceField
-                      label="Prezzo scontato iniziale (€)"
-                      name="initial_discount"
-                      rawValue={initialDiscount}
-                      onChange={setInitialDiscount}
-                      required={false}
-                    />
-                  </>
-                ) : (
+            <fieldset>
+              <legend>{editing ? 'Prezzi del prodotto' : 'Prezzo iniziale'}</legend>
+              {stores.length ? (
+                <>
                   <p className="muted">
-                    Aggiungi un <Link to="/negozi">supermercato</Link> per registrare un prezzo iniziale.
+                    Scegli il supermercato e inserisci prezzo e prezzo scontato. Per i prodotti sfusi scegli
+                    €/kg o €/l.{' '}
+                    {editing
+                      ? 'I prezzi degli altri supermercati restano invariati. Lascia entrambi gli importi vuoti per rimuovere i prezzi del supermercato scelto.'
+                      : 'Puoi lasciare questi campi vuoti.'}
                   </p>
-                )}
-              </fieldset>
-            )}
+                  <label className="field">
+                    {editing ? 'Supermercato del prezzo' : 'Supermercato del prezzo iniziale'}
+                    <select
+                      aria-label={editing ? 'Supermercato del prezzo' : 'Supermercato del prezzo iniziale'}
+                      name="initial_store"
+                      value={initialStore}
+                      onChange={(e) => {
+                        const id = e.target.value
+                        setInitialStore(id)
+                        if (!editing) return
+                        const price =
+                          details &&
+                          data.product_prices.find(
+                            (p) => p.specific_product_id === details.id && p.store_id === id,
+                          )
+                        setInitialAmount(priceInputValue(price?.price_amount))
+                        setInitialDiscount(priceInputValue(price?.discounted_price_amount))
+                        setInitialBasis(price?.price_basis ?? 'package')
+                      }}
+                      disabled={busy || !online}
+                    >
+                      <option value="">
+                        {editing ? 'Non modificare i prezzi' : 'Non inserire un prezzo'}
+                      </option>
+                      {stores.map((store) => (
+                        <option key={store.id} value={store.id}>
+                          {store.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <PriceBasisSelect value={initialBasis} onChange={setInitialBasis} name="initial_basis" />
+                  <PriceField
+                    label={editing ? 'Prezzo (€)' : 'Prezzo iniziale (€)'}
+                    name="initial_amount"
+                    rawValue={initialAmount}
+                    onChange={setInitialAmount}
+                    required={false}
+                  />
+                  <PriceField
+                    label={editing ? 'Prezzo scontato (€)' : 'Prezzo scontato iniziale (€)'}
+                    name="initial_discount"
+                    rawValue={initialDiscount}
+                    onChange={setInitialDiscount}
+                    required={false}
+                  />
+                  <p role="status">
+                    Prezzo al kg/l/pz:{' '}
+                    {pricePreview(
+                      initialAmount,
+                      {
+                        package_quantity: formatDraft.size || null,
+                        package_unit: (formatDraft.unit || null) as Unit | null,
+                      },
+                      initialBasis,
+                    )}
+                  </p>
+                  <p role="status">
+                    Prezzo scontato al kg/l/pz:{' '}
+                    {pricePreview(
+                      initialDiscount,
+                      {
+                        package_quantity: formatDraft.size || null,
+                        package_unit: (formatDraft.unit || null) as Unit | null,
+                      },
+                      initialBasis,
+                    )}
+                  </p>
+                </>
+              ) : (
+                <p className="muted">
+                  Aggiungi un <Link to="/negozi">supermercato</Link> per registrare un prezzo iniziale.
+                </p>
+              )}
+            </fieldset>
             <div className="inline">
               <Submit>Salva prodotto</Submit>
               {editing && (
@@ -350,11 +395,7 @@ export function Catalog() {
           </Form>
         </div>
       </Panel>
-      {details && (
-        <div ref={pricePanel} tabIndex={-1} className="product-prices">
-          <ProductPrices key={details.id} product={details} />
-        </div>
-      )}
+
       <label className="field search-field">
         Cerca prodotto, marca o barcode
         <input
@@ -380,9 +421,8 @@ export function Catalog() {
         </summary>
         <p className="muted">
           I prodotti sono sempre in ordine alfabetico per nome. Rimuovi dal catalogo elimina definitivamente
-          anche i dati collegati e i prezzi. Archivia conserva tutti i dati.
+          anche i dati collegati e i prezzi.
         </p>
-        <ArchiveFilter value={archived} onChange={setArchived} />
         <div className="table-wrap" tabIndex={0} role="region" aria-label="Prodotti del catalogo">
           <table>
             <thead>
@@ -471,7 +511,7 @@ export function Catalog() {
                     </td>
                     <td>{specific?.barcode || '—'}</td>
                     <td>
-                      {!p.archived_at && (
+                      {
                         <button
                           className="text-button"
                           disabled={busy || !online || !data.shopping_lists[0]}
@@ -498,22 +538,10 @@ export function Catalog() {
                         >
                           Aggiungi alla lista
                         </button>
-                      )}
+                      }
                       <button className="text-button" onClick={() => selectProduct(key)}>
                         Modifica
                       </button>
-                      {specific && (
-                        <button className="text-button" onClick={() => selectProduct(key, true)}>
-                          Prezzi
-                        </button>
-                      )}
-                      <ArchiveButton
-                        table={table}
-                        record={p}
-                        onDone={() => {
-                          if (selected === key) selectProduct('')
-                        }}
-                      />
                       <ConfirmButton
                         message={`Eliminare definitivamente «${p.name}»${specific?.brand ? ` (${specific.brand})` : ''}? Verranno cancellati anche gli articoli collegati nella lista, gli acquisti, i prezzi e i collegamenti. Se non restano altre marche o varianti dello stesso alimento, verrà tolto anche dagli ingredienti delle ricette, dai pasti e dai modelli. Le ricette e gli altri prodotti resteranno. Non è possibile annullare questa operazione.`}
                         success="Prodotto e dati collegati eliminati definitivamente."
@@ -532,7 +560,7 @@ export function Catalog() {
           </table>
         </div>
         {!products.length && (
-          <Empty title={archived ? 'Nessun prodotto archiviato' : 'Nessun prodotto in questa vista'}>
+          <Empty title="Nessun prodotto in questa vista">
             Aggiungi un prodotto oppure modifica la ricerca.
           </Empty>
         )}
@@ -556,7 +584,6 @@ export function Stores() {
     input?.focus({ preventScroll: true })
     input?.scrollIntoView({ block: 'center', behavior: 'instant' })
   }, [editing, editRevision])
-  const [archived, setArchived] = useState(false)
   const [categoryStoreId, setCategoryStoreId] = useState('')
   const categoryStore =
     data.stores.find((s) => s.id === categoryStoreId && !s.archived_at) ??
@@ -611,7 +638,7 @@ export function Stores() {
       </Panel>
       <div className="cards">
         {data.stores
-          .filter((s) => !!s.archived_at === archived)
+          .filter((s) => !s.archived_at)
           .map((s) => (
             <article className="panel" key={s.id}>
               <StoreIcon className="green" />
@@ -621,7 +648,6 @@ export function Stores() {
                 <br />
                 {s.address}, {s.city}
               </p>
-              {s.archived_at && <span className="pill">Archiviato</span>}
               <PamDiscountToggle store={s} />
               <div className="inline">
                 <button
@@ -633,15 +659,8 @@ export function Stores() {
                 >
                   Modifica
                 </button>
-                <ArchiveButton
-                  table="stores"
-                  record={s}
-                  onDone={() => {
-                    if (editing === s.id) setEditing('')
-                  }}
-                />
                 <ConfirmButton
-                  message={`Eliminare il punto vendita «${s.name}»? Verranno rimossi anche i suoi prezzi attuali. Puoi usare Archivia per nasconderlo senza eliminarlo.`}
+                  message={`Eliminare il punto vendita «${s.name}»? Verranno rimossi anche i suoi prezzi attuali.`}
                   success="Punto vendita eliminato."
                   onConfirm={async () => {
                     await remove('stores', s.id)
@@ -691,7 +710,6 @@ export function Stores() {
         </label>
         <CategoryOrder key={categoryStore?.id ?? 'default'} storeId={categoryStore?.id} />
       </Panel>
-      <ArchiveFilter value={archived} onChange={setArchived} />
       {!data.stores.length && (
         <Empty title="Dove fate la spesa?">Aggiungi il primo punto vendita per registrare i prezzi.</Empty>
       )}

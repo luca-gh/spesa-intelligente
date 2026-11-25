@@ -1,4 +1,4 @@
-import { convert, euro, quantity, unitLabel, type Unit } from './math'
+import { convert, euro, quantity, unitLabel, parsePrice, type Unit } from './math'
 import type { Observation, Product } from './prices'
 
 export function latestProductPrice(observations: Observation[], productId: string, storeId: string) {
@@ -49,4 +49,15 @@ export function validatePriceBasis(unit: string | null | undefined, basis: Price
   if (!unit || basis === 'package') return
   if (basis === 'kg' ? !['g', 'kg'].includes(unit) : !['ml', 'L'].includes(unit))
     throw new Error('Prezzo non valido: scegli un tipo di prezzo compatibile con il formato del prodotto.')
+}
+export function pricePreview(
+  amount: string,
+  product: Pick<Product, 'package_quantity' | 'package_unit'>,
+  basis: PriceBasis,
+) {
+  try {
+    return amount.trim() ? unitPriceLabel(parsePrice(amount), product, basis) : '-'
+  } catch {
+    return '-'
+  }
 }

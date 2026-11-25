@@ -1,5 +1,13 @@
 # Avanzamento
 
+## Modifica unica e rimozione dell’archivio — 25 novembre 2026
+
+Nel Catalogo Modifica apre lo stesso modulo di Nuovo prodotto, con selezione del supermercato e prezzi intero/scontato precompilati. Salva prodotto registra metadati e prezzi del negozio scelto nella stessa transazione; vuoti rimuovono i prezzi selezionati, nessun negozio scelto conserva i prezzi. Gli altri negozi restano invariati. Tolti comando Prezzi e pannello prezzi separato dal Catalogo; editor prezzi dalla lista conservato. Anteprime €/kg/l/pz basate anche sul formato non ancora salvato e tolleranti a input incompleti.
+
+Eliminata archiviazione da prodotti, negozi, ricette e piani: nessun comando o filtro dell’archivio. Elementi già archiviati resi nuovamente disponibili, preservando prezzi e collegamenti; vincoli impediscono nuove archiviazioni. Le colonne legacy restano soltanto per compatibilità SQL. La rimozione reversibile degli articoli dalla lista resta distinta, con nuova RPC set_list_item_removed e wrapper precedente compatibile limitato alla lista. Nessun ampliamento dei grant di scrittura.
+
+Migrazione 20261125202356 applicata (22 totali). Probe SQL locale/remoto PASS, 124 test in 20 file e verifica di aggiornamento con fixture archiviate. Advisor: definer pubblici preesistenti ridotti da 19 a 18, nessuna nuova segnalazione. 23 tabelle RLS e nove pubblicate invariati. Collaudo browser e pubblicazione verificati sul commit finale.
+
 ## Prezzo e prezzo scontato — 25 novembre 2026
 
 Due importi manuali indipendenti per prodotto e supermercato, anche in fase di creazione. I prezzi esistenti restano interi; nessuno sconto ricavato o riempito automaticamente. Catalogo, editor dalla lista, dettaglio articolo/marca e confronto negozi mostrano entrambi. Totali e coperture separati: nessun ripiego del prezzo scontato sul prezzo intero. Rimozioni indipendenti e calcolo €/kg/l/pz per entrambi, stesso tipo di prezzo; PAM 10% applicato una volta a entrambi gli scenari. Nessuna data promozionale o storico. Ordinamento prezzo della lista riferito al prezzo intero.

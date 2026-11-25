@@ -22,6 +22,11 @@ beforeAll(async () => {
     await db.exec(readFileSync('supabase/migrations/' + file, 'utf8'))
 }, 60000)
 afterAll(() => db.close())
+it('modifica prodotto e prezzi atomica, archivio disabilitato, rimozione lista e isolamento', async () => {
+  const result = await db.exec(readFileSync('supabase/tests/catalog_edit_prices.sql', 'utf8'))
+  expect(result.at(-1)?.rows[0]).toMatchObject({ status: 'PASS' })
+  expect((await db.query('select id from households')).rows).toHaveLength(0)
+}, 60000)
 it('prezzo e prezzo scontato: indipendenza, compatibilità API, atomicità e RLS', async () => {
   const result = await db.exec(readFileSync('supabase/tests/discount_prices.sql', 'utf8'))
   expect(result.at(-1)?.rows[0]).toMatchObject({ status: 'PASS' })

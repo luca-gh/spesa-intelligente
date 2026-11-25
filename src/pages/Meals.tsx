@@ -1,5 +1,4 @@
 import { unitLabel } from '../domain/math'
-import { ArchiveButton, ArchiveFilter } from '../components/ArchiveButton'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Decimal from 'decimal.js'
 import { CalendarDays, Star, Plus, ArrowLeft, ArrowRight } from 'lucide-react'
@@ -34,7 +33,6 @@ export function Recipes() {
   const { data, act } = useApp()
   const [search, setSearch] = useState('')
   const [favorites, setFavorites] = useState(false)
-  const [archived, setArchived] = useState(false)
   const [selected, setSelected] = useState('')
   const [servings, setServings] = useState(2)
   const [ingredientCount, setIngredientCount] = useState(1)
@@ -54,18 +52,11 @@ export function Recipes() {
           preferite
         </label>
       </div>
-      <ArchiveFilter
-        value={archived}
-        onChange={(value) => {
-          setArchived(value)
-          setSelected('')
-        }}
-      />
       {recipe && (
         <Panel title={recipe.title}>
           <div className="inline">
             <p className="muted">
-              Aggiungere ingredienti ripristina gli eventuali articoli archiviati corrispondenti nella lista.
+              Aggiungere ingredienti rimette in lista gli eventuali articoli rimossi corrispondenti.
             </p>
             <label className="field">
               Porzioni richieste
@@ -133,7 +124,6 @@ export function Recipes() {
             >
               Duplica ricetta
             </button>
-            <ArchiveButton table="recipes" record={recipe} onDone={() => setSelected('')} />
             <ConfirmButton
               message="Eliminare questa ricetta? I collegamenti ai pasti possono impedire l’eliminazione."
               onConfirm={async () => {
@@ -172,7 +162,7 @@ export function Recipes() {
         {data.recipes
           .filter(
             (r) =>
-              !!r.archived_at === archived &&
+              !r.archived_at &&
               (!favorites || r.is_favorite) &&
               (r.title.toLowerCase().includes(search.toLowerCase()) ||
                 data.recipe_ingredients
@@ -453,7 +443,6 @@ export function Meals() {
       </div>
       {plan && (
         <div className="inline wrap plan-actions">
-          <ArchiveButton table="meal_plans" record={plan} onDone={() => setPreview(null)} />
           <ConfirmButton
             message={`Eliminare definitivamente il piano settimanale dal ${new Date(week + 'T12:00:00').toLocaleDateString('it-IT')} al ${new Date(addDays(week, 6) + 'T12:00:00').toLocaleDateString('it-IT')}? Verranno eliminati tutti i pasti del piano. La lista della spesa, le quantità già trasferite, gli acquisti, le ricette e i modelli resteranno invariati. Non è possibile annullare questa operazione.`}
             success="Piano settimanale eliminato."
@@ -475,13 +464,6 @@ export function Meals() {
           >
             <CalendarDays size={18} /> Crea piano settimanale
           </button>
-        </Panel>
-      ) : plan.archived_at ? (
-        <Panel title="Piano settimanale archiviato">
-          <p>
-            Il piano è nascosto dal calendario. Le quantità già trasferite nelle liste e gli acquisti sono
-            conservati. Ripristinalo per modificarlo.
-          </p>
         </Panel>
       ) : (
         <>
@@ -668,7 +650,7 @@ export function Meals() {
                       preview.rows.some((r) => r.product_id === i.generic_product_id && r.unit === i.unit),
                   )
                   .map((i) => (
-                    <p key={i.id}>Verrà ripristinato l’articolo archiviato: {i.name}.</p>
+                    <p key={i.id}>Verrà rimesso nella lista l’articolo rimosso: {i.name}.</p>
                   ))}
                 {preview.changes.length ? (
                   preview.changes.map((c) => (

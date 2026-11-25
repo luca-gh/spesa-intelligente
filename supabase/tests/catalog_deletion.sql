@@ -39,7 +39,6 @@ begin
   perform public.add_price(keep,store,5,'regular',now());
   select version into version_before from public.shopping_lists where id=l;
   perform public.set_record_archived('shopping_list_items',hidden,true,version_before);
-  perform public.set_record_archived('specific_products',product,true);
   recipe:=public.save_recipe('Ricetta conservata',2,'Procedimento',null,jsonb_build_array(
     jsonb_build_object('product_id',food,'quantity',1,'unit','L'),
     jsonb_build_object('product_id',keep_food,'quantity',2,'unit','L')));
@@ -127,7 +126,6 @@ begin
   shared_recipe:=public.save_recipe('Ricetta condivisa',2,'',null,jsonb_build_array(jsonb_build_object('product_id',shared_food,'quantity',1,'unit','L')));
   insert into public.meal_entries(household_id,meal_plan_id,meal_date,meal_slot,generic_product_id,quantity,unit)
     values(h,plan,'2026-11-17','pranzo',shared_food,1,'L') returning id into meal;
-  perform public.set_record_archived('specific_products',sibling,true);
   perform public.delete_catalog_product(brand_id,true);
   if not exists(select 1 from public.specific_products where id=sibling)
     or not exists(select 1 from public.shopping_list_items where id=shared_item)

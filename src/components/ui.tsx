@@ -94,10 +94,12 @@ export function Submit({ children = 'Salva' }: { children?: ReactNode }) {
 }
 export function Form({
   onSave,
+  onChange,
   children,
   className = '',
 }: {
   onSave: (data: FormData) => Promise<unknown>
+  onChange?: (data: FormData) => void
   children: ReactNode
   className?: string
 }) {
@@ -111,7 +113,11 @@ export function Form({
     })
   }
   return (
-    <form className={`form ${className}`} onSubmit={submit}>
+    <form
+      className={`form ${className}`}
+      onSubmit={submit}
+      onChange={onChange ? (event) => onChange(new FormData(event.currentTarget)) : undefined}
+    >
       {children}
     </form>
   )

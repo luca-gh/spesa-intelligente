@@ -1,5 +1,11 @@
 # Decisioni tecniche
 
+## Un solo modulo Catalogo e nessun archivio — 25 novembre 2026
+
+Su richiesta dell’utente, l’archiviazione non è più una funzionalità. Ripristino dei flag legacy per tutte le entità, senza eliminare record o collegamenti; vincoli archived_at IS NULL per prodotti, negozi, ricette, piani e snapshot. Flag mantenuti per compatibilità dei vecchi SQL, non per nuove operazioni. La rimozione dalla lista conserva il comportamento richiesto in precedenza: quantità e acquisti non cancellati. set_record_archived diventa invoker e accetta soltanto shopping_list_items; nuova set_list_item_removed invoker usa helper privato definer con auth, famiglia, lock lista e versione verificati. Nessun nuovo definer pubblico o grant diretto sulle scritture lista.
+
+Catalogo: prezzi nell’unico modulo prodotto, selezione negozio esplicita, piani di prezzo indipendenti per negozio. save_catalog_product_with_prices invoker combina il salvataggio prodotto esistente con set_product_prices. La riga prezzo scelta viene sostituita nella transazione, dopo lock prodotto, per consentire cambio simultaneo di formato e base; i prezzi di altri negozi restano protetti e possono impedire un formato incompatibile. Un errore annulla sia metadati sia prezzi. Formato live letto dal form, preview protetta dagli input transitori; nessun autosalvataggio al cambio negozio. ProductPrices resta riusato soltanto per Modifica prezzo nella lista.
+
 ## Due scenari di prezzo manuali — 25 novembre 2026
 
 La richiesta dell’utente introduce un secondo importo senza reintrodurre promozioni temporali. product_prices conserva price_amount come prezzo intero e aggiunge discounted_price_amount nullable; nessun backfill scontato. Entrambi nullable, con vincolo almeno un importo noto. Base package/kg/l comune ai due campi, calcoli unitari distinti. set_product_prices salva entrambi atomicamente; create_catalog_product_with_prices crea scheda e prezzi in un’unica transazione. Funzioni invoker, RLS e ACL espliciti invariati. Le API precedenti modificano soltanto il prezzo intero; cambio base respinto se reinterpretasse silenziosamente uno scontato presente.

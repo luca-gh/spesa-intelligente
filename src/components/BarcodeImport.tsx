@@ -71,11 +71,7 @@ export function BarcodeImport({
     const local = data.specific_products.find((product) => product.barcode === code)
     if (local) {
       setExisting(local.id)
-      setMessage(
-        local.archived_at
-          ? 'Questo prodotto è già nel catalogo ed è archiviato.'
-          : 'Questo prodotto è già nel catalogo. Puoi aprire la sua scheda.',
-      )
+      setMessage('Questo prodotto è già nel catalogo. Puoi aprire la sua scheda.')
       return
     }
     if (!online) {

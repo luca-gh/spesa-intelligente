@@ -9,7 +9,6 @@ export function ListBarcodePicker({ onSelect }: { onSelect: (id: string) => void
   const [code, setCode] = useState('')
   const [message, setMessage] = useState('')
   const [missing, setMissing] = useState('')
-  const [archived, setArchived] = useState(false)
   const [cameraRevision, setCameraRevision] = useState(0)
   function find(raw: string) {
     if (busy || !online) return
@@ -17,22 +16,18 @@ export function ListBarcodePicker({ onSelect }: { onSelect: (id: string) => void
     const barcode = raw.trim()
     setCode(barcode)
     setMissing('')
-    setArchived(false)
     if (!validBarcode(barcode)) {
       setMessage('Il checksum EAN non è valido. Ricontrolla le cifre.')
       return
     }
     const product = data.specific_products.find((p) => p.barcode === barcode)
-    if (product && !product.archived_at) {
+    if (product) {
       onSelect(product.id)
       setMessage(`${product.name} selezionato. Controlla quantità e unità, poi premi Aggiungi.`)
     } else {
       setMissing(barcode)
-      setArchived(!!product)
       setMessage(
-        product
-          ? 'Il prodotto è archiviato. Ripristinalo dal Catalogo prima di aggiungerlo alla lista.'
-          : 'Questo codice non è ancora nel Catalogo. Puoi completare la scheda e tornare alla lista, oppure continuare con un articolo libero.',
+        'Questo codice non è ancora nel Catalogo. Puoi completare la scheda e tornare alla lista, oppure continuare con un articolo libero.',
       )
     }
   }
@@ -75,11 +70,8 @@ export function ListBarcodePicker({ onSelect }: { onSelect: (id: string) => void
         </p>
       )}
       {missing && (
-        <Link
-          className="text-link"
-          to={`/catalogo?barcode=${encodeURIComponent(missing)}${archived ? '' : '&origine=lista'}`}
-        >
-          {archived ? 'Apri prodotto nel Catalogo' : 'Completa prodotto e torna alla lista'}
+        <Link className="text-link" to={`/catalogo?barcode=${encodeURIComponent(missing)}&origine=lista`}>
+          Completa prodotto e torna alla lista
         </Link>
       )}
     </section>

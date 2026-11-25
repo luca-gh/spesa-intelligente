@@ -47,7 +47,7 @@ export function safeError(error: unknown): string {
   if (/Email not confirmed/.test(message)) return 'Conferma il tuo indirizzo email prima di accedere.'
   if (/unique|duplicate/.test(message)) return 'Questo elemento esiste già. Controlla i duplicati.'
   if (/foreign key/.test(message))
-    return 'L’elemento è collegato ad altri dati. Usa Archivia per rimuoverlo dalle viste attive e conservare lo storico.'
+    return 'L’elemento è collegato ad altri dati. Rimuovi prima i collegamenti indicati e riprova.'
   return 'Operazione non riuscita. Controlla connessione, dati e autorizzazioni, poi riprova.'
 }
 export async function rpc(name: string, args: Record<string, unknown>) {

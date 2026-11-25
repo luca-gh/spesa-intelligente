@@ -1,5 +1,13 @@
 # Rapporto test
 
+## Catalogo Modifica e archivio rimosso — 25 novembre 2026
+
+- 124 test in 20 file, lint, TypeScript e build PASS. Migrazione di prova da schema precedente: prodotti, supermercati, ricette, piani e snapshot resi disponibili senza perdere importi, ingredienti, pasti o contributi; articoli rimossi dalla lista rimangono rimossi, versioni dei piani invalidate.
+- Suite browser completa: 237 PASS (98 desktop, 98 mobile Chromium, 41 WebKit iPad). Controlli segreti, backend e PWA PASS; entrambe le nuove RPC esposte da PostgREST e negate ad anon con 401/42501.
+- SQL locale e remoto PASS: modifica atomica di metadati e due prezzi, conservazione degli altri negozi, rollback con negozio estraneo o formato incompatibile, cambio formato/base simultaneo quando compatibile con gli altri prezzi, rimozione solo dei prezzi scelti, RLS e anon negati. Archiviazione generale respinta anche tramite UPDATE diretto; nuova rimozione lista e wrapper legacy con controllo versione e famiglia. Tutte le fixture annullate.
+- Browser: modulo con prezzi precompilati e virgola obbligatoria, singolo salvataggio, cambio negozio, prezzi zero/mancanti, anteprima pezzi/kg/l su formato non salvato, errore e annullamento conservano dati. Assenza di Prezzi/Archivia e filtri archivio; eliminazione disponibile per catalogo, negozi, ricette e piani. Screenshot del modulo mobile e Axe verificati.
+- Migrazione 20261125202356_catalog_edit_prices_remove_archiving.sql allineata: 22 totali, 23 tabelle RLS e nove pubblicate. Advisor: 18 definer pubblici preesistenti (prima 19), protezione password disattivata preesistente; nessun nuovo avviso. Collaudo fisico iPad e multiaccount Auth/Realtime già rinviati.
+
 ## Due prezzi per supermercato — 25 novembre 2026
 
 - Lint, TypeScript, 122 test in 19 file e build PASS. Verifica di aggiornamento da schema precedente: importo intero invariato e discounted_price_amount NULL.

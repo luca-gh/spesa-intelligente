@@ -60,7 +60,6 @@ begin
   insert into public.meal_plans(household_id,week_start) values(h,'2026-11-16') returning id into recreated;
   if recreated=plan or exists(select 1 from public.meal_entries where meal_plan_id=recreated)
     then raise exception 'Recreated plan contains deleted meals'; end if;
-  perform public.set_record_archived('meal_plans',recreated,true,1);
   delete from public.meal_plans where id=recreated;
   if exists(select 1 from public.meal_plans where id=recreated) then raise exception 'Archived plan not deleted'; end if;
 end $$;

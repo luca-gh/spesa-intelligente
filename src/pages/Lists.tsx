@@ -27,7 +27,7 @@ export function Lists() {
 
 function ListDetail({ id }: { id: string }) {
   const { data, household, itemQuantity, act, busy, online } = useApp()
-  const [showArchived, setShowArchived] = useState(false)
+  const [showRemoved, setShowRemoved] = useState(false)
   const [storeId, setStoreId] = useState(() => localStorage.getItem(`shopping-store:${household!.id}`) ?? '')
   const store = data.stores.find((s) => s.id === storeId && !s.archived_at)
   const [search, setSearch] = useState('')
@@ -55,13 +55,12 @@ function ListDetail({ id }: { id: string }) {
   const groups = [...new Set(pending.map((i) => categoryFor(i)?.id ?? ''))].sort(
     (a, b) => (order.get(a) ?? Number.MAX_SAFE_INTEGER) - (order.get(b) ?? Number.MAX_SAFE_INTEGER),
   )
-  const archive = (item: Item, removed: boolean) =>
+  const setRemoved = (item: Item, removed: boolean) =>
     act(
       async () => {
-        await rpc('set_record_archived', {
-          p_type: 'shopping_list_items',
+        await rpc('set_list_item_removed', {
           p_id: item.id,
-          p_archived: removed,
+          p_removed: removed,
           p_version: list.version,
         })
         setEdit(null)
@@ -108,7 +107,7 @@ function ListDetail({ id }: { id: string }) {
             type="button"
             className="button secondary"
             disabled={busy || !online}
-            onClick={() => void archive(item, true)}
+            onClick={() => void setRemoved(item, true)}
             aria-label={`Rimuovi dalla lista ${item.name}`}
           >
             Rimuovi dalla lista
@@ -268,12 +267,12 @@ function ListDetail({ id }: { id: string }) {
       <label className="checkbox">
         <input
           type="checkbox"
-          checked={showArchived}
-          onChange={(event) => setShowArchived(event.target.checked)}
+          checked={showRemoved}
+          onChange={(event) => setShowRemoved(event.target.checked)}
         />
         Mostra articoli rimossi
       </label>
-      {showArchived && (
+      {showRemoved && (
         <Panel title="Articoli rimossi dalla lista">
           {data.shopping_list_items
             .filter((i) => i.list_id === id && i.archived_at)
@@ -284,7 +283,7 @@ function ListDetail({ id }: { id: string }) {
                   type="button"
                   className="text-button"
                   disabled={busy || !online}
-                  onClick={() => void archive(item, false)}
+                  onClick={() => void setRemoved(item, false)}
                 >
                   Rimetti nella lista
                 </button>
