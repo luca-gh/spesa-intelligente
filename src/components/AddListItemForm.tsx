@@ -1,9 +1,10 @@
+import { unitLabel } from '../domain/math'
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import { useApp } from '../data/context'
 import { rpc } from '../data/client'
-import { listProductChoices, listProductGroups, productFormat } from '../data/catalog'
+import { bulkPriceUnit, listProductChoices, listProductGroups, productFormat } from '../data/catalog'
 import { convert, quantity, units, type Unit } from '../domain/math'
 import { Submit } from './ui'
 import { ListBarcodePicker } from './ListBarcodePicker'
@@ -36,7 +37,13 @@ export function AddListItemForm({ listId }: { listId: string }) {
     .filter((p) => p.package_quantity && p.package_unit)
     .filter((p, index, all) => all.findIndex((other) => productFormat(other) === productFormat(p)) === index)
   const format = candidates.find((p) => p.id === formatId)
-  const baseUnit = format?.package_unit ?? specific?.package_unit
+  const baseUnit =
+    format?.package_unit ??
+    specific?.package_unit ??
+    bulkPriceUnit(
+      data,
+      candidates.map((p) => p.id),
+    )
   const availableUnits = baseUnit
     ? units.filter((candidate) => {
         try {
@@ -60,7 +67,11 @@ export function AddListItemForm({ listId }: { listId: string }) {
       if (exact) setSearch('')
       setName('')
       setError('')
-      setUnit(card?.package_unit ?? (next ? 'conf' : 'pz'))
+      setUnit(
+        card?.package_unit ??
+          bulkPriceUnit(data, card ? [card.id] : (next?.products.map((p) => p.id) ?? [])) ??
+          (next ? 'conf' : 'pz'),
+      )
       setRequested(card?.package_quantity ?? '1')
     },
     [data],
@@ -144,6 +155,14 @@ export function AddListItemForm({ listId }: { listId: string }) {
               chooseProduct(choice.groupId, false)
               setSearchSelection(choice.value)
               setBrand(choice.brand ?? '')
+              const bulk = bulkPriceUnit(
+                data,
+                groups
+                  .find((g) => g.id === choice.groupId)
+                  ?.products.filter((p) => !choice.brand || p.brand === choice.brand)
+                  .map((p) => p.id) ?? [],
+              )
+              if (bulk) setUnit(bulk)
             } else if (productId) chooseProduct('', false)
           }}
           required={false}
@@ -167,7 +186,14 @@ export function AddListItemForm({ listId }: { listId: string }) {
                     setFormatId('')
                     setExactId('')
                     setRequested('1')
-                    setUnit('conf')
+                    setUnit(
+                      bulkPriceUnit(
+                        data,
+                        group.products
+                          .filter((p) => !event.target.value || p.brand === event.target.value)
+                          .map((p) => p.id),
+                      ) ?? 'conf',
+                    )
                   }}
                 >
                   <option value="">Qualsiasi marca</option>
@@ -280,7 +306,9 @@ export function AddListItemForm({ listId }: { listId: string }) {
             }}
           >
             {availableUnits.map((u) => (
-              <option key={u}>{u}</option>
+              <option key={u} value={u}>
+                {unitLabel(u)}
+              </option>
             ))}
           </select>
         </label>

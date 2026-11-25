@@ -1,3 +1,4 @@
+import { unitLabel } from '../domain/math'
 import { useEffect, useRef, useState } from 'react'
 import { useApp } from '../data/context'
 import type { Meal } from '../data/types'
@@ -59,7 +60,7 @@ export function MealShoppingEditor({
                       })
                     }
                   />
-                  {name} · {option.quantity} {option.unit}
+                  {name} · {option.quantity} {unitLabel(option.unit)}
                 </label>
                 {!!option.alternatives.length && (
                   <label className="field">

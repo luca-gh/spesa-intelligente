@@ -1,3 +1,4 @@
+import { unitLabel } from '../domain/math'
 import { useState } from 'react'
 import { useApp } from '../data/context'
 import { ingredientProducts } from '../data/catalog'
@@ -61,7 +62,7 @@ export function IngredientAlternatives({ ingredient }: { ingredient: Ingredient 
       <details>
         <summary>Gestisci alternative</summary>
         <p className="muted">
-          Stessa quantità e unità: {ingredient.quantity} {ingredient.unit}.
+          Stessa quantità e unità: {ingredient.quantity} {unitLabel(ingredient.unit)}.
         </p>
         <Form
           key={revision}

@@ -1,6 +1,105 @@
 import { expect, test, type Page } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 
+test('prezzi sfusi: nuovo prodotto con prezzo iniziale e prezzo al pezzo', async ({ page }) => {
+  const { priceRequests, catalogSaveRequests } = await login(page, false, {
+    stores: [{ id: 's', name: 'Negozio' }],
+  })
+  await page.goto('/catalogo')
+  await expect(
+    page.getByRole('combobox', { name: 'Unità del formato', exact: true }).locator('option'),
+  ).toHaveText(['Non indicata', 'g', 'ml', 'pz'])
+  await page.getByLabel('Nome prodotto', { exact: true }).fill('Uova')
+  await page.getByLabel('Quantità per confezione', { exact: true }).fill('6')
+  await page.getByRole('combobox', { name: 'Unità del formato', exact: true }).selectOption('pz')
+  await page
+    .getByRole('combobox', { name: 'Supermercato del prezzo iniziale', exact: true })
+    .selectOption('s')
+  const amount = page.getByRole('textbox', { name: 'Prezzo iniziale (€)', exact: true })
+  await amount.fill('3.00')
+  await expect(amount).toHaveAttribute('aria-invalid', 'true')
+  await page.getByRole('button', { name: 'Salva prodotto', exact: true }).click()
+  expect(catalogSaveRequests).toHaveLength(0)
+  await amount.fill('3,00')
+  await page.getByRole('button', { name: 'Salva prodotto', exact: true }).click()
+  const row = page.getByRole('row', { name: /^Uova/ })
+  await expect(row).toContainText(/0,50\s*€\/pz/)
+  expect(priceRequests[0]).toMatchObject({ p_amount: '3.00', p_basis: 'package', p_store: 's' })
+  await row.getByRole('button', { name: 'Prezzi', exact: true }).click()
+  await page
+    .getByRole('row', { name: 'Prezzo presso Negozio', exact: true })
+    .getByRole('button', { name: 'Modifica prezzo', exact: true })
+    .click()
+  await page.getByRole('textbox', { name: 'Prezzo per confezione (€)', exact: true }).fill('4,20')
+  await expect(page.getByRole('status').filter({ hasText: 'Prezzo al kg/l/pz' })).toContainText(
+    /0,70\s*€\/pz/,
+  )
+  await page.getByRole('button', { name: 'Salva prezzo', exact: true }).click()
+  await expect(row).toContainText(/0,70\s*€\/pz/)
+})
+
+test('prezzi sfusi: €/kg senza formato, quantità esatta e modifica in €/l', async ({ page }) => {
+  const { priceRequests, itemRequests } = await login(page, false, { stores: [{ id: 's', name: 'Negozio' }] })
+  await page.goto('/catalogo')
+  await page.getByLabel('Nome prodotto', { exact: true }).fill('Affettato')
+  await page
+    .getByRole('combobox', { name: 'Supermercato del prezzo iniziale', exact: true })
+    .selectOption('s')
+  await page.getByRole('combobox', { name: 'Tipo di prezzo', exact: true }).selectOption('kg')
+  await page.getByRole('textbox', { name: 'Prezzo iniziale (€)', exact: true }).fill('20,00')
+  await page.getByRole('button', { name: 'Salva prodotto', exact: true }).click()
+  const row = page.getByRole('row', { name: /^Affettato/ })
+  await expect(row.locator('td').nth(3).locator('dd')).toContainText(/20,00\s*€\/kg/)
+  await expect(row.locator('td').nth(3).locator('small')).toHaveText(/20,00\s*€\/kg/)
+  await page.goto('/liste')
+  await chooseListProduct(page, 'Affettato')
+  await expect(page.getByLabel('Unità', { exact: true })).toHaveValue('kg')
+  await page.getByLabel('Unità', { exact: true }).selectOption('g')
+  await page.getByLabel('Quantità', { exact: true }).fill('150')
+  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
+  await expect(page.locator('.shopping-item .item-prices')).toContainText(/3,00\s*€/)
+  expect(itemRequests[0]).toMatchObject({ p_quantity: '150', p_unit: 'g' })
+  await page.goto('/catalogo')
+  await row.getByRole('button', { name: 'Prezzi', exact: true }).click()
+  await page
+    .getByRole('row', { name: 'Prezzo presso Negozio', exact: true })
+    .getByRole('button', { name: 'Modifica prezzo', exact: true })
+    .click()
+  await expect(page.getByRole('combobox', { name: 'Tipo di prezzo', exact: true })).toHaveValue('kg')
+  await page.getByRole('combobox', { name: 'Tipo di prezzo', exact: true }).selectOption('l')
+  await page.getByRole('textbox', { name: 'Prezzo al litro (€)', exact: true }).fill('4,00')
+  await page.getByRole('button', { name: 'Salva prezzo', exact: true }).click()
+  expect(priceRequests.at(-1)).toMatchObject({ p_amount: '4.00', p_basis: 'l' })
+  await page.reload()
+  await expect(row.locator('td').nth(3).locator('dd')).toContainText(/4,00\s*€\/l/)
+  await page.goto('/liste')
+  await chooseListProduct(page, 'Affettato')
+  await expect(page.getByLabel('Unità', { exact: true })).toHaveValue('L')
+  await expect(page.getByLabel('Unità', { exact: true }).locator('option')).toHaveText(['ml', 'l'])
+})
+
+test('prezzi sfusi: errore salvataggio mantiene prodotto e prezzo nel modulo', async ({ page }) => {
+  const { catalogSaveRequests } = await login(page, false, { stores: [{ id: 's', name: 'Negozio' }] })
+  await page.goto('/catalogo')
+  await page.getByLabel('Nome prodotto', { exact: true }).fill('Da salvare')
+  await page.getByRole('textbox', { name: 'Prezzo iniziale (€)', exact: true }).fill('2,50')
+  await page.getByRole('button', { name: 'Salva prodotto', exact: true }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'completa supermercato e importo' })).toBeVisible()
+  expect(catalogSaveRequests).toHaveLength(0)
+  await page
+    .getByRole('combobox', { name: 'Supermercato del prezzo iniziale', exact: true })
+    .selectOption('s')
+  await page.route('**/rpc/create_catalog_product_with_price', (route) =>
+    route.fulfill({ status: 503, json: { message: 'Servizio temporaneamente non disponibile' } }),
+  )
+  await page.getByRole('button', { name: 'Salva prodotto', exact: true }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'Operazione non riuscita' })).toBeVisible()
+  await expect(page.getByLabel('Nome prodotto', { exact: true })).toHaveValue('Da salvare')
+  await expect(page.getByRole('textbox', { name: 'Prezzo iniziale (€)', exact: true })).toHaveValue('2,50')
+  expect(catalogSaveRequests).toHaveLength(0)
+  await expect(page.locator('tbody tr')).toHaveCount(0)
+})
+
 // Browser-only fixtures. PostgreSQL authorization is tested independently, not mocked here as proof of RLS.
 async function login(page: Page, populated = false, catalog: Record<string, unknown[]> = {}) {
   const home = {
@@ -67,8 +166,9 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
       if (!collections.shopping_lists.length) collections.shopping_lists.push(list)
       result = list.id
     } else if (table === 'households') result = home
-    else if (table === 'save_catalog_product') {
-      const body = route.request().postDataJSON()
+    else if (table === 'save_catalog_product' || table === 'create_catalog_product_with_price') {
+      const request = route.request().postDataJSON()
+      const body = table === 'create_catalog_product_with_price' ? request.p_product : request
       catalogSaveRequests.push(body)
       const generics = (collections.generic_products ??= []) as Record<string, unknown>[]
       const specifics = (collections.specific_products ??= []) as Record<string, unknown>[]
@@ -103,6 +203,15 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
         package_unit: body.p_unit,
       })
       result = { id: specific.id, specific: true }
+      if (table === 'create_catalog_product_with_price') {
+        priceRequests.push(request)
+        ;(collections.product_prices ??= []).push({
+          specific_product_id: specific.id,
+          store_id: request.p_store,
+          price_amount: request.p_amount,
+          price_basis: request.p_basis,
+        })
+      }
     } else if (table === 'delete_catalog_product') {
       const { p_id, p_specific } = route.request().postDataJSON()
       const table = p_specific ? 'specific_products' : 'generic_products'
@@ -203,19 +312,22 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
       const purchase = (collections.purchases as Record<string, unknown>[]).find((p) => p.id === body.p_id)
       if (purchase) purchase.total_paid = body.p_total
       result = null
-    } else if (table === 'set_product_price') {
+    } else if (table === 'set_product_price' || table === 'set_product_price_basis') {
       const body = route.request().postDataJSON()
       priceRequests.push(body)
       const prices = (collections.product_prices ??= []) as Record<string, unknown>[]
       const previous = prices.find(
         (p) => p.specific_product_id === body.p_product && p.store_id === body.p_store,
       )
-      if (previous) previous.price_amount = body.p_amount
-      else
+      if (previous) {
+        previous.price_amount = body.p_amount
+        previous.price_basis = body.p_basis ?? 'package'
+      } else
         prices.push({
           specific_product_id: body.p_product,
           store_id: body.p_store,
           price_amount: body.p_amount,
+          ...(body.p_basis ? { price_basis: body.p_basis } : {}),
         })
       result = null
     } else if (table === 'clear_product_price') {
@@ -2541,7 +2653,7 @@ test('catalogo unico: aggiunta successiva del formato e rimozione dei dettagli f
   await expect(page.getByRole('group', { name: 'Formato della confezione', exact: true })).toBeVisible()
   await expect(
     page.getByRole('combobox', { name: 'Unità del formato', exact: true }).locator('option'),
-  ).toHaveText(['Non indicata', 'g', 'ml', 'pz', 'conf'])
+  ).toHaveText(['Non indicata', 'g', 'ml', 'pz'])
   await page.getByLabel('Quantità per confezione', { exact: true }).fill('1000')
   await page.getByRole('combobox', { name: 'Unità del formato', exact: true }).selectOption('ml')
   await page.getByRole('button', { name: 'Salva prodotto', exact: true }).click()
@@ -3548,14 +3660,14 @@ test('rimuovi dalla lista: storico precedente e catalogo conservati, ripristino'
     if (r.method() === 'DELETE') deletions.push(r.url())
   })
   await page.goto('/liste')
-  await expect(page.locator('.shopping-item')).toContainText('1.5 L da acquistare')
+  await expect(page.locator('.shopping-item')).toContainText('1.5 l da acquistare')
   await page.getByRole('button', { name: 'Rimuovi dalla lista Latte', exact: true }).click()
   await expect(page.locator('.shopping-item')).toHaveCount(0)
   await page.reload()
   await expect(page.locator('.shopping-item')).toHaveCount(0)
   await page.getByLabel('Mostra articoli rimossi', { exact: true }).check()
   await page.getByRole('button', { name: 'Rimetti nella lista', exact: true }).click()
-  await expect(page.locator('.shopping-item')).toContainText('1.5 L da acquistare')
+  await expect(page.locator('.shopping-item')).toContainText('1.5 l da acquistare')
   await page.goto('/catalogo')
   await expect(page.getByRole('row', { name: /^Latte intero/ })).toBeVisible()
   expect(deletions).toHaveLength(0)
@@ -3690,7 +3802,7 @@ for (const archived of [false, true]) {
     await expect(page.locator('.meal-chip')).toContainText('Ricetta conservata')
     await page.goto('/liste')
     await expect(page.locator('.shopping-item')).toContainText('Latte')
-    await expect(page.locator('.shopping-item')).toContainText('1.5 L da acquistare')
+    await expect(page.locator('.shopping-item')).toContainText('1.5 l da acquistare')
   })
 }
 

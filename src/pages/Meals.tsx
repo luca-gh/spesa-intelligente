@@ -1,3 +1,4 @@
+import { unitLabel } from '../domain/math'
 import { ArchiveButton, ArchiveFilter } from '../components/ArchiveButton'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Decimal from 'decimal.js'
@@ -83,7 +84,7 @@ export function Recipes() {
               <li key={i.id}>
                 <strong>
                   {scale(i.quantity, recipe.base_servings, servings, i.unit === 'pz' || i.unit === 'conf')}{' '}
-                  {i.unit}
+                  {unitLabel(i.unit)}
                 </strong>{' '}
                 {data.generic_products.find((p) => p.id === i.generic_product_id)?.name}
                 <IngredientAlternatives ingredient={i} />
@@ -269,7 +270,9 @@ export function Recipes() {
                 <Field label="Quantità" name={`quantity${i}`} value="1" />
                 <Select label="Unità" name={`unit${i}`}>
                   {units.map((u) => (
-                    <option key={u}>{u}</option>
+                    <option key={u} value={u}>
+                      {unitLabel(u)}
+                    </option>
                   ))}
                 </Select>
                 <AlternativeFields index={i} />
@@ -512,7 +515,7 @@ export function Meals() {
                               <small>
                                 {e.recipe_id
                                   ? `${e.servings_override ?? household!.default_diners} persone`
-                                  : `${e.quantity} ${e.unit}`}
+                                  : `${e.quantity} ${unitLabel(e.unit)}`}
                               </small>
                             )}
                           </button>

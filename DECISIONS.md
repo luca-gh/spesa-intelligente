@@ -1,5 +1,11 @@
 # Decisioni tecniche
 
+## Prezzi per prodotto, kg o litro — 25 novembre 2026
+
+product_prices.price_basis è package (default compatibile), kg o l per prodotto/negozio. Nessuna conversione automatica degli importi già salvati. set_product_price mantiene la firma precedente e scrive esplicitamente package; set_product_price_basis permette la base esplicita. Entrambe invoker e protette dalle stesse RLS. Creazione con prezzo attraverso create_catalog_product_with_price invoker: save_catalog_product e prezzo nella stessa transazione. I trigger validano base/formato anche se la scrittura avviene direttamente; nessun nuovo privilegio sulle liste.
+
+Prezzo del prodotto: arrotondamento a confezioni intere invariato. Prezzo diretto: moltiplicazione per peso/volume richiesto, senza arrotondamento a pacchi; richiesta in conf consentita solo con formato fisico noto. Formato sconosciuto non viene inventato. PAM applicato una sola volta prima del calcolo quantità. €/pz deriva dall’importo del prodotto diviso il numero di pezzi. Le unità legacy restano accettate internamente; l’interfaccia Catalogo consente soltanto g/ml/pz e unitLabel mostra l al posto di L ovunque. I due importi uguali per prezzi diretti sono intenzionali su richiesta dell’utente.
+
 Categorie alfabetiche solo nel menu Catalogo, includendo la voce senza categoria; sort_order globale e ordine per supermercato non vengono toccati. ShoppingItemPrices separa la presentazione e usa lo stesso motore Decimal per ogni marca, limitando prodotti per marca esatta e formato compatibile. Ogni voce mostra il formato usato; totali e ordinamento mantengono la singola alternativa più economica.
 
 Pasti: free_text esclusivo rispetto a recipe_id/generic_product_id e shopping_choices JSON validato sul database. Null significa comportamento precedente con tutti gli ingredienti principali; oggetto vuoto significa nessun alimento da comprare. I nuovi pasti iniziano vuoti. Le chiavi sono gli ID degli ingredienti della ricetta oppure food per l’alimento semplice; valori limitati al principale/alternative della stessa ricetta e famiglia. Scelte persistenti per singolo pasto, quindi la stessa ricetta in giorni diversi può avere prodotti mancanti diversi. Helper condiviso per scaling e normalizzazione; nessun prodotto dedotto dal testo libero.

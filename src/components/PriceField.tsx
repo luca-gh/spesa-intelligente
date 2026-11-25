@@ -8,6 +8,7 @@ export function PriceField({
   required = true,
   placeholder = 'Es. 2,50',
   onChange,
+  rawValue,
 }: {
   label: string
   name: string
@@ -15,9 +16,10 @@ export function PriceField({
   required?: boolean
   placeholder?: string
   onChange?: (value: string) => void
+  rawValue?: string
 }) {
   const id = useId()
-  const [error, setError] = useState('')
+  const [error, setError] = useState(() => priceInputError(rawValue ?? ''))
   return (
     <label className="field">
       <span id={`${id}-label`}>{label}</span>
@@ -25,7 +27,8 @@ export function PriceField({
         name={name}
         type="text"
         inputMode="decimal"
-        defaultValue={priceInputValue(value)}
+        defaultValue={rawValue === undefined ? priceInputValue(value) : undefined}
+        value={rawValue}
         required={required}
         placeholder={placeholder}
         maxLength={30}

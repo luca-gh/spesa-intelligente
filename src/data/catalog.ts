@@ -1,14 +1,29 @@
 import type { Category, Data } from './types'
 import type { Product } from '../domain/prices'
-import { convert, type Unit } from '../domain/math'
+import { convert, unitLabel, type Unit } from '../domain/math'
 import { matchingChoices, type SearchChoice } from '../domain/choices'
 
 export function catalogFormatFields(size: string | null | undefined, unit: Unit | '' | null | undefined) {
+  if (unit === 'conf') return { size: '', unit: '' }
   if (unit === 'kg' || unit === 'L') {
     const base = unit === 'kg' ? 'g' : 'ml'
     return { size: size ? convert(size, unit, base).toString() : '', unit: base }
   }
   return { size: size ?? '', unit: unit ?? '' }
+}
+
+export function bulkPriceUnit(data: Data, productIds: string[]): Unit | null {
+  const prices = data.product_prices.filter(
+    (p) =>
+      productIds.includes(p.specific_product_id) &&
+      data.stores.some((s) => s.id === p.store_id && !s.archived_at),
+  )
+  const basis = prices[0]?.price_basis
+  return prices.length && (basis === 'kg' || basis === 'l') && prices.every((p) => p.price_basis === basis)
+    ? basis === 'kg'
+      ? 'kg'
+      : 'L'
+    : null
 }
 
 export function orderedCategories(categories: Category[]) {
@@ -31,7 +46,7 @@ export function storeCategories(data: Data, storeId: string) {
 
 export function productFormat(product: Pick<Product, 'package_quantity' | 'package_unit'>) {
   return product.package_quantity && product.package_unit
-    ? `${product.package_quantity} ${product.package_unit}`
+    ? `${product.package_quantity} ${unitLabel(product.package_unit)}`
     : 'Formato non indicato'
 }
 

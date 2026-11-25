@@ -17,6 +17,7 @@ export interface StoreCategoryOrder {
   sort_order: number
 }
 export interface CurrentPrice {
+  price_basis?: 'package' | 'kg' | 'l'
   specific_product_id: string
   store_id: string
   price_amount: string

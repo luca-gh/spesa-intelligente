@@ -1,3 +1,4 @@
+import { unitLabel } from '../domain/math'
 import type { FormEvent, ReactNode } from 'react'
 import { useApp } from '../data/context'
 import { units } from '../domain/math'
@@ -76,7 +77,9 @@ export function UnitSelect({ value = 'pz' }: { value?: string }) {
   return (
     <Select label="Unità" name="unit" value={value}>
       {units.map((u) => (
-        <option key={u}>{u}</option>
+        <option key={u} value={u}>
+          {unitLabel(u)}
+        </option>
       ))}
     </Select>
   )

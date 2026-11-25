@@ -5,8 +5,14 @@ import { rpc } from '../data/client'
 import type { Specific } from '../data/types'
 import { productFormat } from '../data/catalog'
 import { pamDiscount, storePrice } from '../domain/storePrices'
-import { unitPriceLabel } from '../domain/catalogPrices'
-import { euro, parsePrice, priceInputError, priceInputValue } from '../domain/math'
+import {
+  catalogPriceLabel,
+  unitPriceLabel,
+  validatePriceBasis,
+  type PriceBasis,
+} from '../domain/catalogPrices'
+import { PriceBasisSelect } from './PriceBasisSelect'
+import { parsePrice, priceInputError, priceInputValue } from '../domain/math'
 import { PriceField } from './PriceField'
 import { ConfirmButton, Form, Panel, Submit, text } from './ui'
 
@@ -22,6 +28,11 @@ export function ProductPrices({ product, initialStore = '' }: { product: Specifi
     return price ? priceInputValue(price.price_amount) : ''
   })
   const [revision, setRevision] = useState(0)
+  const [basis, setBasis] = useState<PriceBasis>(
+    () =>
+      data.product_prices.find((p) => p.specific_product_id === product.id && p.store_id === initialStore)
+        ?.price_basis ?? 'package',
+  )
   const editorRoot = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!editor) return
@@ -42,8 +53,8 @@ export function ProductPrices({ product, initialStore = '' }: { product: Specifi
           <thead>
             <tr>
               <th>Supermercato</th>
-              <th>Prezzo confezione</th>
-              <th>Prezzo al kg/l</th>
+              <th>Prezzo</th>
+              <th>Prezzo al kg/l/pz</th>
               <th>Azioni</th>
             </tr>
           </thead>
@@ -58,9 +69,19 @@ export function ProductPrices({ product, initialStore = '' }: { product: Specifi
                     {store.name}
                     {pamDiscount(store) && <small>Sconto PAM 10%</small>}
                   </td>
-                  <td>{price ? euro(storePrice(price.price_amount, store)) : '-'}</td>
                   <td>
-                    {price ? unitPriceLabel(storePrice(price.price_amount, store, false), product) : '-'}
+                    {price
+                      ? catalogPriceLabel(storePrice(price.price_amount, store), price.price_basis)
+                      : '-'}
+                  </td>
+                  <td>
+                    {price
+                      ? unitPriceLabel(
+                          storePrice(price.price_amount, store, false),
+                          product,
+                          price.price_basis,
+                        )
+                      : '-'}
                   </td>
                   <td>
                     <button
@@ -69,6 +90,7 @@ export function ProductPrices({ product, initialStore = '' }: { product: Specifi
                       disabled={busy || !online || !!product.archived_at}
                       onClick={() => {
                         setDraft(price ? priceInputValue(price.price_amount) : '')
+                        setBasis(price?.price_basis ?? 'package')
                         setEditor(store.id)
                         setRevision((value) => value + 1)
                       }}
@@ -103,10 +125,12 @@ export function ProductPrices({ product, initialStore = '' }: { product: Specifi
           <Form
             key={`${editor}:${revision}`}
             onSave={async (f) => {
-              await rpc('set_product_price', {
+              validatePriceBasis(product.package_unit, basis)
+              await rpc(basis === 'package' ? 'set_product_price' : 'set_product_price_basis', {
                 p_product: product.id,
                 p_store: editor,
                 p_amount: parsePrice(text(f, 'amount')),
+                ...(basis === 'package' ? {} : { p_basis: basis }),
               })
               setEditor(null)
             }}
@@ -118,25 +142,35 @@ export function ProductPrices({ product, initialStore = '' }: { product: Specifi
                 senza cambiare il prezzo salvato.
               </p>
             )}
+            <PriceBasisSelect value={basis} onChange={setBasis} />
             <PriceField
-              label="Prezzo per confezione (€)"
+              label={
+                basis === 'package'
+                  ? 'Prezzo per confezione (€)'
+                  : basis === 'kg'
+                    ? 'Prezzo al kg (€)'
+                    : 'Prezzo al litro (€)'
+              }
               name="amount"
               value={
                 data.product_prices.find((p) => p.specific_product_id === product.id && p.store_id === editor)
                   ?.price_amount
               }
               onChange={setDraft}
+              rawValue={draft}
             />
             <p role="status">
-              Prezzo al kg/l:{' '}
+              Prezzo al kg/l/pz:{' '}
               <strong>
-                {draft && !priceInputError(draft) ? unitPriceLabel(parsePrice(draft), product) : '-'}
+                {draft && !priceInputError(draft) ? unitPriceLabel(parsePrice(draft), product, basis) : '-'}
               </strong>
             </p>
-            {!product.package_quantity || !['g', 'kg', 'ml', 'L'].includes(product.package_unit ?? '') ? (
+            {basis === 'package' &&
+            (!product.package_quantity ||
+              !['g', 'kg', 'ml', 'L', 'pz'].includes(product.package_unit ?? '')) ? (
               <p className="muted">
-                Per il prezzo al kg/l indica un formato in grammi o millilitri nella scheda prodotto. Il
-                prezzo per confezione può comunque essere salvato.
+                Per il prezzo al kg/l/pz indica il formato del prodotto. Per i prodotti sfusi puoi scegliere
+                direttamente €/kg o €/l.
               </p>
             ) : null}
             <div className="inline">

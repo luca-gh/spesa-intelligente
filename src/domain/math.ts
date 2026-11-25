@@ -3,6 +3,9 @@ import Decimal from 'decimal.js'
 Decimal.set({ precision: 30, rounding: Decimal.ROUND_HALF_UP })
 export type Unit = 'g' | 'kg' | 'ml' | 'L' | 'pz' | 'conf'
 export const units: Unit[] = ['g', 'kg', 'ml', 'L', 'pz', 'conf']
+export function unitLabel(unit: string | null | undefined) {
+  return unit === 'L' ? 'l' : (unit ?? '')
+}
 const dimensions: Record<Unit, [string, number]> = {
   g: ['mass', 1],
   kg: ['mass', 1000],

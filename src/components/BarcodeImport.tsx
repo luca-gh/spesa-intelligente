@@ -1,3 +1,4 @@
+import { unitLabel } from '../domain/math'
 import { useEffect, useRef, useState } from 'react'
 import { useApp } from '../data/context'
 import { validBarcode } from '../domain/math'
@@ -180,7 +181,11 @@ export function BarcodeImport({
             <strong>{candidate.name || 'Nome non disponibile'}</strong> ·{' '}
             {candidate.brand || 'Marca non disponibile'}
           </p>
-          <p>{candidate.size ? `${candidate.size} ${candidate.unit}` : 'Formato non disponibile'}</p>
+          <p>
+            {candidate.size
+              ? `${candidate.size} ${unitLabel(candidate.unit ?? '')}`
+              : 'Formato non disponibile'}
+          </p>
           <button
             type="button"
             className="button secondary"

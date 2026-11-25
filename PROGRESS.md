@@ -1,5 +1,11 @@
 # Avanzamento
 
+## Unità compatte e prezzi sfusi — 25 novembre 2026
+
+Formato Catalogo limitato a g, ml e pz; confezioni rimosso dalle scelte. Prezzo unitario anche €/pz. Nuovo prodotto con prezzo iniziale facoltativo di un supermercato; creazione prodotto e prezzo nella stessa transazione. Tipo di prezzo del prodotto, €/kg o €/l salvato per singolo negozio; il prezzo diretto viene ripetuto nel riepilogo Catalogo. Lista e confronto applicano la quantità esatta ai prezzi sfusi, mantenendo confezioni intere per i prezzi ordinari. Litro visualizzato come l in tutta l’app; valore interno L conservato per compatibilità.
+
+Migrazione 20261125190943_catalog_price_basis.sql applicata: 20 totali, nessuna nuova tabella o concessione di scrittura sulle liste. Probe SQL locale e remoto PASS con rollback, compresi isolamento, formati incompatibili, NaN e atomicità. Advisor invariati: nessuna nuova segnalazione per le funzioni introdotte. 117 test in 18 file e nove nuovi casi browser su desktop/mobile/WebKit iPad; verifica completa e pubblicazione sul commit finale registrate in TEST_REPORT.md.
+
 Per gli alimenti semplici viene proposta l’unità del Catalogo; quantità non positive o unità incompatibili vengono respinte prima dell’inserimento. Gli errori di conversione nell’anteprima sono mostrati senza eccezioni non gestite.
 
 ## Categorie alfabetiche, tutte le marche e alimenti per pasto — 23 novembre 2026

@@ -1,5 +1,14 @@
 # Rapporto test
 
+## Unità e prezzi sfusi — 25 novembre 2026
+
+- Lint, TypeScript, 117 test in 18 file e build di produzione superati.
+- Suite browser completa: 224 casi verificati (95 desktop, 95 mobile Chromium, 34 iPad WebKit). Prima esecuzione 218 PASS; sei aspettative legacy aggiornate da L a l e tutti e sei i casi ripetuti PASS. Controlli segreti, backend pubblico e aggiornamento PWA PASS. Entrambe le nuove RPC raggiungibili tramite PostgREST e negate ad anon con 401/42501.
+- Nuovi casi browser: prezzo iniziale con virgola, blocco del punto, €/pz calcolato e aggiornato, €/kg senza formato duplicato in Catalogo, 150 g a 20 €/kg = 3 €, modifica e persistenza €/l, etichetta l con valore interno L, errore con bozza conservata. Nove casi superati su desktop, mobile Chromium e iPad WebKit simulato.
+- Probe PostgreSQL locale e remoto PASS: salvataggio atomico prodotto/prezzo, rollback completo con negozio o formato non valido, incompatibilità delle modifiche di formato, rifiuto NaN, wrapper precedente che ripristina prezzo del prodotto, assenza di storico, isolamento famiglia e RPC anonime negate. Tutte le fixture annullate.
+- Migrazione 20261125190943_catalog_price_basis.sql, 20 totali allineate. Nessuna nuova tabella; 23 RLS e nove pubblicate invariati. Advisor: 19 definer pubblici preesistenti e protezione password disattivata, nessun nuovo avviso attribuibile alla modifica.
+- I test browser usano fixture; non sostituiscono il collaudo fisico iPad o multiaccount Auth/Realtime già rinviati.
+
 Per gli alimenti semplici viene proposta l’unità del Catalogo; quantità non positive o unità incompatibili vengono respinte prima dell’inserimento. Gli errori di conversione nell’anteprima sono mostrati senza eccezioni non gestite.
 
 ## Selezione alimenti del pasto e prezzi di tutte le marche — 23 novembre 2026

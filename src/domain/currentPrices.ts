@@ -44,16 +44,32 @@ export function compareCurrentPrices(
         if (!price) continue
         try {
           let packs: number
-          if (item.unit === 'conf') packs = new Decimal(item.quantity).ceil().toNumber()
-          else {
-            if (!product.package_quantity || !product.package_unit) continue
-            packs = packages(item.quantity, item.unit, product.package_quantity, product.package_unit)
+          let amount: string
+          if (price.price_basis && price.price_basis !== 'package') {
+            const reference = price.price_basis === 'kg' ? 'kg' : 'L'
+            let measured = new Decimal(item.quantity)
+            if (item.unit === 'conf') {
+              if (!product.package_quantity || !product.package_unit) continue
+              packs = measured.ceil().toNumber()
+              measured = convert(product.package_quantity, product.package_unit, reference).mul(packs)
+            } else {
+              measured = convert(item.quantity, item.unit, reference)
+              packs = 0
+            }
+            amount = money(measured.mul(price.price_amount))
+          } else {
+            if (item.unit === 'conf') packs = new Decimal(item.quantity).ceil().toNumber()
+            else {
+              if (!product.package_quantity || !product.package_unit) continue
+              packs = packages(item.quantity, item.unit, product.package_quantity, product.package_unit)
+            }
+            amount = money(new Decimal(price.price_amount).mul(packs))
           }
           candidates.push({
             productId: product.id,
             productName: product.name,
             packs,
-            amount: money(new Decimal(price.price_amount).mul(packs)),
+            amount,
           })
         } catch {
           /* A package with an incompatible or missing format cannot fulfill this item. */

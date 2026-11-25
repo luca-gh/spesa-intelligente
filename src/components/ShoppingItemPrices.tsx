@@ -41,7 +41,9 @@ export function ShoppingItemPrices({
               {line?.amount === null || line?.amount === undefined ? '-' : euro(line.amount)}
               {product && price && (
                 <>
-                  <small>{unitPriceLabel(storePrice(price.price_amount, store, false), product)}</small>
+                  <small>
+                    {unitPriceLabel(storePrice(price.price_amount, store, false), product, price.price_basis)}
+                  </small>
                   {brand && <small>{productFormat(product)}</small>}
                 </>
               )}

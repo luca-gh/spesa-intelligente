@@ -1,3 +1,4 @@
+import { unitLabel } from '../domain/math'
 import { useState } from 'react'
 import Decimal from 'decimal.js'
 import { Link } from 'react-router-dom'
@@ -89,7 +90,7 @@ function ListDetail({ id }: { id: string }) {
               {brand && <span> · {brand}</span>}
             </strong>
             <small>
-              {q.remaining} {item.unit} da acquistare
+              {q.remaining} {unitLabel(item.unit)} da acquistare
               {format && ` · ${productFormat(format)}`}
               {item.note && ` · ${item.note}`}
             </small>

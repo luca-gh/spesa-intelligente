@@ -9,11 +9,24 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Store as StoreIcon } from 'lucide-react'
 import { useApp } from '../data/context'
 import { insert, remove, removeCatalogProduct, rpc, update } from '../data/client'
-import { convert, euro, quantity, units, validBarcode, type Unit } from '../domain/math'
-import { unitPriceLabel } from '../domain/catalogPrices'
+import { convert, parsePrice, quantity, validBarcode, type Unit } from '../domain/math'
+import {
+  catalogPriceLabel,
+  unitPriceLabel,
+  validatePriceBasis,
+  type PriceBasis,
+} from '../domain/catalogPrices'
+import { PriceField } from '../components/PriceField'
+import { PriceBasisSelect } from '../components/PriceBasisSelect'
 import { isPam, pamDiscount, storePrice } from '../domain/storePrices'
 import { PamDiscountToggle } from '../components/PamDiscountToggle'
-import { catalogProducts, productFormat, catalogTotals, catalogFormatFields } from '../data/catalog'
+import {
+  catalogProducts,
+  productFormat,
+  catalogTotals,
+  catalogFormatFields,
+  bulkPriceUnit,
+} from '../data/catalog'
 import {
   ConfirmButton,
   Empty,
@@ -33,6 +46,9 @@ export function Catalog() {
   const [archived, setArchived] = useState(false)
   const [productsExpanded, setProductsExpanded] = useState(true)
   const [selected, setSelected] = useState('')
+  const [initialStore, setInitialStore] = useState('')
+  const [initialAmount, setInitialAmount] = useState('')
+  const [initialBasis, setInitialBasis] = useState<PriceBasis>('package')
   const [prefill, setPrefill] = useState<
     (BarcodeProduct & { category: string; variant?: string; message?: string }) | null
   >(null)
@@ -59,6 +75,9 @@ export function Catalog() {
     setSelected(key)
     setFocusPrices(prices)
     setPrefill(null)
+    setInitialStore('')
+    setInitialAmount('')
+    setInitialBasis('package')
     setRevision((value) => value + 1)
   }
   const categories = [...data.categories, { id: '', name: 'Altri prodotti' }].sort((a, b) =>
@@ -172,7 +191,7 @@ export function Catalog() {
                 throw new Error(
                   'Quantità non valida: completa quantità e unità del formato, oppure lascia entrambi vuoti.',
                 )
-              const saved = await rpc('save_catalog_product', {
+              const values = {
                 p_id: product?.id ?? null,
                 p_specific: editing?.kind === 'specific',
                 p_name: text(f, 'name'),
@@ -182,7 +201,19 @@ export function Catalog() {
                 p_variant: text(f, 'variant'),
                 p_quantity: size ? quantity(size).toString() : null,
                 p_unit: unit || null,
-              })
+              }
+              const withPrice = !editing && (!!initialStore || !!initialAmount.trim())
+              if (withPrice && (!initialStore || !initialAmount.trim()))
+                throw new Error('Prezzo non valido: completa supermercato e importo iniziale.')
+              if (withPrice) validatePriceBasis(unit || null, initialBasis)
+              const saved = withPrice
+                ? await rpc('create_catalog_product_with_price', {
+                    p_product: values,
+                    p_store: initialStore,
+                    p_amount: parsePrice(initialAmount),
+                    p_basis: initialBasis,
+                  })
+                : await rpc('save_catalog_product', values)
               selectProduct('')
               if (fromList && typeof saved?.id === 'string')
                 navigate(`/liste?prodotto=${encodeURIComponent(saved.id)}`, { replace: true })
@@ -230,7 +261,7 @@ export function Catalog() {
             <fieldset>
               <legend>Formato della confezione</legend>
               <p className="muted">
-                Serve per calcolare il prezzo al kg/l e confrontare quantità diverse. Puoi lasciarlo vuoto.
+                Serve per calcolare il prezzo al kg/l/pz e confrontare quantità diverse. Puoi lasciarlo vuoto.
               </p>
               <div className="grid-form">
                 <Field
@@ -242,14 +273,56 @@ export function Catalog() {
                 />
                 <Select label="Unità del formato" name="unit" value={format.unit} required={false}>
                   <option value="">Non indicata</option>
-                  {units
-                    .filter((unit) => unit !== 'kg' && unit !== 'L')
-                    .map((unit) => (
-                      <option key={unit}>{unit}</option>
-                    ))}
+                  {['g', 'ml', 'pz'].map((unit) => (
+                    <option key={unit} value={unit}>
+                      {unit}
+                    </option>
+                  ))}
                 </Select>
               </div>
             </fieldset>
+            {!editing && (
+              <fieldset>
+                <legend>Prezzo iniziale</legend>
+                {stores.length ? (
+                  <>
+                    <p className="muted">
+                      Puoi salvare subito il prezzo di un supermercato, oppure lasciare questi campi vuoti.
+                      Per i prodotti sfusi scegli €/kg o €/l.
+                    </p>
+                    <label className="field">
+                      Supermercato del prezzo iniziale
+                      <select
+                        aria-label="Supermercato del prezzo iniziale"
+                        name="initial_store"
+                        value={initialStore}
+                        onChange={(e) => setInitialStore(e.target.value)}
+                        disabled={busy || !online}
+                      >
+                        <option value="">Non inserire un prezzo</option>
+                        {stores.map((store) => (
+                          <option key={store.id} value={store.id}>
+                            {store.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <PriceBasisSelect value={initialBasis} onChange={setInitialBasis} name="initial_basis" />
+                    <PriceField
+                      label="Prezzo iniziale (€)"
+                      name="initial_amount"
+                      rawValue={initialAmount}
+                      onChange={setInitialAmount}
+                      required={false}
+                    />
+                  </>
+                ) : (
+                  <p className="muted">
+                    Aggiungi un <Link to="/negozi">supermercato</Link> per registrare un prezzo iniziale.
+                  </p>
+                )}
+              </fieldset>
+            )}
             <div className="inline">
               <Submit>Salva prodotto</Submit>
               {editing && (
@@ -337,10 +410,19 @@ export function Catalog() {
                                 {pamDiscount(store) && ' · −10%'}
                               </dt>
                               <dd>
-                                {price ? euro(storePrice(price.price_amount, store)) : '-'}
+                                {price
+                                  ? catalogPriceLabel(
+                                      storePrice(price.price_amount, store),
+                                      price.price_basis,
+                                    )
+                                  : '-'}
                                 {price && specific && (
                                   <small>
-                                    {unitPriceLabel(storePrice(price.price_amount, store, false), specific)}
+                                    {unitPriceLabel(
+                                      storePrice(price.price_amount, store, false),
+                                      specific,
+                                      price.price_basis,
+                                    )}
                                   </small>
                                 )}
                               </dd>
@@ -366,7 +448,10 @@ export function Catalog() {
                                   p_list: data.shopping_lists[0].id,
                                   p_name: p.name,
                                   p_quantity: '1',
-                                  p_unit: 'conf',
+                                  p_unit:
+                                    specific && !specific.package_unit
+                                      ? (bulkPriceUnit(data, [specific.id]) ?? 'conf')
+                                      : 'conf',
                                   p_generic: specific ? null : p.id,
                                   p_specific: specific?.id ?? null,
                                   p_brand: null,

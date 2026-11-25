@@ -22,6 +22,11 @@ beforeAll(async () => {
     await db.exec(readFileSync('supabase/migrations/' + file, 'utf8'))
 }, 60000)
 afterAll(() => db.close())
+it('prezzi sfusi: creazione atomica, compatibilità formato e isolamento', async () => {
+  const result = await db.exec(readFileSync('supabase/tests/catalog_price_basis.sql', 'utf8'))
+  expect(result.at(-1)?.rows[0]).toMatchObject({ status: 'PASS' })
+  expect((await db.query('select id from households')).rows).toHaveLength(0)
+}, 60000)
 it('pasti: testo libero, scelte per pasto, duplicazione, modelli e isolamento', async () => {
   const result = await db.exec(readFileSync('supabase/tests/meal_shopping.sql', 'utf8'))
   expect(result.at(-1)?.rows[0]).toMatchObject({ status: 'PASS' })
@@ -85,7 +90,10 @@ it('prezzi unitari esatti per grammi, kg, ml, litri e formati non confrontabili'
   })
   expect(unitPrice('0', { package_quantity: '1', package_unit: 'L' })).toEqual({ amount: '0.00', unit: 'L' })
   expect(unitPrice('2', { package_quantity: null, package_unit: null })).toBeNull()
-  expect(unitPrice('2', { package_quantity: '4', package_unit: 'pz' })).toBeNull()
+  expect(unitPrice('2', { package_quantity: '4', package_unit: 'pz' })).toEqual({
+    amount: '0.50',
+    unit: 'pz',
+  })
 })
 const products = ['A', 'B', 'A'].map((brand, index) => ({
   id: `p${index}`,

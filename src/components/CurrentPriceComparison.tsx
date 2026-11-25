@@ -25,7 +25,7 @@ export function CurrentPriceComparison({
       <p className="muted">
         {compact
           ? 'Totali previsti per tutta la lista. Un totale parziale comprende solo i prodotti con prezzo disponibile.'
-          : 'Costi calcolati con i prezzi attuali del Catalogo, sulle quantità della lista e sulle confezioni intere. Il trattino indica un prezzo o formato mancante. Un totale parziale comprende solo i prodotti con prezzo disponibile.'}
+          : 'Costi calcolati con i prezzi attuali del Catalogo: confezioni intere per i prodotti confezionati, quantità richiesta per i prezzi al kg/l. Il trattino indica un prezzo o formato mancante. Un totale parziale comprende solo i prodotti con prezzo disponibile.'}
       </p>
       <div className="table-wrap" tabIndex={0} role="region" aria-label="Prezzi previsti per supermercato">
         <table aria-label="Confronto supermercati">
