@@ -34,6 +34,12 @@ it('importa l’ultimo importo disponibile una sola volta, senza filtri promozio
       { price_amount: '1.20' },
     ])
     expect((await db.query('select count(*)::int as n from price_observations')).rows).toEqual([{ n: 3 }])
+    await db.exec('reset role')
+    for (const file of files.filter((f) => f > migration))
+      await db.exec(readFileSync('supabase/migrations/' + file, 'utf8'))
+    expect(
+      (await db.query('select price_amount,discounted_price_amount,price_basis from product_prices')).rows,
+    ).toEqual([{ price_amount: '1.20', discounted_price_amount: null, price_basis: 'package' }])
   } finally {
     await db.close()
   }

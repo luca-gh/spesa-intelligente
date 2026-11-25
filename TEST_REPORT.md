@@ -1,5 +1,13 @@
 # Rapporto test
 
+## Due prezzi per supermercato — 25 novembre 2026
+
+- Lint, TypeScript, 122 test in 19 file e build PASS. Verifica di aggiornamento da schema precedente: importo intero invariato e discounted_price_amount NULL.
+- Suite browser: 233 casi verificati (98 desktop, 98 mobile Chromium, 37 WebKit iPad). Prima esecuzione 221 PASS; aggiornate le quattro aspettative sul vecchio trattino singolo, tutti i 12 casi interessati ripetuti PASS. Segreti, backend e PWA PASS; tre nuove RPC raggiungibili e negate ad anon con 401/42501.
+- Probe PostgreSQL locale e remoto PASS: entrambi gli importi o uno solo, zero, rimozione selettiva, conservazione del prezzo scontato dalle API precedenti, cambio base legacy protetto, rifiuto importi negativi/NaN, aggiornamento e creazione atomici, nessuno storico, isolamento famiglia e RPC anonime negate. Fixture annullate.
+- Nove nuovi casi browser PASS: intero già presente, virgola obbligatoria nello scontato, €/pz, rimozioni indipendenti, nuovo sfuso solo scontato, quantità esatta e due totali, errore recuperabile, dettagli marca/negozio e nessuna sostituzione dei mancanti. Desktop/mobile Chromium e WebKit iPad simulato; Axe e screenshot editor/confronto verificati.
+- Migrazione 20261125193424_regular_and_discount_prices.sql, 21 totali allineate. Nessuna nuova tabella o concessione sulle liste. Advisor invariati (19 definer pubblici preesistenti, protezione password disattivata). Test fisico iPad e multiaccount Auth/Realtime già rinviati.
+
 ## Unità e prezzi sfusi — 25 novembre 2026
 
 - Lint, TypeScript, 117 test in 18 file e build di produzione superati.

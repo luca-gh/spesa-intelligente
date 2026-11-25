@@ -41,7 +41,7 @@ export function compareCurrentPrices(
       for (const product of products) {
         if (!matchesShoppingProduct(item, product)) continue
         const price = prices.find((p) => p.store_id === storeId && p.specific_product_id === product.id)
-        if (!price) continue
+        if (!price || price.price_amount === null) continue
         try {
           let packs: number
           let amount: string

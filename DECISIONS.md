@@ -1,5 +1,11 @@
 # Decisioni tecniche
 
+## Due scenari di prezzo manuali — 25 novembre 2026
+
+La richiesta dell’utente introduce un secondo importo senza reintrodurre promozioni temporali. product_prices conserva price_amount come prezzo intero e aggiunge discounted_price_amount nullable; nessun backfill scontato. Entrambi nullable, con vincolo almeno un importo noto. Base package/kg/l comune ai due campi, calcoli unitari distinti. set_product_prices salva entrambi atomicamente; create_catalog_product_with_prices crea scheda e prezzi in un’unica transazione. Funzioni invoker, RLS e ACL espliciti invariati. Le API precedenti modificano soltanto il prezzo intero; cambio base respinto se reinterpretasse silenziosamente uno scontato presente.
+
+clear_product_price elimina soltanto l’intero, clear_discounted_product_price soltanto lo scontato; la riga viene rimossa quando non contiene più importi. Nessuna moltiplicazione percentuale genera il prezzo scontato manuale. Il confronto valuta separatamente ogni scenario e sceglie separatamente l’alternativa compatibile meno cara, senza sommare marche diverse. Copertura e totale parziale espliciti anche per lo scontato; nessun ripiego sul prezzo intero mancante. Il PAM opzionale resta un aggiustamento separato applicato una volta a ciascuno scenario, senza alterare dati salvati. Ordine per prezzo basato sull’intero.
+
 ## Prezzi per prodotto, kg o litro — 25 novembre 2026
 
 product_prices.price_basis è package (default compatibile), kg o l per prodotto/negozio. Nessuna conversione automatica degli importi già salvati. set_product_price mantiene la firma precedente e scrive esplicitamente package; set_product_price_basis permette la base esplicita. Entrambe invoker e protette dalle stesse RLS. Creazione con prezzo attraverso create_catalog_product_with_price invoker: save_catalog_product e prezzo nella stessa transazione. I trigger validano base/formato anche se la scrittura avviene direttamente; nessun nuovo privilegio sulle liste.

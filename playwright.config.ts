@@ -18,7 +18,7 @@ export default defineConfig({
     {
       name: 'ipad-webkit',
       use: { ...devices['iPad (gen 7)'], browserName: 'webkit' },
-      grep: /prezzi sfusi:|autocomplete:|lista autocomplete:|touch selettore:|lista preferenze:|catalogo prezzi:|categorie negozi:|confronto attuale:|lista marca:|lista prezzi:|supermercato modifica:|opzioni lista:|alternative ricetta:|scanner rimosso|catalogo categorie:|prezzi marche:|calendario spesa:/,
+      grep: /prezzi doppi:|prezzi sfusi:|autocomplete:|lista autocomplete:|touch selettore:|lista preferenze:|catalogo prezzi:|categorie negozi:|confronto attuale:|lista marca:|lista prezzi:|supermercato modifica:|opzioni lista:|alternative ricetta:|scanner rimosso|catalogo categorie:|prezzi marche:|calendario spesa:/,
     },
   ],
 })

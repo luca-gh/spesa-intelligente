@@ -41,6 +41,7 @@ function ListDetail({ id }: { id: string }) {
   const pending = items.filter((i) => Number(itemQuantity(i).remaining) > 0)
   const done = items.filter((i) => Number(itemQuantity(i).remaining) === 0)
   const estimates = shoppingPrices(data, id, (item) => itemQuantity(item).remaining)
+  const discountEstimates = shoppingPrices(data, id, (item) => itemQuantity(item).remaining, true)
   const brandFor = (item: Item) =>
     data.specific_products.find((p) => p.id === item.specific_product_id)?.brand ?? item.preferred_brand
   const categoryFor = (item: Item) => {
@@ -96,7 +97,12 @@ function ListDetail({ id }: { id: string }) {
             </small>
           </div>
         </div>
-        <ShoppingItemPrices item={item} estimates={estimates} remaining={q.remaining} />
+        <ShoppingItemPrices
+          item={item}
+          estimates={estimates}
+          discountEstimates={discountEstimates}
+          remaining={q.remaining}
+        />
         <div className="inline wrap item-actions">
           <button
             type="button"
@@ -199,7 +205,7 @@ function ListDetail({ id }: { id: string }) {
         Puoi aggiornare i prezzi qui oppure dal <Link to="/catalogo">Catalogo</Link>.
       </p>
       <Panel title="Prezzi previsti per supermercato">
-        <CurrentPriceComparison compact estimates={estimates} />
+        <CurrentPriceComparison compact estimates={estimates} discountEstimates={discountEstimates} />
       </Panel>
       <label className="field search-field">
         Filtra articoli

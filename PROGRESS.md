@@ -1,5 +1,11 @@
 # Avanzamento
 
+## Prezzo e prezzo scontato — 25 novembre 2026
+
+Due importi manuali indipendenti per prodotto e supermercato, anche in fase di creazione. I prezzi esistenti restano interi; nessuno sconto ricavato o riempito automaticamente. Catalogo, editor dalla lista, dettaglio articolo/marca e confronto negozi mostrano entrambi. Totali e coperture separati: nessun ripiego del prezzo scontato sul prezzo intero. Rimozioni indipendenti e calcolo €/kg/l/pz per entrambi, stesso tipo di prezzo; PAM 10% applicato una volta a entrambi gli scenari. Nessuna data promozionale o storico. Ordinamento prezzo della lista riferito al prezzo intero.
+
+Migrazione 20261125193424 applicata e allineata (21 totali). 23 tabelle RLS e nove pubblicate invariati. SQL locale e remoto PASS con rollback e advisor senza nuove segnalazioni. 122 test in 19 file; nove nuovi casi browser su desktop/mobile/iPad simulato, compresa accessibilità. Verifiche complete e pubblicazione sul commit finale.
+
 ## Unità compatte e prezzi sfusi — 25 novembre 2026
 
 Formato Catalogo limitato a g, ml e pz; confezioni rimosso dalle scelte. Prezzo unitario anche €/pz. Nuovo prodotto con prezzo iniziale facoltativo di un supermercato; creazione prodotto e prezzo nella stessa transazione. Tipo di prezzo del prodotto, €/kg o €/l salvato per singolo negozio; il prezzo diretto viene ripetuto nel riepilogo Catalogo. Lista e confronto applicano la quantità esatta ai prezzi sfusi, mantenendo confezioni intere per i prezzi ordinari. Litro visualizzato come l in tutta l’app; valore interno L conservato per compatibilità.

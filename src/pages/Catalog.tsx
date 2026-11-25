@@ -48,6 +48,7 @@ export function Catalog() {
   const [selected, setSelected] = useState('')
   const [initialStore, setInitialStore] = useState('')
   const [initialAmount, setInitialAmount] = useState('')
+  const [initialDiscount, setInitialDiscount] = useState('')
   const [initialBasis, setInitialBasis] = useState<PriceBasis>('package')
   const [prefill, setPrefill] = useState<
     (BarcodeProduct & { category: string; variant?: string; message?: string }) | null
@@ -77,6 +78,7 @@ export function Catalog() {
     setPrefill(null)
     setInitialStore('')
     setInitialAmount('')
+    setInitialDiscount('')
     setInitialBasis('package')
     setRevision((value) => value + 1)
   }
@@ -202,17 +204,24 @@ export function Catalog() {
                 p_quantity: size ? quantity(size).toString() : null,
                 p_unit: unit || null,
               }
-              const withPrice = !editing && (!!initialStore || !!initialAmount.trim())
-              if (withPrice && (!initialStore || !initialAmount.trim()))
+              const withPrice =
+                !editing && (!!initialStore || !!initialAmount.trim() || !!initialDiscount.trim())
+              if (withPrice && (!initialStore || (!initialAmount.trim() && !initialDiscount.trim())))
                 throw new Error('Prezzo non valido: completa supermercato e importo iniziale.')
               if (withPrice) validatePriceBasis(unit || null, initialBasis)
               const saved = withPrice
-                ? await rpc('create_catalog_product_with_price', {
-                    p_product: values,
-                    p_store: initialStore,
-                    p_amount: parsePrice(initialAmount),
-                    p_basis: initialBasis,
-                  })
+                ? await rpc(
+                    initialDiscount.trim()
+                      ? 'create_catalog_product_with_prices'
+                      : 'create_catalog_product_with_price',
+                    {
+                      p_product: values,
+                      p_store: initialStore,
+                      p_amount: initialAmount.trim() ? parsePrice(initialAmount) : null,
+                      ...(initialDiscount.trim() ? { p_discounted: parsePrice(initialDiscount) } : {}),
+                      p_basis: initialBasis,
+                    },
+                  )
                 : await rpc('save_catalog_product', values)
               selectProduct('')
               if (fromList && typeof saved?.id === 'string')
@@ -315,6 +324,13 @@ export function Catalog() {
                       onChange={setInitialAmount}
                       required={false}
                     />
+                    <PriceField
+                      label="Prezzo scontato iniziale (€)"
+                      name="initial_discount"
+                      rawValue={initialDiscount}
+                      onChange={setInitialDiscount}
+                      required={false}
+                    />
                   </>
                 ) : (
                   <p className="muted">
@@ -410,13 +426,13 @@ export function Catalog() {
                                 {pamDiscount(store) && ' · −10%'}
                               </dt>
                               <dd>
-                                {price
+                                {price?.price_amount != null
                                   ? catalogPriceLabel(
                                       storePrice(price.price_amount, store),
                                       price.price_basis,
                                     )
                                   : '-'}
-                                {price && specific && (
+                                {price?.price_amount != null && specific && (
                                   <small>
                                     {unitPriceLabel(
                                       storePrice(price.price_amount, store, false),
@@ -425,6 +441,24 @@ export function Catalog() {
                                     )}
                                   </small>
                                 )}
+                                <div className="discount-price" data-price-scenario="discounted">
+                                  <span className="muted">Prezzo scontato: </span>
+                                  {price?.discounted_price_amount != null
+                                    ? catalogPriceLabel(
+                                        storePrice(price.discounted_price_amount, store),
+                                        price.price_basis,
+                                      )
+                                    : '-'}
+                                  {price?.discounted_price_amount != null && specific && (
+                                    <small>
+                                      {unitPriceLabel(
+                                        storePrice(price.discounted_price_amount, store, false),
+                                        specific,
+                                        price.price_basis,
+                                      )}
+                                    </small>
+                                  )}
+                                </div>
                               </dd>
                             </div>
                           )

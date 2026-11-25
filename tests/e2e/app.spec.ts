@@ -1,6 +1,158 @@
 import { expect, test, type Page } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 
+test('prezzi doppi: prezzo esistente intero, scontato con virgola e rimozioni indipendenti', async ({
+  page,
+}) => {
+  const { priceRequests, collections } = await login(page, false, {
+    generic_products: [{ id: 'g', name: 'Uova', canonical_unit: 'pz', is_catalog_group: true }],
+    specific_products: [
+      {
+        id: 'p',
+        name: 'Uova',
+        generic_product_id: 'g',
+        brand: 'Marca',
+        variant: '',
+        package_quantity: '6',
+        package_unit: 'pz',
+      },
+    ],
+    stores: [{ id: 's', name: 'Negozio' }],
+    product_prices: [{ specific_product_id: 'p', store_id: 's', price_amount: '3' }],
+  })
+  await page.goto('/catalogo')
+  const catalog = page.getByRole('row', { name: /^Uova/ })
+  await expect(catalog.locator('[data-price-scenario="discounted"]')).toContainText('Prezzo scontato: -')
+  await catalog.getByRole('button', { name: 'Prezzi', exact: true }).click()
+  const row = page.getByRole('row', { name: 'Prezzo presso Negozio', exact: true })
+  await expect(row.getByRole('cell').nth(1)).toHaveText(/3,00\s*€/)
+  await expect(row.getByRole('cell').nth(3)).toHaveText('-')
+  await row.getByRole('button', { name: 'Modifica prezzo', exact: true }).click()
+  const discount = page.getByRole('textbox', { name: 'Prezzo scontato (€)', exact: true })
+  await discount.fill('2.40')
+  await expect(discount).toHaveAttribute('aria-invalid', 'true')
+  await page.getByRole('button', { name: 'Salva prezzo', exact: true }).click()
+  expect(priceRequests).toHaveLength(0)
+  await discount.fill('2,40')
+  await expect(page.getByRole('status').filter({ hasText: 'Prezzo scontato al kg/l/pz' })).toContainText(
+    /0,40\s*€\/pz/,
+  )
+  await page.getByRole('button', { name: 'Salva prezzo', exact: true }).click()
+  await expect(row.getByRole('cell').nth(3)).toContainText(/2,40\s*€/)
+  expect(priceRequests[0]).toMatchObject({ p_amount: '3.00', p_discounted: '2.40', p_basis: 'package' })
+  await page
+    .locator('.product-prices')
+    .screenshot({ path: `test-results/discount-prices-${test.info().project.name}.png` })
+  const a11y = await new AxeBuilder({ page })
+    .include('.product-prices')
+    .withTags(['wcag2a', 'wcag2aa'])
+    .analyze()
+  expect(a11y.violations.map((v) => v.id)).toEqual([])
+  page.once('dialog', (dialog) => dialog.accept())
+  await row.getByRole('button', { name: 'Rimuovi prezzo', exact: true }).click()
+  await expect(row.getByRole('cell').nth(1)).toHaveText('-')
+  await expect(row.getByRole('cell').nth(3)).toContainText(/2,40\s*€/)
+  await page.reload()
+  await catalog.getByRole('button', { name: 'Prezzi', exact: true }).click()
+  page.once('dialog', (dialog) => dialog.accept())
+  await row.getByRole('button', { name: 'Rimuovi prezzo scontato', exact: true }).click()
+  await expect(row.getByRole('cell').nth(3)).toHaveText('-')
+  expect(collections.product_prices).toHaveLength(0)
+})
+
+test('prezzi doppi: nuovo sfuso solo scontato, due totali distinti e modifica recuperabile', async ({
+  page,
+}) => {
+  const { priceRequests } = await login(page, false, { stores: [{ id: 's', name: 'Negozio' }] })
+  await page.goto('/catalogo')
+  await page.getByLabel('Nome prodotto', { exact: true }).fill('Affettato')
+  await page
+    .getByRole('combobox', { name: 'Supermercato del prezzo iniziale', exact: true })
+    .selectOption('s')
+  await page.getByRole('combobox', { name: 'Tipo di prezzo', exact: true }).selectOption('kg')
+  await page.getByRole('textbox', { name: 'Prezzo scontato iniziale (€)', exact: true }).fill('15,00')
+  await page.getByRole('button', { name: 'Salva prodotto', exact: true }).click()
+  const catalog = page.getByRole('row', { name: /^Affettato/ })
+  await expect(catalog.locator('[data-price-scenario="discounted"]')).toContainText(/15,00\s*€\/kg/)
+  expect(priceRequests[0]).toMatchObject({ p_amount: null, p_discounted: '15.00', p_basis: 'kg' })
+  await page.goto('/liste')
+  await chooseListProduct(page, 'Affettato')
+  await page.getByLabel('Unità', { exact: true }).selectOption('g')
+  await page.getByLabel('Quantità', { exact: true }).fill('150')
+  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
+  const total = page.getByRole('table', { name: 'Confronto supermercati' }).getByRole('row').nth(1)
+  await expect(total.getByRole('cell').nth(1)).toContainText('-')
+  await expect(total.getByRole('cell').nth(3)).toContainText(/2,25\s*€/)
+  await expect(total.getByRole('cell').nth(4)).toHaveText('1/1')
+  await expect(page.locator('.shopping-item [data-price-scenario="discounted"]')).toContainText(/2,25\s*€/)
+  await page.goto('/catalogo')
+  await catalog.getByRole('button', { name: 'Prezzi', exact: true }).click()
+  await page
+    .getByRole('row', { name: 'Prezzo presso Negozio', exact: true })
+    .getByRole('button', { name: 'Modifica prezzo', exact: true })
+    .click()
+  await page.getByRole('textbox', { name: 'Prezzo al kg (€)', exact: true }).fill('20,00')
+  await page.route('**/rpc/set_product_prices', (route) =>
+    route.fulfill({ status: 503, json: { message: 'Temporaneamente non disponibile' } }),
+  )
+  await page.getByRole('button', { name: 'Salva prezzo', exact: true }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'Operazione non riuscita' })).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'Prezzo scontato (€)', exact: true })).toHaveValue('15,00')
+  await page.unroute('**/rpc/set_product_prices')
+  await page.getByRole('button', { name: 'Salva prezzo', exact: true }).click()
+  await page.goto('/liste')
+  await expect(total.getByRole('cell').nth(1)).toContainText(/3,00\s*€/)
+  await expect(total.getByRole('cell').nth(3)).toContainText(/2,25\s*€/)
+})
+
+test('prezzi doppi: confronto per marca e negozio, prezzi scontati mancanti senza ripiego', async ({
+  page,
+}) => {
+  await login(page, false, {
+    generic_products: [{ id: 'g', name: 'Latte', canonical_unit: 'ml', is_catalog_group: true }],
+    specific_products: ['A', 'B'].map((brand, i) => ({
+      id: 'p' + i,
+      name: 'Latte',
+      generic_product_id: 'g',
+      brand,
+      variant: '',
+      package_quantity: '500',
+      package_unit: 'ml',
+    })),
+    stores: [
+      { id: 's', name: 'Negozio A' },
+      { id: 's2', name: 'Negozio B' },
+    ],
+    product_prices: [
+      { specific_product_id: 'p0', store_id: 's', price_amount: '3', discounted_price_amount: '2.50' },
+      { specific_product_id: 'p1', store_id: 's', price_amount: '4', discounted_price_amount: '2' },
+      { specific_product_id: 'p0', store_id: 's2', price_amount: '4' },
+    ],
+  })
+  await page.goto('/liste')
+  await chooseListProduct(page, 'Latte')
+  await page.getByLabel('Quantità', { exact: true }).fill('2')
+  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
+  const table = page.getByRole('table', { name: 'Confronto supermercati' })
+  const a = table.getByRole('row').filter({ hasText: 'Negozio A' })
+  const b = table.getByRole('row').filter({ hasText: 'Negozio B' })
+  await expect(a.getByRole('cell').nth(1)).toContainText(/6,00\s*€/)
+  await expect(a.getByRole('cell').nth(3)).toContainText(/4,00\s*€/)
+  await expect(b.getByRole('cell').nth(3)).toContainText('-')
+  await expect(b.getByRole('cell').nth(4)).toHaveText('0/1')
+  const brandA = page.getByRole('region', { name: 'Marca A', exact: true })
+  await expect(brandA.locator('[data-price-scenario="discounted"]').first()).toContainText(/5,00\s*€/)
+  const a11y = await new AxeBuilder({ page })
+    .include('.current-comparison')
+    .withTags(['wcag2a', 'wcag2aa'])
+    .analyze()
+  expect(a11y.violations.map((v) => v.id)).toEqual([])
+  await page
+    .locator('.current-comparison')
+    .screenshot({ path: `test-results/discount-comparison-${test.info().project.name}.png` })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+})
+
 test('prezzi sfusi: nuovo prodotto con prezzo iniziale e prezzo al pezzo', async ({ page }) => {
   const { priceRequests, catalogSaveRequests } = await login(page, false, {
     stores: [{ id: 's', name: 'Negozio' }],
@@ -166,9 +318,13 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
       if (!collections.shopping_lists.length) collections.shopping_lists.push(list)
       result = list.id
     } else if (table === 'households') result = home
-    else if (table === 'save_catalog_product' || table === 'create_catalog_product_with_price') {
+    else if (
+      table === 'save_catalog_product' ||
+      table === 'create_catalog_product_with_price' ||
+      table === 'create_catalog_product_with_prices'
+    ) {
       const request = route.request().postDataJSON()
-      const body = table === 'create_catalog_product_with_price' ? request.p_product : request
+      const body = table.startsWith('create_catalog_product_with_price') ? request.p_product : request
       catalogSaveRequests.push(body)
       const generics = (collections.generic_products ??= []) as Record<string, unknown>[]
       const specifics = (collections.specific_products ??= []) as Record<string, unknown>[]
@@ -203,13 +359,14 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
         package_unit: body.p_unit,
       })
       result = { id: specific.id, specific: true }
-      if (table === 'create_catalog_product_with_price') {
+      if (table.startsWith('create_catalog_product_with_price')) {
         priceRequests.push(request)
         ;(collections.product_prices ??= []).push({
           specific_product_id: specific.id,
           store_id: request.p_store,
           price_amount: request.p_amount,
           price_basis: request.p_basis,
+          ...(request.p_discounted != null ? { discounted_price_amount: request.p_discounted } : {}),
         })
       }
     } else if (table === 'delete_catalog_product') {
@@ -312,7 +469,11 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
       const purchase = (collections.purchases as Record<string, unknown>[]).find((p) => p.id === body.p_id)
       if (purchase) purchase.total_paid = body.p_total
       result = null
-    } else if (table === 'set_product_price' || table === 'set_product_price_basis') {
+    } else if (
+      table === 'set_product_price' ||
+      table === 'set_product_price_basis' ||
+      table === 'set_product_prices'
+    ) {
       const body = route.request().postDataJSON()
       priceRequests.push(body)
       const prices = (collections.product_prices ??= []) as Record<string, unknown>[]
@@ -322,18 +483,28 @@ async function login(page: Page, populated = false, catalog: Record<string, unkn
       if (previous) {
         previous.price_amount = body.p_amount
         previous.price_basis = body.p_basis ?? 'package'
+        if (table === 'set_product_prices') previous.discounted_price_amount = body.p_discounted
       } else
         prices.push({
           specific_product_id: body.p_product,
           store_id: body.p_store,
           price_amount: body.p_amount,
           ...(body.p_basis ? { price_basis: body.p_basis } : {}),
+          ...(table === 'set_product_prices' ? { discounted_price_amount: body.p_discounted } : {}),
         })
       result = null
-    } else if (table === 'clear_product_price') {
+      if (table === 'set_product_prices' && body.p_amount == null && body.p_discounted == null)
+        collections.product_prices = prices.filter(
+          (p) => p !== previous && !(p.specific_product_id === body.p_product && p.store_id === body.p_store),
+        )
+    } else if (table === 'clear_product_price' || table === 'clear_discounted_product_price') {
       const body = route.request().postDataJSON()
+      const field = table === 'clear_product_price' ? 'price_amount' : 'discounted_price_amount'
+      for (const price of (collections.product_prices ?? []) as Record<string, unknown>[])
+        if (price.specific_product_id === body.p_product && price.store_id === body.p_store)
+          price[field] = null
       collections.product_prices = ((collections.product_prices ?? []) as Record<string, unknown>[]).filter(
-        (p) => !(p.specific_product_id === body.p_product && p.store_id === body.p_store),
+        (p) => p.price_amount != null || p.discounted_price_amount != null,
       )
       result = null
     } else if (table === 'add_price' || table === 'correct_catalog_price') {
@@ -729,7 +900,7 @@ test('prezzi marche: prodotto generico mostra ogni marca e ogni negozio con tota
   )
   await expect(
     nutella.locator('.item-prices > div').filter({ hasText: 'Negozio C' }).locator('dd'),
-  ).toHaveText('-')
+  ).toHaveText(/^-\s*Prezzo scontato:\s*-$/)
   await expect(other.locator('.item-prices > div').filter({ hasText: 'Negozio A' })).toContainText(/1,00\s*€/)
   await expect(other.locator('.item-prices > div').filter({ hasText: 'Negozio C' })).toContainText(/0,40\s*€/)
   const total = page
@@ -1190,7 +1361,7 @@ test('lista marca: cerca Nutella, salva nome e marca esatta senza imporre il for
   ).toHaveText(/5,00\s*€/)
   await expect(
     article.locator('.item-prices > div').filter({ hasText: 'Negozio C' }).locator('dd'),
-  ).toHaveText('-')
+  ).toHaveText(/^-\s*Prezzo scontato:\s*-$/)
   await expect(article.locator('.item-prices')).not.toContainText('Negozio archiviato')
   const accessibility = await new AxeBuilder({ page })
     .include('main.content')
@@ -1485,7 +1656,7 @@ test('catalogo prezzi: colonne ordinate, supermercati impilati e aggiunta dirett
   await expect(prices.locator('dt')).toHaveText(['Negozio A', 'Negozio B', 'Negozio C'])
   await expect(prices.locator('dd').first()).toContainText(/4,00\s*€/)
   await expect(prices.locator('dd small').first()).toHaveText(/10,00\s*€\/kg/)
-  await expect(prices.locator('dd').last()).toHaveText('-')
+  await expect(prices.locator('dd').last()).toHaveText(/^-\s*Prezzo scontato:\s*-$/)
   const positions = await prices
     .locator('dt')
     .evaluateAll((nodes) => nodes.map((n) => n.getBoundingClientRect().top))
@@ -1643,7 +1814,7 @@ test('lista prezzi: euro al litro, salvataggio offline bloccato e articolo liber
   const free = page.getByRole('article', { name: 'Latte', exact: true })
   await free.getByRole('button', { name: 'Modifica prezzo', exact: true }).click()
   await expect(free).toContainText('Per registrare un prezzo aggiungi prima il prodotto')
-  await expect(free.locator('.item-prices dd')).toHaveText('-')
+  await expect(free.locator('.item-prices dd')).toHaveText(/^-\s*Prezzo scontato:\s*-$/)
   await chooseListProduct(page, 'Latte test', 'Latte test')
   await page.getByRole('textbox', { name: 'Quantità', exact: true }).fill('2')
   await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()

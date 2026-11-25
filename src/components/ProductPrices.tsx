@@ -28,6 +28,12 @@ export function ProductPrices({ product, initialStore = '' }: { product: Specifi
     return price ? priceInputValue(price.price_amount) : ''
   })
   const [revision, setRevision] = useState(0)
+  const [discount, setDiscount] = useState(() =>
+    priceInputValue(
+      data.product_prices.find((p) => p.specific_product_id === product.id && p.store_id === initialStore)
+        ?.discounted_price_amount,
+    ),
+  )
   const [basis, setBasis] = useState<PriceBasis>(
     () =>
       data.product_prices.find((p) => p.specific_product_id === product.id && p.store_id === initialStore)
@@ -45,8 +51,8 @@ export function ProductPrices({ product, initialStore = '' }: { product: Specifi
     <Panel title={`Prezzi di ${product.name}`}>
       <p>{[product.brand, product.variant, productFormat(product)].filter(Boolean).join(' · ')}</p>
       <p className="muted">
-        Un prezzo attuale per ogni supermercato. Quando lo modifichi, sostituisci il precedente. Il trattino
-        indica un dato non disponibile.
+        Prezzo e prezzo scontato per ogni supermercato, inseriti da te e senza date di validità. Il trattino
+        indica un dato non disponibile. I due importi usano lo stesso tipo di prezzo.
       </p>
       <div className="table-wrap">
         <table>
@@ -55,6 +61,7 @@ export function ProductPrices({ product, initialStore = '' }: { product: Specifi
               <th>Supermercato</th>
               <th>Prezzo</th>
               <th>Prezzo al kg/l/pz</th>
+              <th>Prezzo scontato</th>
               <th>Azioni</th>
             </tr>
           </thead>
@@ -70,12 +77,12 @@ export function ProductPrices({ product, initialStore = '' }: { product: Specifi
                     {pamDiscount(store) && <small>Sconto PAM 10%</small>}
                   </td>
                   <td>
-                    {price
+                    {price?.price_amount != null
                       ? catalogPriceLabel(storePrice(price.price_amount, store), price.price_basis)
                       : '-'}
                   </td>
                   <td>
-                    {price
+                    {price?.price_amount != null
                       ? unitPriceLabel(
                           storePrice(price.price_amount, store, false),
                           product,
@@ -84,12 +91,32 @@ export function ProductPrices({ product, initialStore = '' }: { product: Specifi
                       : '-'}
                   </td>
                   <td>
+                    {price?.discounted_price_amount != null ? (
+                      <>
+                        {catalogPriceLabel(
+                          storePrice(price.discounted_price_amount, store),
+                          price.price_basis,
+                        )}
+                        <small>
+                          {unitPriceLabel(
+                            storePrice(price.discounted_price_amount, store, false),
+                            product,
+                            price.price_basis,
+                          )}
+                        </small>
+                      </>
+                    ) : (
+                      '-'
+                    )}
+                  </td>
+                  <td>
                     <button
                       type="button"
                       className="text-button"
                       disabled={busy || !online || !!product.archived_at}
                       onClick={() => {
                         setDraft(price ? priceInputValue(price.price_amount) : '')
+                        setDiscount(priceInputValue(price?.discounted_price_amount))
                         setBasis(price?.price_basis ?? 'package')
                         setEditor(store.id)
                         setRevision((value) => value + 1)
@@ -97,7 +124,7 @@ export function ProductPrices({ product, initialStore = '' }: { product: Specifi
                     >
                       {price ? 'Modifica prezzo' : 'Inserisci prezzo'}
                     </button>
-                    {price && (
+                    {price?.price_amount != null && (
                       <ConfirmButton
                         message="Rimuovere il prezzo di questo supermercato? Potrai inserirlo nuovamente."
                         onConfirm={async () => {
@@ -106,6 +133,20 @@ export function ProductPrices({ product, initialStore = '' }: { product: Specifi
                         }}
                       >
                         Rimuovi prezzo
+                      </ConfirmButton>
+                    )}
+                    {price?.discounted_price_amount != null && (
+                      <ConfirmButton
+                        message="Rimuovere solo il prezzo scontato di questo supermercato?"
+                        onConfirm={async () => {
+                          await rpc('clear_discounted_product_price', {
+                            p_product: product.id,
+                            p_store: store.id,
+                          })
+                          if (editor === store.id) setEditor(null)
+                        }}
+                      >
+                        Rimuovi prezzo scontato
                       </ConfirmButton>
                     )}
                   </td>
@@ -126,12 +167,24 @@ export function ProductPrices({ product, initialStore = '' }: { product: Specifi
             key={`${editor}:${revision}`}
             onSave={async (f) => {
               validatePriceBasis(product.package_unit, basis)
-              await rpc(basis === 'package' ? 'set_product_price' : 'set_product_price_basis', {
-                p_product: product.id,
-                p_store: editor,
-                p_amount: parsePrice(text(f, 'amount')),
-                ...(basis === 'package' ? {} : { p_basis: basis }),
-              })
+              const previous = data.product_prices.find(
+                (p) => p.specific_product_id === product.id && p.store_id === editor,
+              )
+              if (discount.trim() || previous?.discounted_price_amount != null || !draft.trim()) {
+                await rpc('set_product_prices', {
+                  p_product: product.id,
+                  p_store: editor,
+                  p_amount: draft.trim() ? parsePrice(draft) : null,
+                  p_discounted: discount.trim() ? parsePrice(discount) : null,
+                  p_basis: basis,
+                })
+              } else
+                await rpc(basis === 'package' ? 'set_product_price' : 'set_product_price_basis', {
+                  p_product: product.id,
+                  p_store: editor,
+                  p_amount: parsePrice(text(f, 'amount')),
+                  ...(basis === 'package' ? {} : { p_basis: basis }),
+                })
               setEditor(null)
             }}
           >
@@ -158,12 +211,32 @@ export function ProductPrices({ product, initialStore = '' }: { product: Specifi
               }
               onChange={setDraft}
               rawValue={draft}
+              required={false}
             />
             <p role="status">
               Prezzo al kg/l/pz:{' '}
               <strong>
                 {draft && !priceInputError(draft) ? unitPriceLabel(parsePrice(draft), product, basis) : '-'}
               </strong>
+            </p>
+            <PriceField
+              label="Prezzo scontato (€)"
+              name="discounted_amount"
+              rawValue={discount}
+              onChange={setDiscount}
+              required={false}
+            />
+            <p role="status">
+              Prezzo scontato al kg/l/pz:{' '}
+              <strong>
+                {discount && !priceInputError(discount)
+                  ? unitPriceLabel(parsePrice(discount), product, basis)
+                  : '-'}
+              </strong>
+            </p>
+            <p className="muted">
+              Lascia vuoto un importo per rimuoverlo. Salvando entrambi i campi vuoti rimuovi entrambi i
+              prezzi.
             </p>
             {basis === 'package' &&
             (!product.package_quantity ||

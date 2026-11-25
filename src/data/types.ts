@@ -20,7 +20,8 @@ export interface CurrentPrice {
   price_basis?: 'package' | 'kg' | 'l'
   specific_product_id: string
   store_id: string
-  price_amount: string
+  price_amount: string | null
+  discounted_price_amount?: string | null
 }
 export interface Generic {
   is_catalog_group?: boolean
