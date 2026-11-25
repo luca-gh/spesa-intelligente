@@ -1198,6 +1198,16 @@ test('opzioni lista: sconto PAM condiviso, reversibile, prezzi e kg coerenti sen
   await expect(page.locator('tr[data-product-id="nut-small"] .catalog-store-prices')).toContainText(
     /3,60\s*€/,
   )
+  await page
+    .locator('tr[data-product-id="nut-small"]')
+    .getByRole('button', { name: 'Modifica', exact: true })
+    .click()
+  await page.getByRole('combobox', { name: 'Supermercato del prezzo', exact: true }).selectOption('a')
+  await expect(page.getByLabel('Prezzo (€)', { exact: true })).toHaveValue('4,00')
+  await expect(
+    page.getByText('Inserisci gli importi prima dello sconto PAM.', { exact: false }),
+  ).toBeVisible()
+  await page.getByRole('button', { name: 'Annulla modifica', exact: true }).click()
   await page.goto('/negozi')
   await expect(toggle).toBeChecked()
   await toggle.uncheck()

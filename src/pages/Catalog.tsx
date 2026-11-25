@@ -341,6 +341,12 @@ export function Catalog() {
                     </select>
                   </label>
                   <PriceBasisSelect value={initialBasis} onChange={setInitialBasis} name="initial_basis" />
+                  {stores.some((store) => store.id === initialStore && pamDiscount(store)) && (
+                    <p className="muted">
+                      Inserisci gli importi prima dello sconto PAM. Il 10% viene applicato automaticamente
+                      alle stime, senza cambiare i prezzi salvati.
+                    </p>
+                  )}
                   <PriceField
                     label={editing ? 'Prezzo (€)' : 'Prezzo iniziale (€)'}
                     name="initial_amount"
